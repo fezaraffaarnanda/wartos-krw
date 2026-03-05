@@ -396,7 +396,7 @@ async def scrape_new_articles(
     def log(msg: str):
         print(msg)
         if on_progress:
-            on_progress(msg)
+            on_progress(len(new_articles), msg)
 
     async with async_playwright() as pw:
         browser = await pw.chromium.launch(headless=headless)

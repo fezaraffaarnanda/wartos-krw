@@ -312,6 +312,110 @@ a:hover {
 }
 
 /* ============================================
+   Progress Section
+   ============================================ */
+
+.progress-section {
+    background: var(--white);
+    border: 1px solid var(--orange-200);
+    border-radius: var(--radius-lg);
+    padding: 22px 28px;
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.progress-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+}
+
+.progress-title {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.progress-subtitle {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.progress-row {
+    display: grid;
+    grid-template-columns: 200px 1fr 48px;
+    align-items: center;
+    gap: 14px;
+}
+
+.progress-label {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.progress-source {
+    font-size: 0.84rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.progress-status {
+    font-size: 0.74rem;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.progress-bar-track {
+    height: 10px;
+    background: var(--gray-200);
+    border-radius: 99px;
+    overflow: hidden;
+}
+
+.progress-bar-fill {
+    height: 100%;
+    background: var(--gray-400);
+    border-radius: 99px;
+    transition: width 0.4s ease;
+    width: 0%;
+}
+
+.progress-bar-fill.running {
+    background: linear-gradient(90deg, var(--orange-400), var(--orange-500));
+    animation: progress-pulse 1.5s ease-in-out infinite;
+}
+
+.progress-bar-fill.done {
+    background: #22c55e;
+}
+
+.progress-bar-fill.error {
+    background: #ef4444;
+}
+
+@keyframes progress-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.7; }
+}
+
+.progress-count {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    text-align: right;
+    min-width: 32px;
+}
+
+/* ============================================
    Summary Cards
    ============================================ */
 
@@ -603,6 +707,14 @@ a:hover {
     text-align: center;
 }
 
+.th-source {
+    width: 130px;
+}
+
+.th-tags {
+    width: 220px;
+}
+
 .data-table td {
     padding: 13px 16px;
     border-bottom: 1px solid var(--gray-100);
@@ -639,17 +751,22 @@ a:hover {
     line-height: 1.5;
 }
 
-.td-sumber {
+.td-source {
     white-space: nowrap;
+    color: var(--text-secondary);
+    font-weight: 600;
 }
 
-.td-kategori {
-    white-space: nowrap;
+.td-tags {
+    max-width: 220px;
+    white-space: normal;
+    line-height: 1.7;
 }
 
-.kategori-badge {
+.tag-chip {
     display: inline-block;
-    padding: 4px 10px;
+    padding: 3px 9px;
+    margin: 2px 6px 2px 0;
     background: var(--accent-light);
     color: var(--orange-700);
     border-radius: 20px;
@@ -843,6 +960,15 @@ a:hover {
     .scrape-controls {
         width: 100%;
         justify-content: center;
+    }
+
+    .progress-row {
+        grid-template-columns: 130px 1fr 40px;
+        gap: 10px;
+    }
+
+    .progress-section {
+        padding: 16px 18px;
     }
 
     .cards-grid {

@@ -4,9 +4,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Berita Lokal — RadarTegal | BPS Kab. Tegal</title>
+    <title>Dashboard Berita Lokal — BPS Kab. Tegal</title>
     <meta name="description"
-        content="Dashboard scraping berita lokal RadarTegal. Badan Pusat Statistik Kabupaten Tegal.">
+        content="Dashboard scraping berita lokal 3 sumber. Badan Pusat Statistik Kabupaten Tegal.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link
@@ -41,13 +41,13 @@
             <div class="scrape-card">
                 <div class="scrape-info">
                     <h2>Mulai Scraping Berita</h2>
-                    <p>Scrape berita lokal dari RadarTegal. Atur jumlah halaman listing yang akan di-scrape (kosongkan
-                        untuk scrape semua). Scraping berhenti otomatis jika menemukan berita yang sudah ada.</p>
+                    <p>Scrape berita lokal dari 3 sumber sekaligus: Radar Tegal, Pantura Post, dan Tribun Jateng.
+                        Scraping berhenti otomatis jika menemukan berita yang sudah ada di database.</p>
                 </div>
                 <div class="scrape-controls">
                     <div class="scrape-input-group">
-                        <label for="maxPages">Maks. Halaman</label>
-                        <input type="number" id="maxPages" min="1" max="999" value="5" placeholder="Semua"
+                        <label for="maxArticles">Maks. Berita</label>
+                        <input type="number" id="maxArticles" min="1" max="999" value="150" placeholder="150"
                             class="scrape-input">
                     </div>
                     <button class="btn-scrape" id="btnScrape" onclick="scrapeBerita()">
@@ -61,6 +61,50 @@
                         <span class="btn-text">Scrape Berita</span>
                         <span class="btn-loader" id="btnLoader"></span>
                     </button>
+                </div>
+            </div>
+
+            <!-- Progress bars (hidden until scraping starts) -->
+            <div class="progress-section" id="scrapeProgress" style="display:none">
+                <div class="progress-header">
+                    <span class="progress-title">Progress Scraping</span>
+                    <span class="progress-subtitle" id="progressSubtitle">Menyiapkan...</span>
+                </div>
+
+                <!-- Radar Tegal -->
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-source">Radar Tegal</span>
+                        <span class="progress-status" id="status-radartegal">Menunggu...</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="bar-radartegal" style="width:0%"></div>
+                    </div>
+                    <span class="progress-count" id="count-radartegal">0</span>
+                </div>
+
+                <!-- Pantura Post -->
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-source">Pantura Post</span>
+                        <span class="progress-status" id="status-panturapost">Menunggu...</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="bar-panturapost" style="width:0%"></div>
+                    </div>
+                    <span class="progress-count" id="count-panturapost">0</span>
+                </div>
+
+                <!-- Tribun Jateng -->
+                <div class="progress-row">
+                    <div class="progress-label">
+                        <span class="progress-source">Tribun Jateng</span>
+                        <span class="progress-status" id="status-tribunjateng">Menunggu...</span>
+                    </div>
+                    <div class="progress-bar-track">
+                        <div class="progress-bar-fill" id="bar-tribunjateng" style="width:0%"></div>
+                    </div>
+                    <span class="progress-count" id="count-tribunjateng">0</span>
                 </div>
             </div>
         </section>
@@ -135,7 +179,7 @@
             <div class="section-card">
                 <div class="section-header">
                     <h2>Top 15 Tag Berita</h2>
-                    <p class="section-desc">Tag yang paling sering muncul di berita lokal RadarTegal</p>
+                    <p class="section-desc">Tag yang paling sering muncul dari semua sumber berita</p>
                 </div>
                 <div class="chart-container">
                     <canvas id="chartTags"></canvas>
@@ -156,7 +200,7 @@
                                 <line x1="21" y1="21" x2="16.65" y2="16.65" />
                             </svg>
                             <input type="text" id="searchInput" class="search-input"
-                                placeholder="Cari judul, tanggal, atau tag..." oninput="searchTable(this.value)">
+                                placeholder="Cari judul berita atau tags..." oninput="searchTable(this.value)">
                         </div>
                         <button class="btn-download" id="btnDownload" onclick="downloadExcel()">
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -178,15 +222,14 @@
                                     Judul Berita
                                     <span class="sort-icon" id="sort-title">↕</span>
                                 </th>
-                                <th class="th-sortable" onclick="sortTable('date')">
-                                    Tanggal
-                                    <span class="sort-icon" id="sort-date">↕</span>
+                                <th class="th-source">
+                                    Sumber Berita
                                 </th>
-                                <th class="th-sortable" onclick="sortTable('tags')">
+                                <th class="th-sortable th-tags" onclick="sortTable('tags')">
                                     Tags
                                     <span class="sort-icon" id="sort-tags">↕</span>
                                 </th>
-                                <th class="th-link">Link</th>
+                                <th class="th-link">Link Berita</th>
                             </tr>
                         </thead>
                         <tbody id="tableBody">
@@ -212,8 +255,7 @@
 
     <!-- Footer -->
     <footer class="footer">
-        <p>© 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi — Kabupaten Tegal.
-        </p>
+        <p>© 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi — Kabupaten Tegal.</p>
     </footer>
 
     <script src="script/script.js"></script>

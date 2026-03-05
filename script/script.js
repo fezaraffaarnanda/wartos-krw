@@ -1,5 +1,6 @@
 /* ============================================
-   Dashboard Berita RadarTegal — Frontend Logic
+   Dashboard Berita — Frontend Logic
+   3 Sumber: Radar Tegal, Pantura Post, Tribun Jateng
    ============================================ */
 
 let allData = [];
@@ -9,22 +10,39 @@ const PER_PAGE = 15;
 let sortField = null;
 let sortAsc = true;
 let chartInstance = null;
+let clockTimer = null;
+let pollTimer = null;
+let maxArticlesGlobal = 150;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
-    updateTimestamp();
+    startRealtimeClock();
     loadBerita();
     animateCards();
 });
 
+function startRealtimeClock() {
+    updateTimestamp();
+    if (clockTimer) clearInterval(clockTimer);
+    clockTimer = setInterval(updateTimestamp, 1000);
+}
+
 function updateTimestamp() {
     const el = document.getElementById("headerTimestamp");
     const now = new Date();
-    el.textContent = now.toLocaleDateString("id-ID", {
-        weekday: "long", year: "numeric", month: "long", day: "numeric",
-        hour: "2-digit", minute: "2-digit"
+    const tanggal = now.toLocaleDateString("id-ID", {
+        weekday: "long",
+        year: "numeric",
+        month: "long",
+        day: "2-digit",
     });
+    const waktu = now.toLocaleTimeString("id-ID", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+    el.textContent = `${tanggal} • ${waktu}`;
 }
 
 function animateCards() {
@@ -33,7 +51,7 @@ function animateCards() {
     });
 }
 
-// ── Load berita dari API ─────────────────────────────────────────────────────
+// ── Load berita dari API ──────────────────────────────────────────────────────
 
 async function loadBerita() {
     try {
@@ -52,36 +70,155 @@ async function loadBerita() {
     }
 }
 
-// ── Scrape berita baru ──────────────────────────────────────────────────────
+// ── Scrape: trigger ───────────────────────────────────────────────────────────
 
 async function scrapeBerita() {
     const btn = document.getElementById("btnScrape");
     btn.classList.add("loading");
     btn.disabled = true;
 
-    const maxPagesInput = document.getElementById("maxPages");
-    const maxPages = maxPagesInput.value ? parseInt(maxPagesInput.value) : null;
+    const input = document.getElementById("maxArticles");
+    maxArticlesGlobal = input.value ? parseInt(input.value) : 150;
+
+    showProgress();
+    resetProgressBars();
 
     try {
         const res = await fetch("/api/scrape", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ max_pages: maxPages }),
+            body: JSON.stringify({ max_articles: maxArticlesGlobal }),
         });
         const json = await res.json();
 
-        if (json.status === "ok") {
-            alert(`Scraping selesai. ${json.count} berita baru disimpan.`);
-            await loadBerita();
+        if (json.status === "started") {
+            startPolling();
         } else {
             alert("Error: " + json.message);
+            hideProgress();
+            btn.classList.remove("loading");
+            btn.disabled = false;
         }
     } catch (err) {
         alert("Gagal menjalankan scraping: " + err.message);
-    } finally {
+        hideProgress();
         btn.classList.remove("loading");
         btn.disabled = false;
     }
+}
+
+// ── Progress polling ──────────────────────────────────────────────────────────
+
+function startPolling() {
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(fetchProgress, 1500);
+}
+
+function stopPolling() {
+    if (pollTimer) {
+        clearInterval(pollTimer);
+        pollTimer = null;
+    }
+}
+
+async function fetchProgress() {
+    try {
+        const res = await fetch("/api/scrape/progress");
+        const json = await res.json();
+        updateProgressUI(json.progress, json.overall);
+
+        if (json.overall && json.overall.done) {
+            stopPolling();
+            onScrapingDone(json.overall);
+        }
+    } catch (err) {
+        console.error("Gagal fetch progress:", err);
+    }
+}
+
+const SOURCE_KEYS = ["radartegal", "panturapost", "tribunjateng"];
+
+function resetProgressBars() {
+    document.getElementById("progressSubtitle").textContent = "Memulai...";
+    SOURCE_KEYS.forEach(key => {
+        document.getElementById(`bar-${key}`).style.width = "0%";
+        document.getElementById(`bar-${key}`).className = "progress-bar-fill";
+        document.getElementById(`count-${key}`).textContent = "0";
+        document.getElementById(`status-${key}`).textContent = "Menunggu...";
+    });
+}
+
+function updateProgressUI(progress, overall) {
+    const max = maxArticlesGlobal || 150;
+    let runningSource = "";
+
+    SOURCE_KEYS.forEach(key => {
+        const src = progress[key];
+        if (!src) return;
+
+        const pct = Math.min(100, Math.round((src.scraped / max) * 100));
+        const bar = document.getElementById(`bar-${key}`);
+        const count = document.getElementById(`count-${key}`);
+        const status = document.getElementById(`status-${key}`);
+
+        bar.style.width = pct + "%";
+        count.textContent = src.scraped;
+
+        if (src.status === "running") {
+            bar.className = "progress-bar-fill running";
+            status.textContent = src.message || "Berjalan...";
+            runningSource = key;
+        } else if (src.status === "done") {
+            bar.className = "progress-bar-fill done";
+            bar.style.width = "100%";
+            status.textContent = src.message || "Selesai";
+        } else if (src.status === "error") {
+            bar.className = "progress-bar-fill error";
+            status.textContent = src.message || "Error";
+        } else {
+            status.textContent = src.message || "Menunggu...";
+        }
+    });
+
+    const subtitle = document.getElementById("progressSubtitle");
+    if (runningSource) {
+        const labels = { radartegal: "Radar Tegal", panturapost: "Pantura Post", tribunjateng: "Tribun Jateng" };
+        subtitle.textContent = `Sedang: ${labels[runningSource]}`;
+    } else if (overall && overall.active) {
+        subtitle.textContent = "Menyiapkan sumber berikutnya...";
+    }
+}
+
+function onScrapingDone(overall) {
+    const btn = document.getElementById("btnScrape");
+    btn.classList.remove("loading");
+    btn.disabled = false;
+
+    const subtitle = document.getElementById("progressSubtitle");
+    const total = overall.total_inserted || 0;
+    subtitle.textContent = `Selesai — ${total} berita baru disimpan`;
+
+    SOURCE_KEYS.forEach(key => {
+        const bar = document.getElementById(`bar-${key}`);
+        if (bar.className.includes("running")) {
+            bar.className = "progress-bar-fill done";
+            bar.style.width = "100%";
+        }
+    });
+
+    if (overall.error) {
+        alert("Scraping selesai dengan error: " + overall.error);
+    }
+
+    loadBerita();
+}
+
+function showProgress() {
+    document.getElementById("scrapeProgress").style.display = "block";
+}
+
+function hideProgress() {
+    document.getElementById("scrapeProgress").style.display = "none";
 }
 
 // ── Summary cards ─────────────────────────────────────────────────────────────
@@ -92,14 +229,13 @@ function updateSummary() {
     const tagCount = {};
     allData.forEach(item => {
         if (!item.tags) return;
-        item.tags.split(" | ").forEach(t => {
-            const tag = t.trim();
+        item.tags.split(/\s*\|\s*|,\s*/).forEach(t => {
+            const tag = t.trim().replace(/^#/, "");
             if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
         });
     });
 
-    const uniqueTags = Object.keys(tagCount).length;
-    document.getElementById("totalTags").textContent = uniqueTags;
+    document.getElementById("totalTags").textContent = Object.keys(tagCount).length;
 
     const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
     const topEl = document.getElementById("topTag");
@@ -111,35 +247,27 @@ function updateSummary() {
     }
 
     const latestEl = document.getElementById("tanggalTerbaru");
-    if (allData.length > 0 && allData[0].date) {
-        latestEl.textContent = allData[0].date;
-    } else {
-        latestEl.textContent = "—";
-    }
+    latestEl.textContent = (allData.length > 0 && allData[0].date) ? allData[0].date : "—";
 }
 
-// ── Chart ────────────────────────────────────────────────────────────────────
+// ── Chart ─────────────────────────────────────────────────────────────────────
 
 function renderChart() {
     const tagCount = {};
     allData.forEach(item => {
         if (!item.tags) return;
-        item.tags.split(" | ").forEach(t => {
-            const tag = t.trim();
+        item.tags.split(/\s*\|\s*|,\s*/).forEach(t => {
+            const tag = t.trim().replace(/^#/, "");
             if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
         });
     });
 
-    const sorted = Object.entries(tagCount)
-        .sort((a, b) => b[1] - a[1])
-        .slice(0, 15);
-
+    const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]).slice(0, 15);
     const labels = sorted.map(e => e[0]);
     const values = sorted.map(e => e[1]);
 
     const canvas = document.getElementById("chartTags");
     if (!canvas) return;
-
     if (chartInstance) chartInstance.destroy();
 
     chartInstance = new Chart(canvas, {
@@ -159,19 +287,10 @@ function renderChart() {
             responsive: true,
             maintainAspectRatio: false,
             indexAxis: "y",
-            plugins: {
-                legend: { display: false },
-            },
+            plugins: { legend: { display: false } },
             scales: {
-                x: {
-                    beginAtZero: true,
-                    ticks: { precision: 0 },
-                    grid: { color: "rgba(0,0,0,0.05)" },
-                },
-                y: {
-                    ticks: { font: { size: 12 } },
-                    grid: { display: false },
-                },
+                x: { beginAtZero: true, ticks: { precision: 0 }, grid: { color: "rgba(0,0,0,0.05)" } },
+                y: { ticks: { font: { size: 12 } }, grid: { display: false } },
             },
         },
     });
@@ -202,15 +321,16 @@ function renderTable() {
 
     tbody.innerHTML = pageData.map((item, i) => {
         const no = start + i + 1;
-        const tags = (item.tags || "").split(" | ").filter(Boolean)
-            .map(t => `<span class="kategori-badge">${escapeHtml(t)}</span>`)
+        const tags = parseTags(item.tags)
+            .map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`)
             .join(" ");
+        const source = escapeHtml(item.source || "—");
         return `
         <tr>
             <td class="td-no">${no}</td>
             <td class="td-judul">${escapeHtml(item.title || "")}</td>
-            <td class="td-sumber">${escapeHtml(item.date || "")}</td>
-            <td class="td-kategori">${tags || "—"}</td>
+            <td class="td-source">${source}</td>
+            <td class="td-tags">${tags || "—"}</td>
             <td class="td-link">
                 <a href="${escapeHtml(item.url || "#")}" target="_blank" class="link-btn">Buka</a>
             </td>
@@ -218,6 +338,13 @@ function renderTable() {
     }).join("");
 
     renderPagination();
+}
+
+function parseTags(raw) {
+    if (!raw) return [];
+    return raw.split(/\s*\|\s*|,\s*/)
+        .map(t => t.trim().replace(/^#/, ""))
+        .filter(Boolean);
 }
 
 function escapeHtml(str) {
@@ -232,14 +359,9 @@ function renderPagination() {
     const container = document.getElementById("pagination");
     const totalPages = Math.ceil(filteredData.length / PER_PAGE);
 
-    if (totalPages <= 1) {
-        container.innerHTML = "";
-        return;
-    }
+    if (totalPages <= 1) { container.innerHTML = ""; return; }
 
-    let html = "";
-
-    html += `<button class="page-btn" ${currentPage === 1 ? "disabled" : ""} onclick="goPage(${currentPage - 1})">‹</button>`;
+    let html = `<button class="page-btn" ${currentPage === 1 ? "disabled" : ""} onclick="goPage(${currentPage - 1})">‹</button>`;
 
     const range = getPageRange(currentPage, totalPages, 5);
     if (range[0] > 1) {
@@ -253,7 +375,6 @@ function renderPagination() {
         if (range[range.length - 1] < totalPages - 1) html += `<span class="page-info">…</span>`;
         html += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
     }
-
     html += `<button class="page-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="goPage(${currentPage + 1})">›</button>`;
     html += `<span class="page-info">${filteredData.length} berita</span>`;
 
@@ -263,10 +384,7 @@ function renderPagination() {
 function getPageRange(current, total, maxVisible) {
     let start = Math.max(1, current - Math.floor(maxVisible / 2));
     let end = start + maxVisible - 1;
-    if (end > total) {
-        end = total;
-        start = Math.max(1, end - maxVisible + 1);
-    }
+    if (end > total) { end = total; start = Math.max(1, end - maxVisible + 1); }
     const range = [];
     for (let i = start; i <= end; i++) range.push(i);
     return range;
@@ -284,15 +402,12 @@ function goPage(p) {
 
 function searchTable(query) {
     const q = query.toLowerCase().trim();
-    if (!q) {
-        filteredData = [...allData];
-    } else {
-        filteredData = allData.filter(item =>
+    filteredData = q
+        ? allData.filter(item =>
             (item.title || "").toLowerCase().includes(q) ||
-            (item.date || "").toLowerCase().includes(q) ||
-            (item.tags || "").toLowerCase().includes(q)
-        );
-    }
+            (item.tags  || "").toLowerCase().includes(q)
+          )
+        : [...allData];
     currentPage = 1;
     renderTable();
 }
@@ -337,11 +452,12 @@ function downloadExcel() {
     }
 
     const rows = allData.map((item, i) => ({
-        No: i + 1,
-        Judul: item.title || "",
-        Tanggal: item.date || "",
-        URL: item.url || "",
-        Tags: item.tags || "",
+        No:     i + 1,
+        Judul:  item.title   || "",
+        Sumber: item.source  || "",
+        Tanggal: item.date   || "",
+        URL:    item.url     || "",
+        Tags:   item.tags    || "",
         Konten: item.content || "",
     }));
 
@@ -349,15 +465,15 @@ function downloadExcel() {
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Berita");
 
-    const colWidths = [
-        { wch: 5 },   // No
-        { wch: 50 },  // Judul
-        { wch: 25 },  // Tanggal
-        { wch: 40 },  // URL
-        { wch: 30 },  // Tags
-        { wch: 80 },  // Konten
+    ws["!cols"] = [
+        { wch: 5  },   // No
+        { wch: 50 },   // Judul
+        { wch: 15 },   // Sumber
+        { wch: 25 },   // Tanggal
+        { wch: 40 },   // URL
+        { wch: 30 },   // Tags
+        { wch: 80 },   // Konten
     ];
-    ws["!cols"] = colWidths;
 
-    XLSX.writeFile(wb, "berita_radartegal.xlsx");
+    XLSX.writeFile(wb, "berita_lokal_tegal.xlsx");
 }

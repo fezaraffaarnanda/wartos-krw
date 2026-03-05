@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS berita (
     url TEXT UNIQUE NOT NULL,
     content TEXT,
     tags TEXT,
+    source TEXT DEFAULT 'Radar Tegal',
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

@@ -1,6 +1,6 @@
 """
 Backend Flask untuk Dashboard Berita RadarTegal.
-Serve frontend + API scraping + koneksi Supabase.
+Serve frontend + API scraping 3 sumber + koneksi Supabase.
 
 Jalankan:
     python app.py
@@ -15,7 +15,9 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 from supabase import create_client
 
-from scrape_radartegal import scrape_new_articles
+from scrape_radartegal import scrape_new_articles as scrape_radartegal
+from scraping_panturapost import scrape_new_articles as scrape_panturapost
+from scrape_tribunjateng import scrape_new_articles as scrape_tribunjateng
 
 load_dotenv()
 
@@ -26,9 +28,25 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = Flask(__name__, static_folder=".", static_url_path="")
 
-# Flag untuk mencegah scraping paralel
+# ── State scraping ─────────────────────────────────────────────────────────────
+
 _scraping_lock = threading.Lock()
-_scraping_active = False
+
+_scrape_progress = {
+    "radartegal":   {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "panturapost":  {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "tribunjateng": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+}
+_scrape_overall = {"active": False, "done": False, "total_inserted": 0, "error": ""}
+
+
+def _reset_progress():
+    for key in _scrape_progress:
+        _scrape_progress[key] = {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."}
+    _scrape_overall["active"]        = True
+    _scrape_overall["done"]          = False
+    _scrape_overall["total_inserted"] = 0
+    _scrape_overall["error"]         = ""
 
 
 # ── Serve frontend ─────────────────────────────────────────────────────────────
@@ -57,7 +75,6 @@ def serve_logo():
 
 @app.route("/api/berita", methods=["GET"])
 def get_berita():
-    """Ambil semua berita dari Supabase, urutkan dari terbaru."""
     try:
         result = (
             supabase.table("berita")
@@ -70,88 +87,177 @@ def get_berita():
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
+# ── API: progress scraping ─────────────────────────────────────────────────────
+
+@app.route("/api/scrape/progress", methods=["GET"])
+def get_progress():
+    return jsonify({
+        "progress": _scrape_progress,
+        "overall":  _scrape_overall,
+    })
+
+
+# ── Helper: insert batch ke Supabase ──────────────────────────────────────────
+
+SOURCE_LABELS = {
+    "radartegal":   "Radar Tegal",
+    "panturapost":  "Pantura Post",
+    "tribunjateng": "Tribun Jateng",
+}
+
+
+def _insert_articles(articles: list, source_key: str) -> int:
+    source_label = SOURCE_LABELS.get(source_key, source_key)
+    inserted = 0
+    for article in articles:
+        try:
+            supabase.table("berita").insert({
+                "title":   article["title"],
+                "date":    article["date"],
+                "url":     article["url"],
+                "content": article["content"],
+                "tags":    article["tags"],
+                "source":  article.get("source") or source_label,
+            }).execute()
+            inserted += 1
+        except Exception as exc:
+            print(f"[DB ERROR] {source_key}: {article.get('url', '')} — {exc}")
+    _scrape_progress[source_key]["inserted"] = inserted
+    return inserted
+
+
+# ── Worker thread ──────────────────────────────────────────────────────────────
+
+def _scrape_worker(max_articles: int):
+    global _scrape_overall
+
+    try:
+        existing = supabase.table("berita").select("url").execute()
+        existing_urls = {row["url"] for row in existing.data}
+        print(f"[SCRAPE] {len(existing_urls)} URL sudah ada di database.")
+
+        total_inserted = 0
+
+        # ── 1. Radar Tegal (Playwright / async) ───────────────────────────────
+        _scrape_progress["radartegal"]["status"]  = "running"
+        _scrape_progress["radartegal"]["message"] = "Memulai scraping..."
+
+        def rt_progress(count, msg):
+            _scrape_progress["radartegal"]["scraped"] = count
+            _scrape_progress["radartegal"]["message"] = msg
+
+        max_pages = max(1, max_articles // 30)
+        print(f"[SCRAPE] RadarTegal: maks {max_pages} halaman (~{max_articles} artikel)")
+
+        loop = asyncio.new_event_loop()
+        rt_articles = loop.run_until_complete(
+            scrape_radartegal(
+                existing_urls,
+                headless=True,
+                delay=1.5,
+                max_pages=max_pages,
+                on_progress=rt_progress,
+            )
+        )
+        loop.close()
+
+        n = _insert_articles(rt_articles, "radartegal")
+        total_inserted += n
+        _scrape_progress["radartegal"]["status"]  = "done"
+        _scrape_progress["radartegal"]["message"] = f"Selesai — {n} berita disimpan"
+        print(f"[SCRAPE] RadarTegal selesai: {n} disimpan")
+
+        # ── 2. Pantura Post (requests / sync) ─────────────────────────────────
+        _scrape_progress["panturapost"]["status"]  = "running"
+        _scrape_progress["panturapost"]["message"] = "Memulai scraping..."
+
+        def pp_progress(count, _src):
+            _scrape_progress["panturapost"]["scraped"]  = count
+            _scrape_progress["panturapost"]["message"] = f"{count} berita ditemukan"
+
+        print(f"[SCRAPE] PanturaPost: maks {max_articles} artikel")
+        pp_articles = scrape_panturapost(
+            existing_urls,
+            max_articles=max_articles,
+            on_progress=pp_progress,
+        )
+
+        n = _insert_articles(pp_articles, "panturapost")
+        total_inserted += n
+        _scrape_progress["panturapost"]["status"]  = "done"
+        _scrape_progress["panturapost"]["message"] = f"Selesai — {n} berita disimpan"
+        print(f"[SCRAPE] PanturaPost selesai: {n} disimpan")
+
+        # ── 3. Tribun Jateng (requests / sync) ────────────────────────────────
+        _scrape_progress["tribunjateng"]["status"]  = "running"
+        _scrape_progress["tribunjateng"]["message"] = "Memulai scraping..."
+
+        def tj_progress(count, _src):
+            _scrape_progress["tribunjateng"]["scraped"]  = count
+            _scrape_progress["tribunjateng"]["message"] = f"{count} berita ditemukan"
+
+        print(f"[SCRAPE] TribunJateng: maks {max_articles} artikel")
+        tj_articles = scrape_tribunjateng(
+            existing_urls,
+            max_articles=max_articles,
+            on_progress=tj_progress,
+        )
+
+        n = _insert_articles(tj_articles, "tribunjateng")
+        total_inserted += n
+        _scrape_progress["tribunjateng"]["status"]  = "done"
+        _scrape_progress["tribunjateng"]["message"] = f"Selesai — {n} berita disimpan"
+        print(f"[SCRAPE] TribunJateng selesai: {n} disimpan")
+
+        _scrape_overall["total_inserted"] = total_inserted
+        print(f"[SCRAPE] Semua selesai. Total {total_inserted} berita baru disimpan.")
+
+    except Exception as exc:
+        _scrape_overall["error"] = str(exc)
+        print(f"[SCRAPE ERROR] {exc}")
+        for key in _scrape_progress:
+            if _scrape_progress[key]["status"] == "running":
+                _scrape_progress[key]["status"]  = "error"
+                _scrape_progress[key]["message"] = f"Error: {exc}"
+
+    finally:
+        _scrape_overall["active"] = False
+        _scrape_overall["done"]   = True
+        _scraping_lock.release()
+
+
 # ── API: jalankan scraping ─────────────────────────────────────────────────────
 
 @app.route("/api/scrape", methods=["POST"])
 def start_scrape():
     """
-    Jalankan scraping berita baru. Berhenti saat menemukan berita lama.
-    Hasilnya langsung disimpan ke Supabase.
+    Jalankan scraping 3 sumber secara berurutan di background thread.
+    Langsung return {"status": "started"} agar frontend bisa polling progress.
     """
-    global _scraping_active
-
     if not _scraping_lock.acquire(blocking=False):
         return jsonify({
-            "status": "error",
-            "message": "Scraping sedang berjalan, tunggu hingga selesai."
+            "status":  "error",
+            "message": "Scraping sedang berjalan, tunggu hingga selesai.",
         }), 409
 
-    try:
-        _scraping_active = True
+    body        = request.get_json(silent=True) or {}
+    max_articles = int(body.get("max_articles", 150))
 
-        body = request.get_json(silent=True) or {}
-        max_pages = body.get("max_pages")
-        if max_pages is not None:
-            max_pages = int(max_pages)
+    _reset_progress()
 
-        # Ambil semua URL yang sudah ada di database
-        existing = supabase.table("berita").select("url").execute()
-        existing_urls = {row["url"] for row in existing.data}
-        print(f"[SCRAPE] {len(existing_urls)} berita sudah ada di database.")
-        print(f"[SCRAPE] Batas halaman: {max_pages or 'semua'}")
+    t = threading.Thread(target=_scrape_worker, args=(max_articles,), daemon=True)
+    t.start()
 
-        # Jalankan scraper async di event loop baru
-        loop = asyncio.new_event_loop()
-        new_articles = loop.run_until_complete(
-            scrape_new_articles(existing_urls, headless=True, delay=1.5, max_pages=max_pages)
-        )
-        loop.close()
-
-        # Simpan ke Supabase
-        inserted = 0
-        for article in new_articles:
-            try:
-                supabase.table("berita").insert({
-                    "title":   article["title"],
-                    "date":    article["date"],
-                    "url":     article["url"],
-                    "content": article["content"],
-                    "tags":    article["tags"],
-                }).execute()
-                inserted += 1
-            except Exception as exc:
-                print(f"[DB ERROR] Gagal insert: {article['url']} — {exc}")
-
-        print(f"[SCRAPE] Selesai. {inserted} berita baru disimpan.")
-        return jsonify({
-            "status": "ok",
-            "message": f"{inserted} berita baru berhasil disimpan.",
-            "count": inserted,
-        })
-
-    except Exception as exc:
-        print(f"[SCRAPE ERROR] {exc}")
-        return jsonify({"status": "error", "message": str(exc)}), 500
-
-    finally:
-        _scraping_active = False
-        _scraping_lock.release()
-
-
-# ── API: status scraping ──────────────────────────────────────────────────────
-
-@app.route("/api/scrape/status", methods=["GET"])
-def scrape_status():
-    return jsonify({"active": _scraping_active})
+    return jsonify({"status": "started", "max_articles": max_articles})
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("Dashboard Berita RadarTegal — Flask Server")
+    print("Dashboard Berita — Flask Server (3 Sumber)")
     print("=" * 50)
     print(f"Supabase: {SUPABASE_URL}")
     print("Buka http://localhost:5000")
     print()
-    app.run(debug=True, port=5000)
+    app.run(debug=True, port=5000, use_reloader=False)
