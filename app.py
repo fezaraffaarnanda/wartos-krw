@@ -18,6 +18,7 @@ from supabase import create_client
 from scrape_radartegal import scrape_new_articles as scrape_radartegal
 from scraping_panturapost import scrape_new_articles as scrape_panturapost
 from scrape_tribunjateng import scrape_new_articles as scrape_tribunjateng
+from utils import normalize_date
 
 load_dotenv()
 
@@ -113,7 +114,7 @@ def _insert_articles(articles: list, source_key: str) -> int:
         try:
             supabase.table("berita").insert({
                 "title":   article["title"],
-                "date":    article["date"],
+                "date":    normalize_date(article["date"]),
                 "url":     article["url"],
                 "content": article["content"],
                 "tags":    article["tags"],

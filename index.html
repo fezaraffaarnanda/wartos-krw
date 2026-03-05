@@ -222,8 +222,10 @@
                                     Judul Berita
                                     <span class="sort-icon" id="sort-title">↕</span>
                                 </th>
-                                <th class="th-source">
-                                    Sumber Berita
+                                <th class="th-source">Sumber Berita</th>
+                                <th class="th-sortable th-date" onclick="sortTable('date')">
+                                    Tanggal
+                                    <span class="sort-icon" id="sort-date">↓</span>
                                 </th>
                                 <th class="th-sortable th-tags" onclick="sortTable('tags')">
                                     Tags
@@ -234,7 +236,7 @@
                         </thead>
                         <tbody id="tableBody">
                             <tr class="empty-row">
-                                <td colspan="5">
+                                <td colspan="6">
                                     <div class="empty-state">
                                         <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc"
                                             stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">

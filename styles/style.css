@@ -708,11 +708,15 @@ a:hover {
 }
 
 .th-source {
-    width: 130px;
+    width: 120px;
+}
+
+.th-date {
+    width: 155px;
 }
 
 .th-tags {
-    width: 220px;
+    width: 200px;
 }
 
 .data-table td {
@@ -755,6 +759,12 @@ a:hover {
     white-space: nowrap;
     color: var(--text-secondary);
     font-weight: 600;
+}
+
+.td-date {
+    white-space: nowrap;
+    font-size: 0.82rem;
+    color: var(--text-secondary);
 }
 
 .td-tags {

@@ -7,8 +7,24 @@ let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const PER_PAGE = 15;
-let sortField = null;
-let sortAsc = true;
+let sortField = "date";
+let sortAsc = false;  // default: terbaru di atas
+
+const BULAN_ID = {
+    januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
+    juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
+};
+
+function parseDateID(str) {
+    if (!str) return new Date(0);
+    // Format: "23 Februari 2026, 16:04 WIB"
+    const m = str.match(/(\d{1,2})\s+(\w+)\s+(\d{4}),?\s+(\d{2}):(\d{2})/);
+    if (!m) return new Date(0);
+    const [, day, bulan, year, hour, min] = m;
+    const month = BULAN_ID[bulan.toLowerCase()];
+    if (month === undefined) return new Date(0);
+    return new Date(+year, month, +day, +hour, +min);
+}
 let chartInstance = null;
 let clockTimer = null;
 let pollTimer = null;
@@ -59,6 +75,7 @@ async function loadBerita() {
         const json = await res.json();
         if (json.status === "ok") {
             allData = json.data || [];
+            applySortDate(allData);
             filteredData = [...allData];
             currentPage = 1;
             updateSummary();
@@ -305,7 +322,7 @@ function renderTable() {
 
     if (pageData.length === 0) {
         tbody.innerHTML = `
-            <tr class="empty-row"><td colspan="5">
+            <tr class="empty-row"><td colspan="6">
                 <div class="empty-state">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc"
                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -325,11 +342,13 @@ function renderTable() {
             .map(t => `<span class="tag-chip">#${escapeHtml(t)}</span>`)
             .join(" ");
         const source = escapeHtml(item.source || "—");
+        const date = escapeHtml(item.date || "—");
         return `
         <tr>
             <td class="td-no">${no}</td>
             <td class="td-judul">${escapeHtml(item.title || "")}</td>
             <td class="td-source">${source}</td>
+            <td class="td-date">${date}</td>
             <td class="td-tags">${tags || "—"}</td>
             <td class="td-link">
                 <a href="${escapeHtml(item.url || "#")}" target="_blank" class="link-btn">Buka</a>
@@ -414,6 +433,10 @@ function searchTable(query) {
 
 // ── Sort ──────────────────────────────────────────────────────────────────────
 
+function applySortDate(arr) {
+    arr.sort((a, b) => parseDateID(b.date) - parseDateID(a.date));
+}
+
 function sortTable(field) {
     document.querySelectorAll(".th-sortable").forEach(th => th.classList.remove("active"));
 
@@ -421,7 +444,7 @@ function sortTable(field) {
         sortAsc = !sortAsc;
     } else {
         sortField = field;
-        sortAsc = true;
+        sortAsc = field !== "date";  // date: default desc (terbaru di atas)
     }
 
     const thEl = document.querySelector(`[onclick="sortTable('${field}')"]`);
@@ -432,6 +455,10 @@ function sortTable(field) {
     }
 
     filteredData.sort((a, b) => {
+        if (field === "date") {
+            const diff = parseDateID(a.date) - parseDateID(b.date);
+            return sortAsc ? diff : -diff;
+        }
         const va = (a[field] || "").toLowerCase();
         const vb = (b[field] || "").toLowerCase();
         if (va < vb) return sortAsc ? -1 : 1;
@@ -451,14 +478,14 @@ function downloadExcel() {
         return;
     }
 
-    const rows = allData.map((item, i) => ({
-        No:     i + 1,
-        Judul:  item.title   || "",
-        Sumber: item.source  || "",
-        Tanggal: item.date   || "",
-        URL:    item.url     || "",
-        Tags:   item.tags    || "",
-        Konten: item.content || "",
+    const rows = filteredData.map((item, i) => ({
+        No:      i + 1,
+        Judul:   item.title   || "",
+        Sumber:  item.source  || "",
+        Tanggal: item.date    || "",
+        URL:     item.url     || "",
+        Tags:    item.tags    || "",
+        Konten:  item.content || "",
     }));
 
     const ws = XLSX.utils.json_to_sheet(rows);
