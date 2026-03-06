@@ -31,12 +31,41 @@ let clockTimer = null;
 let pollTimer = null;
 let maxArticlesGlobal = 150;
 
+// ── Last Scrape Time ──────────────────────────────────────────────────────────
+
+async function loadLastScrape() {
+    try {
+        const res = await fetch("/api/last-scrape");
+        if (!res.ok) return;
+        const json = await res.json();
+        const el = document.getElementById("lastScrapeTime");
+        if (!el) return;
+        if (json.status === "ok" && json.last_scrape) {
+            const dt = new Date(json.last_scrape);
+            el.textContent = dt.toLocaleString("id-ID", {
+                day:    "2-digit",
+                month:  "long",
+                year:   "numeric",
+                hour:   "2-digit",
+                minute: "2-digit",
+                timeZone: "Asia/Jakarta",
+            }) + " WIB";
+        } else {
+            el.textContent = "belum pernah";
+        }
+    } catch (e) {
+        const el = document.getElementById("lastScrapeTime");
+        if (el) el.textContent = "—";
+    }
+}
+
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
     startRealtimeClock();
     await loadUserInfo();
     loadBerita();
+    loadLastScrape();
     animateCards();
 });
 
@@ -261,6 +290,7 @@ function onScrapingDone(overall) {
     }
 
     loadBerita();
+    loadLastScrape();
 }
 
 function showProgress() {

@@ -47,6 +47,15 @@
                     <h2>Mulai Scraping Berita</h2>
                     <p>Scrape berita lokal dari 4 sumber sekaligus: Radar Tegal, Pantura Post, Tribun Jateng, dan Kompas.
                         Scraping berhenti otomatis jika menemukan berita yang sudah ada di database.</p>
+                    <div class="last-scrape-badge" id="lastScrapeBadge">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                        </svg>
+                        <span>Terakhir scraping: </span>
+                        <strong id="lastScrapeTime">memuat...</strong>
+                    </div>
                 </div>
                 <div class="scrape-controls">
                     <div class="scrape-input-group">

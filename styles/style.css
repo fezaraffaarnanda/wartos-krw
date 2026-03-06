@@ -205,6 +205,29 @@ a:hover {
     line-height: 1.6;
 }
 
+.last-scrape-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 10px;
+    padding: 5px 12px;
+    background: var(--orange-100);
+    border: 1px solid var(--orange-200);
+    border-radius: 20px;
+    font-size: 0.78rem;
+    color: var(--orange-700);
+}
+
+.last-scrape-badge svg {
+    color: var(--orange-600);
+    flex-shrink: 0;
+}
+
+.last-scrape-badge strong {
+    font-weight: 700;
+    color: var(--orange-700);
+}
+
 .scrape-controls {
     display: flex;
     align-items: flex-end;

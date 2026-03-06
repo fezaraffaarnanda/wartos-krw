@@ -226,6 +226,28 @@ def get_berita_by_id(berita_id):
         return jsonify({"status": "error", "message": "Berita tidak ditemukan."}), 404
 
 
+# ── API: last scrape time ──────────────────────────────────────────────────────
+
+@app.route("/api/last-scrape", methods=["GET"])
+@login_required
+def get_last_scrape():
+    """Kembalikan timestamp artikel terakhir yang diinsert ke database."""
+    try:
+        result = (
+            supabase.table("berita")
+            .select("created_at")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            return jsonify({"status": "ok", "last_scrape": result.data[0]["created_at"]})
+        return jsonify({"status": "ok", "last_scrape": None})
+    except Exception:
+        return jsonify({"status": "error", "message": "Gagal mengambil data."}), 500
+
+
+
 # ── API: progress scraping ─────────────────────────────────────────────────────
 
 @app.route("/api/scrape/progress", methods=["GET"])
