@@ -1,3 +1,5 @@
+import re
+
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
@@ -7,6 +9,52 @@ PANTURAPOST_BASE   = "https://www.panturapost.com"
 PANTURAPOST_TEGAL  = "https://www.panturapost.com/tegal"
 
 headers = {"User-Agent": "Mozilla/5.0"}
+
+
+# ── Pembersih konten ───────────────────────────────────────────────────────────
+
+_PP_DOMAIN_REGEX = re.compile(r"panturapost\.com", re.IGNORECASE)
+
+_PP_BOILERPLATE_PREFIXES = (
+    "BACA JUGA",
+    "Sumber:",
+    "Simak breaking news",
+    "Ikuti kami di Google News",
+    "Dapatkan informasi terkini",
+)
+
+_PP_BOILERPLATE_REGEX = re.compile(
+    r"Cek Berita dan Artikel lainnya\s*di\s*Google\s*News"
+    r"|Ikuti kami di Google News"
+    r"|Simak breaking news"
+    r"|Dapatkan informasi terkini",
+    re.IGNORECASE,
+)
+
+
+def clean_content(text: str) -> str:
+    """
+    Bersihkan konten artikel Pantura Post dari watermark dan noise:
+      - Domain panturapost.com
+      - Baris BACA JUGA, Sumber:, footer Google News
+      - Baris kosong dan separator
+    """
+    text = _PP_DOMAIN_REGEX.sub("", text)
+    text = re.sub(r"\(\*+\)", "", text)
+
+    cleaned: list[str] = []
+    for raw_line in text.split("\n"):
+        line = raw_line.strip()
+        if any(line.startswith(prefix) for prefix in _PP_BOILERPLATE_PREFIXES):
+            continue
+        if _PP_BOILERPLATE_REGEX.search(line):
+            continue
+        if line == "--":
+            continue
+        line = re.sub(r"\s*--$", "", line).strip()
+        if line:
+            cleaned.append(line)
+    return "\n".join(cleaned)
 
 
 # ── Scrape satu artikel ────────────────────────────────────────────────────────
@@ -50,7 +98,7 @@ def scrape_article(url):
         "penulis": author,
         "tanggal": date,
         "tags": ", ".join(tags),
-        "isi": "\n".join(all_content),
+        "isi": clean_content("\n".join(all_content)),
         "url": url
     }
 

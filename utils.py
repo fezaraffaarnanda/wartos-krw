@@ -54,6 +54,15 @@ def normalize_date(raw: str) -> str:
         day, month_str, year, time = m.group(1), m.group(2), m.group(3), m.group(4)
         return f"{int(day)} {month_str.capitalize()} {year}, {time} WIB"
 
+    # ── Kompas: "Kamis, 6 Maret 2026, 10:55 WIB" ──────────────────────────────
+    m = re.search(
+        r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4}),\s*(\d{2}:\d{2})",
+        raw,
+    )
+    if m:
+        day, month_str, year, time = m.group(1), m.group(2), m.group(3), m.group(4)
+        return f"{int(day)} {month_str.capitalize()} {year}, {time} WIB"
+
     # ── TribunJateng: "Kamis, 5 Februari 2026 15:31 WIB" ─────────────────────
     m = re.search(
         r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})\s+(\d{2}:\d{2})",

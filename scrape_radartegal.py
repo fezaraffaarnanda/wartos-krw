@@ -15,13 +15,56 @@ Cara pakai:
 import argparse
 import asyncio
 import csv
+import os
 import random
 import re
 import signal
 import time
 from pathlib import Path
 
+from dotenv import load_dotenv
 from playwright.async_api import async_playwright, Page, TimeoutError as PwTimeout
+
+load_dotenv()
+
+BROWSERLESS_API_KEY = os.getenv("BROWSERLESS_API_KEY", "")
+BROWSERLESS_WS_URL  = (
+    f"wss://chrome.browserless.io?token={BROWSERLESS_API_KEY}"
+    if BROWSERLESS_API_KEY
+    else None
+)
+
+USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) "
+    "Chrome/122.0.0.0 Safari/537.36"
+)
+
+
+async def _make_browser_and_page(pw, headless: bool = True):
+    """
+    Buat browser + page siap pakai.
+    - Remote Browserless: connect_over_cdp ke WS endpoint.
+      PENTING: gunakan default context (contexts[0]) yang sudah disediakan
+      Browserless — jangan new_context() karena akan menyebabkan sesi CDP
+      terputus dan page langsung tertutup.
+    - Lokal: launch Chromium biasa + context baru.
+    Kembalikan (browser, page).
+    """
+    if BROWSERLESS_WS_URL:
+        print(f"Koneksi ke Browserless: {BROWSERLESS_WS_URL[:55]}...")
+        browser = await pw.chromium.connect_over_cdp(BROWSERLESS_WS_URL)
+        # Browserless selalu menyediakan satu default context — pakai langsung
+        context = browser.contexts[0] if browser.contexts else await browser.new_context(user_agent=USER_AGENT)
+        # Set user-agent via route/extra HTTP headers karena default context tidak mendukung new_context args
+        page = await context.new_page()
+        await page.set_extra_http_headers({"User-Agent": USER_AGENT})
+    else:
+        print("BROWSERLESS_API_KEY tidak ditemukan, menggunakan Chromium lokal.")
+        browser = await pw.chromium.launch(headless=headless)
+        context = await browser.new_context(user_agent=USER_AGENT)
+        page    = await context.new_page()
+    return browser, page
 
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
@@ -293,15 +336,7 @@ async def run(
     start_time    = time.time()
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=headless)
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/122.0.0.0 Safari/537.36"
-            )
-        )
-        page = await context.new_page()
+        browser, page = await _make_browser_and_page(pw, headless=headless)
 
         try:
             # Langkah 1: deteksi total halaman listing
@@ -399,15 +434,7 @@ async def scrape_new_articles(
             on_progress(len(new_articles), msg)
 
     async with async_playwright() as pw:
-        browser = await pw.chromium.launch(headless=headless)
-        context = await browser.new_context(
-            user_agent=(
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/122.0.0.0 Safari/537.36"
-            )
-        )
-        page = await context.new_page()
+        browser, page = await _make_browser_and_page(pw, headless=headless)
 
         try:
             log("Membuka halaman listing untuk deteksi paginasi...")

@@ -153,7 +153,7 @@ async function fetchProgress() {
     }
 }
 
-const SOURCE_KEYS = ["radartegal", "panturapost", "tribunjateng"];
+const SOURCE_KEYS = ["radartegal", "panturapost", "tribunjateng", "kompas"];
 
 function resetProgressBars() {
     document.getElementById("progressSubtitle").textContent = "Memulai...";
@@ -199,7 +199,7 @@ function updateProgressUI(progress, overall) {
 
     const subtitle = document.getElementById("progressSubtitle");
     if (runningSource) {
-        const labels = { radartegal: "Radar Tegal", panturapost: "Pantura Post", tribunjateng: "Tribun Jateng" };
+        const labels = { radartegal: "Radar Tegal", panturapost: "Pantura Post", tribunjateng: "Tribun Jateng", kompas: "Kompas" };
         subtitle.textContent = `Sedang: ${labels[runningSource]}`;
     } else if (overall && overall.active) {
         subtitle.textContent = "Menyiapkan sumber berikutnya...";

@@ -7,7 +7,6 @@ Jalankan:
     Buka http://localhost:5000
 """
 
-import asyncio
 import os
 import threading
 
@@ -15,9 +14,10 @@ from dotenv import load_dotenv
 from flask import Flask, jsonify, request, send_from_directory
 from supabase import create_client
 
-from scrape_radartegal import scrape_new_articles as scrape_radartegal
+from scrape_radartegal_bs4 import scrape_new_articles as scrape_radartegal
 from scraping_panturapost import scrape_new_articles as scrape_panturapost
 from scrape_tribunjateng import scrape_new_articles as scrape_tribunjateng
+from scrape_kompas import scrape_new_articles as scrape_kompas
 from utils import normalize_date
 
 load_dotenv()
@@ -37,6 +37,7 @@ _scrape_progress = {
     "radartegal":   {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "panturapost":  {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "tribunjateng": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "kompas":       {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
 }
 _scrape_overall = {"active": False, "done": False, "total_inserted": 0, "error": ""}
 
@@ -104,6 +105,7 @@ SOURCE_LABELS = {
     "radartegal":   "Radar Tegal",
     "panturapost":  "Pantura Post",
     "tribunjateng": "Tribun Jateng",
+    "kompas":       "Kompas",
 }
 
 
@@ -139,7 +141,7 @@ def _scrape_worker(max_articles: int):
 
         total_inserted = 0
 
-        # ── 1. Radar Tegal (Playwright / async) ───────────────────────────────
+        # ── 1. Radar Tegal (requests + BS4 / sync) ────────────────────────────
         _scrape_progress["radartegal"]["status"]  = "running"
         _scrape_progress["radartegal"]["message"] = "Memulai scraping..."
 
@@ -150,17 +152,11 @@ def _scrape_worker(max_articles: int):
         max_pages = max(1, max_articles // 30)
         print(f"[SCRAPE] RadarTegal: maks {max_pages} halaman (~{max_articles} artikel)")
 
-        loop = asyncio.new_event_loop()
-        rt_articles = loop.run_until_complete(
-            scrape_radartegal(
-                existing_urls,
-                headless=True,
-                delay=1.5,
-                max_pages=max_pages,
-                on_progress=rt_progress,
-            )
+        rt_articles = scrape_radartegal(
+            existing_urls,
+            max_pages=max_pages,
+            on_progress=rt_progress,
         )
-        loop.close()
 
         n = _insert_articles(rt_articles, "radartegal")
         total_inserted += n
@@ -210,6 +206,27 @@ def _scrape_worker(max_articles: int):
         _scrape_progress["tribunjateng"]["message"] = f"Selesai — {n} berita disimpan"
         print(f"[SCRAPE] TribunJateng selesai: {n} disimpan")
 
+        # ── 4. Kompas (requests / sync) ───────────────────────────────────────
+        _scrape_progress["kompas"]["status"]  = "running"
+        _scrape_progress["kompas"]["message"] = "Memulai scraping..."
+
+        def kp_progress(count, _src):
+            _scrape_progress["kompas"]["scraped"]  = count
+            _scrape_progress["kompas"]["message"] = f"{count} berita ditemukan"
+
+        print(f"[SCRAPE] Kompas: maks {max_articles} artikel")
+        kp_articles = scrape_kompas(
+            existing_urls,
+            max_articles=max_articles,
+            on_progress=kp_progress,
+        )
+
+        n = _insert_articles(kp_articles, "kompas")
+        total_inserted += n
+        _scrape_progress["kompas"]["status"]  = "done"
+        _scrape_progress["kompas"]["message"] = f"Selesai — {n} berita disimpan"
+        print(f"[SCRAPE] Kompas selesai: {n} disimpan")
+
         _scrape_overall["total_inserted"] = total_inserted
         print(f"[SCRAPE] Semua selesai. Total {total_inserted} berita baru disimpan.")
 
@@ -256,7 +273,7 @@ def start_scrape():
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("Dashboard Berita — Flask Server (3 Sumber)")
+    print("Dashboard Berita — Flask Server (4 Sumber)")
     print("=" * 50)
     print(f"Supabase: {SUPABASE_URL}")
     print("Buka http://localhost:5000")

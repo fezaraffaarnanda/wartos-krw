@@ -1,3 +1,4 @@
+import re
 import requests
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
@@ -7,6 +8,61 @@ import random
 
 TRIBUN_SOURCE    = "Tribun Jateng"
 TRIBUN_START_URL = "https://jateng.tribunnews.com/topic/berita-kabupaten-tegal"
+
+
+# ── Pembersih konten ───────────────────────────────────────────────────────────
+
+_TJ_DOMAIN_REGEX = re.compile(
+    r"tribunjateng\.com|jateng\.tribunnews\.com|tribunnews\.com",
+    re.IGNORECASE,
+)
+
+_TJ_BOILERPLATE_PREFIXES = (
+    "Baca juga:",
+    "BACA JUGA",
+    "Sumber:",
+    "Simak breaking news",
+    "Ikuti kami di Google News",
+    "Dapatkan informasi terkini",
+    "Editor:",
+    "Penulis:",
+    "Artikel ini telah tayang",
+)
+
+_TJ_BOILERPLATE_REGEX = re.compile(
+    r"Cek Berita dan Artikel lainnya\s*di\s*Google\s*News"
+    r"|Ikuti kami di Google News"
+    r"|Simak breaking news"
+    r"|Dapatkan informasi terkini"
+    r"|Simak berita terkini",
+    re.IGNORECASE,
+)
+
+
+def clean_content(text: str) -> str:
+    """
+    Bersihkan konten artikel Tribun Jateng dari watermark dan noise:
+      - Domain tribunjateng.com, jateng.tribunnews.com, tribunnews.com
+      - Baris Baca juga:, BACA JUGA, Sumber:, footer Google News
+      - Baris editor/penulis
+      - Baris kosong dan separator
+    """
+    text = _TJ_DOMAIN_REGEX.sub("", text)
+    text = re.sub(r"\(\*+\)", "", text)
+
+    cleaned: list[str] = []
+    for raw_line in text.split("\n"):
+        line = raw_line.strip()
+        if any(line.lower().startswith(prefix.lower()) for prefix in _TJ_BOILERPLATE_PREFIXES):
+            continue
+        if _TJ_BOILERPLATE_REGEX.search(line):
+            continue
+        if line == "--":
+            continue
+        line = re.sub(r"\s*--$", "", line).strip()
+        if line:
+            cleaned.append(line)
+    return "\n".join(cleaned)
 
 headers = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -78,13 +134,13 @@ def scrape_tribun(url):
                 next_page = urljoin(url, next_tag["href"])
 
         url = next_page
-        time.sleep(random.uniform(2, 4))
+        time.sleep(random.uniform(1, 3))
 
     return {
         "judul": judul,
         "penulis": penulis,
         "waktu": waktu,
-        "isi": " ".join(isi_all),
+        "isi": clean_content("\n".join(isi_all)),
         "tags": ", ".join(tags),
         "url": original_url
     }
@@ -121,7 +177,7 @@ def scrape_index(start_url, target_n):
             print("Total:", len(results))
             if len(results) >= target_n:
                 break
-            time.sleep(random.uniform(3, 6))
+            time.sleep(random.uniform(2, 4))
 
         next_tag = soup.select_one("a[rel='next']")
         if next_tag:
