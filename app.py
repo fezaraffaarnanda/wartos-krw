@@ -16,7 +16,7 @@ from supabase import create_client
 
 from scrape_radartegal_bs4 import scrape_new_articles as scrape_radartegal
 from scraping_panturapost import scrape_new_articles as scrape_panturapost
-from scrape_tribunjateng import scrape_new_articles as scrape_tribunjateng
+from scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
 from scrape_kompas import scrape_new_articles as scrape_kompas
 from utils import normalize_date
 
@@ -113,6 +113,10 @@ def _insert_articles(articles: list, source_key: str) -> int:
     source_label = SOURCE_LABELS.get(source_key, source_key)
     inserted = 0
     for article in articles:
+        # lewati entri null atau yang judul/url-nya kosong
+        if not article or not article.get("title") or not article.get("url"):
+            print(f"[SKIP] {source_key}: artikel null/judul kosong dilewati")
+            continue
         try:
             supabase.table("berita").insert({
                 "title":   article["title"],
