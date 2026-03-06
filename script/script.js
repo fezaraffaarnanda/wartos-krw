@@ -1,6 +1,6 @@
 /* ============================================
    Dashboard Berita — Frontend Logic
-   3 Sumber: Radar Tegal, Pantura Post, Tribun Jateng
+   4 Sumber: Radar Tegal, Pantura Post, Tribun Jateng, Kompas
    ============================================ */
 
 let allData = [];
@@ -9,6 +9,7 @@ let currentPage = 1;
 const PER_PAGE = 15;
 let sortField = "date";
 let sortAsc = false;  // default: terbaru di atas
+let currentUser = null;
 
 const BULAN_ID = {
     januari: 0, februari: 1, maret: 2, april: 3, mei: 4, juni: 5,
@@ -32,8 +33,9 @@ let maxArticlesGlobal = 150;
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     startRealtimeClock();
+    await loadUserInfo();
     loadBerita();
     animateCards();
 });
@@ -61,6 +63,32 @@ function updateTimestamp() {
     el.textContent = `${tanggal} • ${waktu}`;
 }
 
+// ── User info ─────────────────────────────────────────────────────────────────
+
+async function loadUserInfo() {
+    try {
+        const res = await fetch("/api/me");
+        if (res.status === 401) {
+            window.location.href = "/login";
+            return;
+        }
+        const json = await res.json();
+        if (json.status === "ok") {
+            currentUser = json;
+            const userEl = document.getElementById("headerUser");
+            if (userEl) userEl.textContent = json.username;
+
+            // Sembunyikan scrape section untuk non-admin
+            if (json.role !== "admin") {
+                const scrapeSection = document.getElementById("scrapeSection");
+                if (scrapeSection) scrapeSection.style.display = "none";
+            }
+        }
+    } catch (e) {
+        console.error("Gagal memuat info user:", e);
+    }
+}
+
 function animateCards() {
     document.querySelectorAll(".card-animate").forEach((card, i) => {
         setTimeout(() => card.classList.add("visible"), 100 + i * 80);
@@ -72,6 +100,7 @@ function animateCards() {
 async function loadBerita() {
     try {
         const res = await fetch("/api/berita");
+        if (res.status === 401) { window.location.href = "/login"; return; }
         const json = await res.json();
         if (json.status === "ok") {
             allData = json.data || [];
@@ -106,12 +135,15 @@ async function scrapeBerita() {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ max_articles: maxArticlesGlobal }),
         });
+
+        if (res.status === 401) { window.location.href = "/login"; return; }
+
         const json = await res.json();
 
         if (json.status === "started") {
             startPolling();
         } else {
-            alert("Error: " + json.message);
+            alert("Error: " + (json.message || "Terjadi kesalahan."));
             hideProgress();
             btn.classList.remove("loading");
             btn.disabled = false;
@@ -141,6 +173,7 @@ function stopPolling() {
 async function fetchProgress() {
     try {
         const res = await fetch("/api/scrape/progress");
+        if (res.status === 401) { window.location.href = "/login"; return; }
         const json = await res.json();
         updateProgressUI(json.progress, json.overall);
 
@@ -343,6 +376,8 @@ function renderTable() {
             .join(" ");
         const source = escapeHtml(item.source || "—");
         const date = escapeHtml(item.date || "—");
+        const internalLink = item.id ? `/berita/${item.id}` : "#";
+        const externalLink = escapeHtml(item.url || "#");
         return `
         <tr>
             <td class="td-no">${no}</td>
@@ -351,7 +386,14 @@ function renderTable() {
             <td class="td-date">${date}</td>
             <td class="td-tags">${tags || "—"}</td>
             <td class="td-link">
-                <a href="${escapeHtml(item.url || "#")}" target="_blank" class="link-btn">Buka</a>
+                <div class="td-link-inner">
+                    <a href="${internalLink}" class="link-btn">Buka</a>
+                    <a href="${externalLink}" target="_blank" rel="noopener noreferrer" class="link-ext" title="Buka sumber asli">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/>
+                        </svg>
+                    </a>
+                </div>
             </td>
         </tr>`;
     }).join("");

@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Dashboard Berita BPS Kab. Tegal</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+        rel="stylesheet">
+    <link rel="stylesheet" href="/styles/style.css">
+</head>
+
+<body class="login-body">
+    <div class="login-wrapper">
+        <!-- Card -->
+        <div class="login-card">
+            <!-- Brand -->
+            <div class="login-brand">
+                <img src="/bps.svg" alt="BPS Logo" height="56">
+                <div class="login-brand-text">
+                    <h1>Dashboard Fenomena Ekonomi</h1>
+                    <p>Badan Pusat Statistik Kabupaten Tegal</p>
+                </div>
+            </div>
+
+            <div class="login-divider"></div>
+
+            <!-- Form -->
+            <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="on" novalidate>
+                <div class="form-group">
+                    <label class="form-label" for="username">Username</label>
+                    <input
+                        type="text"
+                        id="username"
+                        name="username"
+                        class="form-input"
+                        placeholder="Masukkan username"
+                        autocomplete="username"
+                        maxlength="100"
+                        required>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label" for="password">Password</label>
+                    <div class="input-password-wrapper">
+                        <input
+                            type="password"
+                            id="password"
+                            name="password"
+                            class="form-input"
+                            placeholder="Masukkan password"
+                            autocomplete="current-password"
+                            maxlength="200"
+                            required>
+                        <button type="button" class="btn-toggle-pw" onclick="togglePassword()" tabindex="-1"
+                            aria-label="Tampilkan/sembunyikan password">
+                            <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                <circle cx="12" cy="12" r="3" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Error message -->
+                <div class="form-error" id="loginError" role="alert" aria-live="polite" style="display:none"></div>
+
+                <button type="submit" class="btn-login" id="btnLogin">
+                    <span class="btn-text">Masuk</span>
+                    <span class="btn-loader" id="loginLoader"></span>
+                </button>
+            </form>
+        </div>
+
+        <p class="login-footer">© 2026 BPS Kabupaten Tegal</p>
+    </div>
+
+    <script>
+        async function handleLogin(e) {
+            e.preventDefault();
+
+            const username = document.getElementById("username").value.trim();
+            const password = document.getElementById("password").value.trim();
+            const errorEl  = document.getElementById("loginError");
+            const btn      = document.getElementById("btnLogin");
+
+            // Clear previous error
+            hideError();
+
+            if (!username || !password) {
+                showError("Username dan password wajib diisi.");
+                return;
+            }
+
+            setLoading(true);
+
+            try {
+                const res = await fetch("/api/login", {
+                    method:  "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body:    JSON.stringify({ username, password }),
+                });
+
+                const json = await res.json();
+
+                if (res.ok && json.status === "ok") {
+                    window.location.href = "/";
+                } else if (res.status === 429) {
+                    showError("Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.");
+                } else {
+                    showError(json.message || "Username atau password salah.");
+                }
+            } catch (err) {
+                showError("Gagal terhubung ke server. Coba lagi.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        function setLoading(on) {
+            const btn    = document.getElementById("btnLogin");
+            const text   = btn.querySelector(".btn-text");
+            const loader = document.getElementById("loginLoader");
+            btn.disabled       = on;
+            text.style.opacity  = on ? "0" : "1";
+            loader.style.display = on ? "block" : "none";
+        }
+
+        function showError(msg) {
+            const el = document.getElementById("loginError");
+            el.textContent  = msg;
+            el.style.display = "block";
+        }
+
+        function hideError() {
+            const el = document.getElementById("loginError");
+            el.style.display = "none";
+        }
+
+        function togglePassword() {
+            const input = document.getElementById("password");
+            const icon  = document.getElementById("eyeIcon");
+            const show  = input.type === "password";
+            input.type = show ? "text" : "password";
+            icon.innerHTML = show
+                ? `<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>`
+                : `<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>`;
+        }
+
+        // If already authenticated, redirect to dashboard
+        document.addEventListener("DOMContentLoaded", async () => {
+            try {
+                const res = await fetch("/api/me");
+                if (res.ok) {
+                    const json = await res.json();
+                    if (json.status === "ok") window.location.href = "/";
+                }
+            } catch (_) { /* not logged in */ }
+        });
+    </script>
+</body>
+
+</html>

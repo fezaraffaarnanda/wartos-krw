@@ -1,4 +1,7 @@
 flask
+flask-login
+flask-bcrypt
+flask-limiter
 python-dotenv
 supabase
 playwright
