@@ -25,10 +25,10 @@ from flask_login import (
 )
 from supabase import create_client
 
-from scrape_radartegal_bs4 import scrape_new_articles as scrape_radartegal
-from scraping_panturapost import scrape_new_articles as scrape_panturapost
-from scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
-from scrape_kompas import scrape_new_articles as scrape_kompas
+from scrapers.scrape_radartegal_bs4 import scrape_new_articles as scrape_radartegal
+from scrapers.scraping_panturapost import scrape_new_articles as scrape_panturapost
+from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
+from scrapers.scrape_kompas import scrape_new_articles as scrape_kompas
 from utils import normalize_date
 
 load_dotenv()
@@ -40,7 +40,7 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Flask app ──────────────────────────────────────────────────────────────────
 
-app = Flask(__name__, static_folder=".", static_url_path="")
+app = Flask(__name__, static_folder="static", static_url_path="/static", template_folder="templates")
 
 SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
 if not SECRET_KEY:
@@ -103,34 +103,34 @@ def load_user(user_id: str):
 def serve_login():
     if current_user.is_authenticated:
         return redirect(url_for("index"))
-    return send_from_directory(".", "login.html")
+    return send_from_directory("templates", "login.html")
 
 
 @app.route("/")
 @login_required
 def index():
-    return send_from_directory(".", "index.html")
+    return send_from_directory("templates", "index.html")
 
 
 @app.route("/berita/<int:berita_id>")
 @login_required
 def berita_detail(berita_id):
-    return send_from_directory(".", "berita.html")
+    return send_from_directory("templates", "berita.html")
 
 
-@app.route("/styles/<path:filename>")
+@app.route("/static/css/<path:filename>")
 def serve_styles(filename):
-    return send_from_directory("styles", filename)
+    return send_from_directory("static/css", filename)
 
 
-@app.route("/script/<path:filename>")
+@app.route("/static/js/<path:filename>")
 def serve_scripts(filename):
-    return send_from_directory("script", filename)
+    return send_from_directory("static/js", filename)
 
 
-@app.route("/bps.svg")
+@app.route("/static/bps.svg")
 def serve_logo():
-    return send_from_directory(".", "bps.svg")
+    return send_from_directory("static", "bps.svg")
 
 
 # ── Auth API ───────────────────────────────────────────────────────────────────

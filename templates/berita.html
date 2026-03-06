@@ -10,7 +10,7 @@
     <link
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="/styles/style.css">
+    <link rel="stylesheet" href="../static/css/style.css">
 </head>
 
 <body>
@@ -19,7 +19,7 @@
         <div class="header-inner">
             <div class="header-brand">
                 <div class="header-logo">
-                    <img src="/bps.svg" alt="BPS Logo" height="40">
+                    <img src="/static/bps.svg" alt="BPS Logo" height="40">
                 </div>
                 <div class="header-text">
                     <h1>Dashboard Fenomena Ekonomi</h1>
@@ -117,7 +117,6 @@
 
     <script>
         // ── Init ─────────────────────────────────────────────────────────────────
-
         document.addEventListener("DOMContentLoaded", async () => {
             await loadUserInfo();
             const id = getArticleId();
