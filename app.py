@@ -276,6 +276,18 @@ def _insert_articles(articles: list, source_key: str) -> int:
         if not article or not article.get("title") or not article.get("url"):
             print(f"[SKIP] {source_key}: artikel null/judul kosong dilewati")
             continue
+
+        # ── Validasi tambahan khusus tribunjateng: tidak ada kolom wajib yang NA/kosong
+        if source_key == "tribunjateng":
+            for field in ("title", "date", "content"):
+                val = article.get(field, "")
+                if not val or str(val).strip().upper() == "NA":
+                    print(f"[SKIP] {source_key}: field '{field}' kosong/NA — {article.get('url', '')}")
+                    article = None
+                    break
+            if article is None:
+                continue
+
         try:
             supabase.table("berita").insert({
                 "title":   article["title"],
@@ -409,6 +421,64 @@ def start_scrape():
     t.start()
 
     return jsonify({"status": "started", "max_articles": max_articles})
+
+
+# ── API: Vercel Cron ───────────────────────────────────────────────────
+
+@app.route("/api/cron", methods=["GET"])
+def cron_scrape():
+    """
+    Endpoint dipanggil oleh Vercel Cron setiap jam sekali.
+    Vercel secara otomatis mengirim header:
+        Authorization: Bearer <CRON_SECRET>
+    Set CRON_SECRET di Vercel environment variables.
+    """
+    cron_secret = os.getenv("CRON_SECRET", "")
+    auth_header = request.headers.get("Authorization", "")
+    expected    = f"Bearer {cron_secret}"
+
+    if not cron_secret or auth_header != expected:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
+    print("[CRON] Mulai scraping otomatis (Vercel Cron)")
+    results = {}
+    total_inserted = 0
+    errors = []
+
+    try:
+        existing = supabase.table("berita").select("url").execute()
+        existing_urls = {row["url"] for row in existing.data}
+        print(f"[CRON] {len(existing_urls)} URL sudah ada.")
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal fetch existing URLs: {exc}"}), 500
+
+    MAX_PER_SOURCE = 50  # batas per sumber agar tidak timeout di Vercel
+
+    scrapers = [
+        ("radartegal",   scrape_radartegal,   {"max_pages": 2}),
+        ("panturapost",  scrape_panturapost,  {"max_articles": MAX_PER_SOURCE}),
+        ("tribunjateng", scrape_tribunjateng, {"max_articles": MAX_PER_SOURCE}),
+        ("kompas",       scrape_kompas,       {"max_articles": MAX_PER_SOURCE}),
+    ]
+
+    for key, scraper_fn, kwargs in scrapers:
+        try:
+            articles = scraper_fn(existing_urls, **kwargs)
+            n = _insert_articles(articles, key)
+            results[key] = n
+            total_inserted += n
+            print(f"[CRON] {key}: {n} disimpan")
+        except Exception as exc:
+            errors.append(f"{key}: {exc}")
+            print(f"[CRON ERROR] {key}: {exc}")
+
+    print(f"[CRON] Selesai. Total {total_inserted} berita baru disimpan.")
+    return jsonify({
+        "status":         "ok",
+        "total_inserted": total_inserted,
+        "results":        results,
+        "errors":         errors,
+    })
 
 
 # ── Error handlers ─────────────────────────────────────────────────────────────

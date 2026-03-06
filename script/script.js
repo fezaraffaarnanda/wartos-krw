@@ -459,18 +459,75 @@ function goPage(p) {
     document.getElementById("tableSection").scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-// ── Search ────────────────────────────────────────────────────────────────────
+// ── Search & Date Filter ──────────────────────────────────────────────────────
 
-function searchTable(query) {
-    const q = query.toLowerCase().trim();
-    filteredData = q
-        ? allData.filter(item =>
-            (item.title || "").toLowerCase().includes(q) ||
-            (item.tags  || "").toLowerCase().includes(q)
-          )
-        : [...allData];
+/**
+ * Konversi tanggal format Indonesia ("23 Februari 2026, 16:04 WIB") ke ISO string
+ * untuk perbandingan dengan date input (yyyy-mm-dd).
+ */
+function parseDateToISO(str) {
+    if (!str) return null;
+    const d = parseDateID(str);
+    if (!d || d.getTime() === 0) return null;
+    // Format: yyyy-mm-dd
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+}
+
+function applyFilters() {
+    const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
+    const dateFrom = document.getElementById('dateFrom').value;   // "yyyy-mm-dd" or ""
+    const dateTo   = document.getElementById('dateTo').value;     // "yyyy-mm-dd" or ""
+
+    // Toggle reset button visibility
+    const resetBtn = document.getElementById('btnResetDate');
+    if (resetBtn) {
+        if (dateFrom || dateTo) {
+            resetBtn.classList.remove('hidden');
+        } else {
+            resetBtn.classList.add('hidden');
+        }
+    }
+
+    filteredData = allData.filter(item => {
+        // ── Text search
+        if (q) {
+            const matchText =
+                (item.title || '').toLowerCase().includes(q) ||
+                (item.tags  || '').toLowerCase().includes(q);
+            if (!matchText) return false;
+        }
+
+        // ── Date range
+        if (dateFrom || dateTo) {
+            const isoDate = parseDateToISO(item.date);
+            if (!isoDate) return false;   // skip artikel tanpa tanggal valid
+            if (dateFrom && isoDate < dateFrom) return false;
+            if (dateTo   && isoDate > dateTo)   return false;
+        }
+
+        return true;
+    });
+
     currentPage = 1;
     renderTable();
+}
+
+function resetDateFilter() {
+    document.getElementById('dateFrom').value = '';
+    document.getElementById('dateTo').value   = '';
+    const resetBtn = document.getElementById('btnResetDate');
+    if (resetBtn) resetBtn.classList.add('hidden');
+    applyFilters();
+}
+
+// Keep backward-compat alias
+function searchTable(query) {
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput && query !== undefined) searchInput.value = query;
+    applyFilters();
 }
 
 // ── Sort ──────────────────────────────────────────────────────────────────────

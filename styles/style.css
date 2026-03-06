@@ -632,6 +632,108 @@ a:hover {
 }
 
 /* ============================================
+   Date Filter
+   ============================================ */
+
+.date-filter-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px 6px 10px;
+    background: var(--gray-50);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.date-filter-group:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.1);
+    background: var(--white);
+}
+
+.date-filter-icon {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.date-inputs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.date-input-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.date-input-wrap label {
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    line-height: 1;
+}
+
+.date-input {
+    border: none;
+    background: transparent;
+    font-family: var(--font-family);
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    outline: none;
+    padding: 2px 0;
+    cursor: pointer;
+    width: 120px;
+}
+
+.date-input::-webkit-calendar-picker-indicator {
+    cursor: pointer;
+    opacity: 0.5;
+    filter: invert(0);
+}
+
+.date-input::-webkit-calendar-picker-indicator:hover {
+    opacity: 1;
+}
+
+.date-separator {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    font-weight: 600;
+    flex-shrink: 0;
+}
+
+.btn-reset-date {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    background: var(--gray-200);
+    color: var(--text-secondary);
+    border: none;
+    border-radius: 50%;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    flex-shrink: 0;
+    padding: 0;
+}
+
+.btn-reset-date:hover {
+    background: var(--accent);
+    color: var(--white);
+}
+
+.btn-reset-date.hidden {
+    display: none;
+}
+
+/* ============================================
    Data Table
    ============================================ */
 

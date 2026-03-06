@@ -143,9 +143,18 @@ def scrape_tribun(url):
 
         time.sleep(random.uniform(2, 4))
 
-    tags_str = " | ".join(
-        t.strip() for t in ", ".join(tags).replace(",", "|").split("|") if t.strip()
+    # ── Bersihkan tag: hapus entri yang mengandung domain tribunjateng/tribunnews
+    raw_tags = [
+        t.strip()
+        for t in ", ".join(tags).replace(",", "|").split("|")
+        if t.strip()
+    ]
+    _DOMAIN_TAG = re.compile(
+        r"tribunjateng|tribunnews|jateng\.tribun",
+        re.IGNORECASE,
     )
+    clean_tags = [t for t in raw_tags if not _DOMAIN_TAG.search(t)]
+    tags_str = " | ".join(clean_tags)
 
     return {
         "judul": judul,
@@ -270,6 +279,18 @@ def scrape_new_articles(
                     "tags":    data.get("tags") or "",
                     "source":  TRIBUN_SOURCE,
                 }
+
+                # ── Validasi: skip jika ada kolom wajib yang kosong/NA
+                required_fields = {
+                    "title":   article["title"],
+                    "date":    article["date"],
+                    "content": article["content"],
+                }
+                missing = [k for k, v in required_fields.items() if not v or str(v).strip().upper() == "NA"]
+                if missing:
+                    log(f"  Field kosong/NA {missing}, dilewati: {article_url}")
+                    continue
+
                 new_articles.append(article)
                 existing_urls.add(article_url)
                 if on_progress:
