@@ -1,6 +1,7 @@
 import os
+import secrets
 import threading
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from dotenv import load_dotenv
 from flask import (
@@ -24,32 +25,27 @@ from utils import normalize_date, parse_date_to_iso
 
 load_dotenv()
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+supabase = create_client(os.getenv("SUPABASE_URL"), os.getenv("SUPABASE_KEY"))
 
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Flask app ──────────────────────────────────────────────────────────────────
 
 app = Flask(__name__, static_folder="static", static_url_path="/static", template_folder="templates")
 
-SECRET_KEY = os.getenv("FLASK_SECRET_KEY")
-if not SECRET_KEY:
-    import secrets
-    SECRET_KEY = secrets.token_hex(32)
+_secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
+if not os.getenv("FLASK_SECRET_KEY"):
     print("[PERINGATAN] FLASK_SECRET_KEY tidak ditemukan di .env — menggunakan kunci acak sementara.")
 
-app.secret_key = SECRET_KEY
-
-# Secure session config
+app.secret_key = _secret_key
 app.config["SESSION_COOKIE_HTTPONLY"]    = True
 app.config["SESSION_COOKIE_SAMESITE"]   = "Lax"
 app.config["SESSION_COOKIE_SECURE"]     = False   # ubah True jika pakai HTTPS
 app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(hours=1)
 
+
 # ── Extensions ─────────────────────────────────────────────────────────────────
 
-bcrypt       = Bcrypt(app)
+bcrypt        = Bcrypt(app)
 login_manager = LoginManager(app)
 login_manager.login_view = "serve_login"
 
@@ -59,6 +55,21 @@ limiter = Limiter(
     default_limits=["300 per hour"],
     storage_uri="memory://",
 )
+
+
+# ── Constants ──────────────────────────────────────────────────────────────────
+
+SOURCE_LABELS = {
+    "radartegal":   "Radar Tegal",
+    "panturapost":  "Pantura Post",
+    "tribunjateng": "Tribun Jateng",
+    "kompas":       "Kompas",
+}
+
+BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, source, created_at"
+BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, source, content"
+
+WIB = timezone(timedelta(hours=7))
 
 
 # ── User model ─────────────────────────────────────────────────────────────────
@@ -71,7 +82,7 @@ class User(UserMixin):
 
 
 @login_manager.user_loader
-def load_user(user_id: str):
+def load_user(user_id: str) -> User | None:
     try:
         result = (
             supabase.table("users")
@@ -156,11 +167,7 @@ def api_login():
     user = User(str(user_data["id"]), user_data["username"], user_data["role"])
     login_user(user, remember=False)
 
-    return jsonify({
-        "status": "ok",
-        "username": user.username,
-        "role":     user.role,
-    })
+    return jsonify({"status": "ok", "username": user.username, "role": user.role})
 
 
 @app.route("/logout")
@@ -180,40 +187,47 @@ def api_me():
     })
 
 
-# ── API: ambil semua berita ────────────────────────────────────────────────────
+# ── Helpers: query builder ─────────────────────────────────────────────────────
+
+def _build_berita_query(columns: str, search: str, date_from: str, date_to: str):
+    """Buat Supabase query dengan filter opsional."""
+    query = (
+        supabase.table("berita")
+        .select(columns)
+        .order("id", desc=True)
+    )
+    if search:
+        query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
+    if date_from:
+        query = query.gte("date_parsed", date_from)
+    if date_to:
+        query = query.lte("date_parsed", date_to)
+    return query
+
+
+def _parse_filter_params() -> tuple[str, str, str]:
+    """Ekstrak dan sanitasi filter params dari request."""
+    return (
+        request.args.get("search",    "").strip(),
+        request.args.get("date_from", "").strip(),
+        request.args.get("date_to",   "").strip(),
+    )
+
+
+# ── API: berita ────────────────────────────────────────────────────────────────
 
 @app.route("/api/berita", methods=["GET"])
 @login_required
 def get_berita():
     """
     Kembalikan daftar berita TANPA kolom content (berat).
-    Kolom content hanya dimuat di /api/berita/<id>.
+    Kolom content hanya dimuat di /api/berita/<id> atau /api/berita/export.
 
-    Query params opsional:
-      - search    : filter judul/tags (case-insensitive)
-      - date_from : filter date_parsed >= nilai (format YYYY-MM-DD)
-      - date_to   : filter date_parsed <= nilai (format YYYY-MM-DD)
+    Query params opsional: search, date_from, date_to (format YYYY-MM-DD)
     """
-    search    = request.args.get("search",    "").strip()
-    date_from = request.args.get("date_from", "").strip()
-    date_to   = request.args.get("date_to",   "").strip()
-
+    search, date_from, date_to = _parse_filter_params()
     try:
-        query = (
-            supabase.table("berita")
-            # Ambil semua kolom KECUALI content — hemat bandwidth & RAM
-            .select("id, title, date, date_parsed, url, tags, source, created_at")
-            .order("id", desc=True)
-        )
-
-        if search:
-            query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
-        if date_from:
-            query = query.gte("date_parsed", date_from)
-        if date_to:
-            query = query.lte("date_parsed", date_to)
-
-        result = query.execute()
+        result = _build_berita_query(BERITA_LIST_COLUMNS, search, date_from, date_to).execute()
         return jsonify({"status": "ok", "data": result.data})
     except Exception:
         return jsonify({"status": "error", "message": "Gagal mengambil data."}), 500
@@ -243,33 +257,15 @@ def get_berita_by_id(berita_id):
 @login_required
 def export_berita():
     """
-    Endpoint khusus untuk download Excel.
-    Kembalikan SEMUA kolom termasuk content, dengan filter opsional.
-    Dipanggil hanya saat user klik Download Excel — bukan saat load halaman biasa.
+    Endpoint khusus untuk download Excel — termasuk kolom content.
+    Dipanggil hanya saat user klik Download Excel.
     """
-    search    = request.args.get("search",    "").strip()
-    date_from = request.args.get("date_from", "").strip()
-    date_to   = request.args.get("date_to",   "").strip()
-
+    search, date_from, date_to = _parse_filter_params()
     try:
-        query = (
-            supabase.table("berita")
-            .select("id, title, date, date_parsed, url, tags, source, content")
-            .order("id", desc=True)
-        )
-        if search:
-            query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
-        if date_from:
-            query = query.gte("date_parsed", date_from)
-        if date_to:
-            query = query.lte("date_parsed", date_to)
-
-        result = query.execute()
+        result = _build_berita_query(BERITA_EXPORT_COLUMNS, search, date_from, date_to).execute()
         return jsonify({"status": "ok", "data": result.data})
     except Exception:
         return jsonify({"status": "error", "message": "Gagal mengekspor data."}), 500
-
-
 
 
 # ── API: last scrape time ──────────────────────────────────────────────────────
@@ -282,209 +278,178 @@ def get_last_scrape():
       - last_scrape : timestamp terakhir scraping berjalan (dari scrape_log)
       - new_count   : jumlah berita yang masuk hari ini (sejak 00:00 WIB)
     """
-    from datetime import datetime, timezone, timedelta
-
     try:
-        # ── Waktu scraping terakhir dari scrape_log ───────────────────────────
-        log_result = (
-            supabase.table("scrape_log")
-            .select("scraped_at, total_inserted")
-            .order("scraped_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-        last_scrape = log_result.data[0]["scraped_at"] if log_result.data else None
-
-        # ── Hitung berita dengan tanggal publikasi hari ini (WIB) ──────────
-        wib = timezone(timedelta(hours=7))
-        today_str = datetime.now(wib).strftime("%Y-%m-%d")
-        count_result = (
-            supabase.table("berita")
-            .select("id", count="exact")
-            .eq("date_parsed", today_str)
-            .execute()
-        )
-        new_count = count_result.count if count_result.count is not None else 0
-
-        return jsonify({
-            "status":     "ok",
-            "last_scrape": last_scrape,
-            "new_count":  new_count,
-        })
+        last_scrape = _fetch_last_scrape_timestamp()
+        new_count   = _count_todays_articles()
+        return jsonify({"status": "ok", "last_scrape": last_scrape, "new_count": new_count})
     except Exception as exc:
         return jsonify({"status": "error", "message": str(exc)}), 500
 
 
-# ── Helper: catat scrape run ke scrape_log ─────────────────────────────────────
-
-def _log_scrape_run(total_inserted: int):
-    """Insert satu baris ke scrape_log. Gagal diam-diam agar tidak mengganggu flow."""
-    try:
-        supabase.table("scrape_log").insert({
-            "total_inserted": total_inserted,
-        }).execute()
-    except Exception as exc:
-        print(f"[LOG] Gagal catat scrape_log: {exc}")
-
+def _fetch_last_scrape_timestamp() -> str | None:
+    result = (
+        supabase.table("scrape_log")
+        .select("scraped_at")
+        .order("scraped_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    return result.data[0]["scraped_at"] if result.data else None
 
 
-# ── API: progress scraping ─────────────────────────────────────────────────────
+def _count_todays_articles() -> int:
+    today_str = datetime.now(WIB).strftime("%Y-%m-%d")
+    result = (
+        supabase.table("berita")
+        .select("id", count="exact")
+        .eq("date_parsed", today_str)
+        .execute()
+    )
+    return result.count or 0
 
-@app.route("/api/scrape/progress", methods=["GET"])
-@login_required
-@limiter.exempt
-def get_progress():
-    return jsonify({
-        "progress": _scrape_progress,
-        "overall":  _scrape_overall,
-    })
 
-
-# ── State scraping ─────────────────────────────────────────────────────────────
+# ── Scraping state ─────────────────────────────────────────────────────────────
 
 _scraping_lock = threading.Lock()
 
-_scrape_progress = {
+_scrape_progress: dict = {
     "radartegal":   {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "panturapost":  {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "tribunjateng": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "kompas":       {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
 }
-_scrape_overall = {"active": False, "done": False, "total_inserted": 0, "error": ""}
+_scrape_overall: dict = {"active": False, "done": False, "total_inserted": 0, "error": ""}
 
 
 def _reset_progress():
     for key in _scrape_progress:
         _scrape_progress[key] = {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."}
-    _scrape_overall["active"]         = True
-    _scrape_overall["done"]           = False
-    _scrape_overall["total_inserted"] = 0
-    _scrape_overall["error"]          = ""
+    _scrape_overall.update({"active": True, "done": False, "total_inserted": 0, "error": ""})
 
 
-# ── Helper: insert batch ke Supabase ──────────────────────────────────────────
+@app.route("/api/scrape/progress", methods=["GET"])
+@login_required
+@limiter.exempt
+def get_progress():
+    return jsonify({"progress": _scrape_progress, "overall": _scrape_overall})
 
-SOURCE_LABELS = {
-    "radartegal":   "Radar Tegal",
-    "panturapost":  "Pantura Post",
-    "tribunjateng": "Tribun Jateng",
-    "kompas":       "Kompas",
-}
+
+# ── Helpers: artikel ───────────────────────────────────────────────────────────
+
+def _is_valid_article(article: dict | None, source_key: str) -> bool:
+    """Return False kalau artikel harus dilewati (null, judul kosong, atau field NA)."""
+    if not article or not article.get("title") or not article.get("url"):
+        print(f"[SKIP] {source_key}: artikel null/judul kosong dilewati")
+        return False
+
+    if source_key == "tribunjateng":
+        for field in ("title", "date", "content"):
+            val = article.get(field, "")
+            if not val or str(val).strip().upper() == "NA":
+                print(f"[SKIP] {source_key}: field '{field}' kosong/NA — {article.get('url', '')}")
+                return False
+
+    return True
+
+
+def _build_article_row(article: dict, source_label: str) -> dict:
+    """Rakit dict row siap insert ke tabel berita."""
+    normalized_date = normalize_date(article["date"])
+    return {
+        "title":       article["title"],
+        "date":        normalized_date,
+        "date_parsed": parse_date_to_iso(normalized_date),
+        "url":         article["url"],
+        "content":     article["content"],
+        "tags":        article["tags"].lower() if article.get("tags") else article.get("tags"),
+        "source":      article.get("source") or source_label,
+    }
 
 
 def _insert_articles(articles: list, source_key: str) -> int:
+    """Insert artikel valid ke Supabase. Return jumlah yang berhasil."""
     source_label = SOURCE_LABELS.get(source_key, source_key)
     inserted = 0
+
     for article in articles:
-        if not article or not article.get("title") or not article.get("url"):
-            print(f"[SKIP] {source_key}: artikel null/judul kosong dilewati")
+        if not _is_valid_article(article, source_key):
             continue
-
-        # ── Validasi tambahan khusus tribunjateng: tidak ada kolom wajib yang NA/kosong
-        if source_key == "tribunjateng":
-            for field in ("title", "date", "content"):
-                val = article.get(field, "")
-                if not val or str(val).strip().upper() == "NA":
-                    print(f"[SKIP] {source_key}: field '{field}' kosong/NA — {article.get('url', '')}")
-                    article = None
-                    break
-            if article is None:
-                continue
-
         try:
-            normalized_date = normalize_date(article["date"])
-            supabase.table("berita").insert({
-                "title":       article["title"],
-                "date":        normalized_date,
-                "date_parsed": parse_date_to_iso(normalized_date),
-                "url":         article["url"],
-                "content":     article["content"],
-                "tags":        article["tags"].lower() if article.get("tags") else article.get("tags"),
-                "source":      article.get("source") or source_label,
-            }).execute()
+            row = _build_article_row(article, source_label)
+            supabase.table("berita").insert(row).execute()
             inserted += 1
         except Exception as exc:
             print(f"[DB ERROR] {source_key}: {article.get('url', '')} — {exc}")
+
     _scrape_progress[source_key]["inserted"] = inserted
     return inserted
+
+
+def _log_scrape_run(total_inserted: int):
+    """Insert satu baris ke scrape_log. Gagal diam-diam agar tidak mengganggu flow."""
+    try:
+        supabase.table("scrape_log").insert({"total_inserted": total_inserted}).execute()
+    except Exception as exc:
+        print(f"[LOG] Gagal catat scrape_log: {exc}")
+
+
+def _fetch_existing_urls() -> set:
+    """Ambil semua URL berita dari DB untuk deduplikasi scraping."""
+    result = supabase.table("berita").select("url").execute()
+    return {row["url"] for row in result.data}
+
+
+def _make_progress_callback(source_key: str):
+    """Factory: buat callback progress untuk satu sumber berita."""
+    def on_progress(count, msg=""):
+        _scrape_progress[source_key]["scraped"] = count
+        _scrape_progress[source_key]["message"] = msg or f"{count} berita ditemukan"
+    return on_progress
+
+
+def _run_scraper_source(
+    key: str,
+    scraper_fn,
+    existing_urls: set,
+    kwargs: dict,
+) -> int:
+    """Jalankan satu sumber scraper, update progress, dan insert hasilnya."""
+    _scrape_progress[key]["status"]  = "running"
+    _scrape_progress[key]["message"] = "Memulai scraping..."
+
+    articles = scraper_fn(existing_urls, on_progress=_make_progress_callback(key), **kwargs)
+    n = _insert_articles(articles, key)
+
+    _scrape_progress[key]["status"]  = "done"
+    _scrape_progress[key]["message"] = f"Selesai — {n} berita disimpan"
+    print(f"[SCRAPE] {key}: {n} disimpan")
+    return n
+
+
+# ── Scraper config ─────────────────────────────────────────────────────────────
+
+def _build_scraper_config(max_articles: int) -> list[tuple]:
+    """Return daftar (key, scraper_fn, kwargs) untuk semua sumber."""
+    max_pages = max(1, max_articles // 30)
+    return [
+        ("radartegal",   scrape_radartegal,   {"max_pages": max_pages}),
+        ("panturapost",  scrape_panturapost,  {"max_articles": max_articles}),
+        ("tribunjateng", scrape_tribunjateng, {"max_articles": max_articles}),
+        ("kompas",       scrape_kompas,       {"max_articles": max_articles}),
+    ]
 
 
 # ── Worker thread ──────────────────────────────────────────────────────────────
 
 def _scrape_worker(max_articles: int):
-    global _scrape_overall
-
     try:
-        existing = supabase.table("berita").select("url").execute()
-        existing_urls = {row["url"] for row in existing.data}
+        existing_urls  = _fetch_existing_urls()
         print(f"[SCRAPE] {len(existing_urls)} URL sudah ada di database.")
 
-        total_inserted = 0
-
-        # ── 1. Radar Tegal ────────────────────────────────────────────────────
-        _scrape_progress["radartegal"]["status"]  = "running"
-        _scrape_progress["radartegal"]["message"] = "Memulai scraping..."
-
-        def rt_progress(count, msg):
-            _scrape_progress["radartegal"]["scraped"] = count
-            _scrape_progress["radartegal"]["message"] = msg
-
-        max_pages = max(1, max_articles // 30)
-        print(f"[SCRAPE] RadarTegal: maks {max_pages} halaman (~{max_articles} artikel)")
-        rt_articles = scrape_radartegal(existing_urls, max_pages=max_pages, on_progress=rt_progress)
-        n = _insert_articles(rt_articles, "radartegal")
-        total_inserted += n
-        _scrape_progress["radartegal"]["status"]  = "done"
-        _scrape_progress["radartegal"]["message"] = f"Selesai — {n} berita disimpan"
-        print(f"[SCRAPE] RadarTegal selesai: {n} disimpan")
-
-        # ── 2. Pantura Post ───────────────────────────────────────────────────
-        _scrape_progress["panturapost"]["status"]  = "running"
-        _scrape_progress["panturapost"]["message"] = "Memulai scraping..."
-
-        def pp_progress(count, _src):
-            _scrape_progress["panturapost"]["scraped"]  = count
-            _scrape_progress["panturapost"]["message"] = f"{count} berita ditemukan"
-
-        print(f"[SCRAPE] PanturaPost: maks {max_articles} artikel")
-        pp_articles = scrape_panturapost(existing_urls, max_articles=max_articles, on_progress=pp_progress)
-        n = _insert_articles(pp_articles, "panturapost")
-        total_inserted += n
-        _scrape_progress["panturapost"]["status"]  = "done"
-        _scrape_progress["panturapost"]["message"] = f"Selesai — {n} berita disimpan"
-        print(f"[SCRAPE] PanturaPost selesai: {n} disimpan")
-
-        # ── 3. Tribun Jateng ──────────────────────────────────────────────────
-        _scrape_progress["tribunjateng"]["status"]  = "running"
-        _scrape_progress["tribunjateng"]["message"] = "Memulai scraping..."
-
-        def tj_progress(count, _src):
-            _scrape_progress["tribunjateng"]["scraped"]  = count
-            _scrape_progress["tribunjateng"]["message"] = f"{count} berita ditemukan"
-
-        print(f"[SCRAPE] TribunJateng: maks {max_articles} artikel")
-        tj_articles = scrape_tribunjateng(existing_urls, max_articles=max_articles, on_progress=tj_progress)
-        n = _insert_articles(tj_articles, "tribunjateng")
-        total_inserted += n
-        _scrape_progress["tribunjateng"]["status"]  = "done"
-        _scrape_progress["tribunjateng"]["message"] = f"Selesai — {n} berita disimpan"
-        print(f"[SCRAPE] TribunJateng selesai: {n} disimpan")
-
-        # ── 4. Kompas ─────────────────────────────────────────────────────────
-        _scrape_progress["kompas"]["status"]  = "running"
-        _scrape_progress["kompas"]["message"] = "Memulai scraping..."
-
-        def kp_progress(count, _src):
-            _scrape_progress["kompas"]["scraped"]  = count
-            _scrape_progress["kompas"]["message"] = f"{count} berita ditemukan"
-
-        print(f"[SCRAPE] Kompas: maks {max_articles} artikel")
-        kp_articles = scrape_kompas(existing_urls, max_articles=max_articles, on_progress=kp_progress)
-        n = _insert_articles(kp_articles, "kompas")
-        total_inserted += n
-        _scrape_progress["kompas"]["status"]  = "done"
-        _scrape_progress["kompas"]["message"] = f"Selesai — {n} berita disimpan"
-        print(f"[SCRAPE] Kompas selesai: {n} disimpan")
+        total_inserted = sum(
+            _run_scraper_source(key, fn, existing_urls, kwargs)
+            for key, fn, kwargs in _build_scraper_config(max_articles)
+        )
 
         _scrape_overall["total_inserted"] = total_inserted
         _log_scrape_run(total_inserted)
@@ -495,8 +460,7 @@ def _scrape_worker(max_articles: int):
         print(f"[SCRAPE ERROR] {exc}")
         for key in _scrape_progress:
             if _scrape_progress[key]["status"] == "running":
-                _scrape_progress[key]["status"]  = "error"
-                _scrape_progress[key]["message"] = f"Error: {exc}"
+                _scrape_progress[key].update({"status": "error", "message": f"Error: {exc}"})
 
     finally:
         _scrape_overall["active"] = False
@@ -504,43 +468,25 @@ def _scrape_worker(max_articles: int):
         _scraping_lock.release()
 
 
-# ── Helper: cek API-key auth (untuk cron-job.org) ──────────────────────────────
-def _check_api_key():
-    """Return True jika request membawa header Authorization: Bearer <CRON_SECRET> yang valid."""
-    cron_secret = os.getenv("CRON_SECRET", "")
-    if not cron_secret:
-        return False
-    auth_header = request.headers.get("Authorization", "")
-    return auth_header == f"Bearer {cron_secret}"
-
-
 # ── Synchronous scrape (untuk cron / Vercel serverless) ────────────────────────
 
 def _scrape_sync(max_articles: int) -> dict:
     """Jalankan scraping secara synchronous. Cocok untuk Vercel serverless."""
-    results = {}
+    results        = {}
     total_inserted = 0
-    errors = []
+    errors         = []
 
     try:
-        existing = supabase.table("berita").select("url").execute()
-        existing_urls = {row["url"] for row in existing.data}
+        existing_urls = _fetch_existing_urls()
         print(f"[SCRAPE-SYNC] {len(existing_urls)} URL sudah ada di database.")
     except Exception as exc:
         return {"status": "error", "message": f"Gagal fetch existing URLs: {exc}"}
 
-    scrapers = [
-        ("radartegal",   scrape_radartegal,   {"max_pages": max(1, max_articles // 30)}),
-        ("panturapost",  scrape_panturapost,  {"max_articles": max_articles}),
-        ("tribunjateng", scrape_tribunjateng, {"max_articles": max_articles}),
-        ("kompas",       scrape_kompas,       {"max_articles": max_articles}),
-    ]
-
-    for key, scraper_fn, kwargs in scrapers:
+    for key, scraper_fn, kwargs in _build_scraper_config(max_articles):
         try:
-            articles = scraper_fn(existing_urls, **kwargs)
-            n = _insert_articles(articles, key)
-            results[key] = n
+            articles       = scraper_fn(existing_urls, **kwargs)
+            n              = _insert_articles(articles, key)
+            results[key]   = n
             total_inserted += n
             print(f"[SCRAPE-SYNC] {key}: {n} disimpan")
         except Exception as exc:
@@ -557,6 +503,16 @@ def _scrape_sync(max_articles: int) -> dict:
     }
 
 
+# ── Helper: cek API-key auth ───────────────────────────────────────────────────
+
+def _is_valid_api_key() -> bool:
+    """Return True jika request membawa header Authorization: Bearer <CRON_SECRET> yang valid."""
+    cron_secret = os.getenv("CRON_SECRET", "")
+    if not cron_secret:
+        return False
+    return request.headers.get("Authorization", "") == f"Bearer {cron_secret}"
+
+
 # ── API: jalankan scraping ─────────────────────────────────────────────────────
 
 @app.route("/api/scrape", methods=["POST"])
@@ -565,43 +521,30 @@ def start_scrape():
     Dual auth:
       1. Session (dashboard) → threaded, return langsung
       2. API key via header Authorization: Bearer <CRON_SECRET> → synchronous
-         Cocok untuk cron-job.org atau service eksternal lainnya.
     """
-    is_api_key = _check_api_key()
+    is_api_key = _is_valid_api_key()
     is_session = current_user.is_authenticated
 
     if not is_api_key and not is_session:
         return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    # Kalau session, pastikan admin
     if is_session and not is_api_key and current_user.role != "admin":
         return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin yang dapat menjalankan scraping."}), 403
 
     body         = request.get_json(silent=True) or {}
-    max_articles = int(body.get("max_articles", 150))
-    max_articles = max(1, min(max_articles, 999))
+    max_articles = max(1, min(int(body.get("max_articles", 150)), 999))
 
-    # ── API key → jalankan synchronous (Vercel serverless friendly) ────────
     if is_api_key:
         print(f"[SCRAPE] Dipanggil via API key — mode synchronous, maks {max_articles} artikel")
         result = _scrape_sync(max_articles)
         return jsonify(result), 200 if result.get("status") == "ok" else 500
 
-    # ── Session (dashboard) → jalankan threaded ────────────────────────────
     if not _scraping_lock.acquire(blocking=False):
-        return jsonify({
-            "status":  "error",
-            "message": "Scraping sedang berjalan, tunggu hingga selesai.",
-        }), 409
+        return jsonify({"status": "error", "message": "Scraping sedang berjalan, tunggu hingga selesai."}), 409
 
     _reset_progress()
-    t = threading.Thread(target=_scrape_worker, args=(max_articles,), daemon=True)
-    t.start()
-
+    threading.Thread(target=_scrape_worker, args=(max_articles,), daemon=True).start()
     return jsonify({"status": "started", "max_articles": max_articles})
-
-
-
 
 
 # ── Error handlers ─────────────────────────────────────────────────────────────
@@ -629,7 +572,7 @@ if __name__ == "__main__":
     print("=" * 50)
     print("Dashboard Berita — Flask Server (4 Sumber)")
     print("=" * 50)
-    print(f"Supabase: {SUPABASE_URL}")
+    print(f"Supabase: {os.getenv('SUPABASE_URL')}")
     print("Buka http://localhost:5000")
     print()
     app.run(debug=True, port=5000, use_reloader=False)
