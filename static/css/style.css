@@ -173,6 +173,26 @@ a:hover {
 }
 
 /* ============================================
+   Scrape Info Bar (visible for all users)
+   ============================================ */
+
+.scrape-info-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    padding: 12px 20px;
+    background: var(--white);
+    border: 1px solid var(--orange-200);
+    border-radius: var(--radius-md);
+    box-shadow: var(--shadow-sm);
+}
+
+.scrape-info-bar .last-scrape-badge {
+    margin-top: 0;
+}
+
+/* ============================================
    Scrape Section
    ============================================ */
 

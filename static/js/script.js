@@ -41,37 +41,53 @@ async function loadLastScrape() {
         if (!res.ok) return;
         const json = await res.json();
 
-        // ── Waktu terakhir scraping ───────────────────────────────────────────
-        const el = document.getElementById("lastScrapeTime");
-        if (el) {
-            if (json.status === "ok" && json.last_scrape) {
-                const dt = new Date(json.last_scrape);
-                el.textContent = dt.toLocaleString("id-ID", {
-                    day:      "2-digit",
-                    month:    "long",
-                    year:     "numeric",
-                    hour:     "2-digit",
-                    minute:   "2-digit",
-                    timeZone: "Asia/Jakarta",
-                }) + " WIB";
-            } else {
-                el.textContent = "belum pernah";
-            }
+        // ── Format waktu scraping ─────────────────────────────────────────────
+        let timeText = "belum pernah";
+        if (json.status === "ok" && json.last_scrape) {
+            const dt = new Date(json.last_scrape);
+            timeText = dt.toLocaleString("id-ID", {
+                day:      "2-digit",
+                month:    "long",
+                year:     "numeric",
+                hour:     "2-digit",
+                minute:   "2-digit",
+                timeZone: "Asia/Jakarta",
+            }) + " WIB";
         }
 
-        // ── Berita baru sejak 1 jam ───────────────────────────────────────────
-        const badge = document.getElementById("newArticlesBadge");
-        const text  = document.getElementById("newArticlesText");
-        if (badge && text && json.status === "ok") {
-            const count = json.new_count ?? 0;
-            text.textContent = count > 0
-                ? `${count} berita baru sejak 1 jam terakhir`
-                : "Tidak ada berita baru dalam 1 jam terakhir";
-            badge.style.display = "";
+        // ── Format berita baru ────────────────────────────────────────────────
+        const count = (json.status === "ok" && json.new_count != null) ? json.new_count : 0;
+        const newText = count > 0
+            ? `${count} berita baru sejak 1 jam terakhir`
+            : "Tidak ada berita baru dalam 1 jam terakhir";
+
+        // ── Isi elemen admin (scrapeSection) ─────────────────────────────────
+        const elAdmin = document.getElementById("lastScrapeTime");
+        if (elAdmin) elAdmin.textContent = timeText;
+
+        const badgeAdmin = document.getElementById("newArticlesBadge");
+        const textAdmin  = document.getElementById("newArticlesText");
+        if (badgeAdmin && textAdmin) {
+            textAdmin.textContent  = newText;
+            badgeAdmin.style.display = "";
         }
+
+        // ── Isi elemen info bar (semua user) ──────────────────────────────────
+        const elUser = document.getElementById("lastScrapeTimeUser");
+        if (elUser) elUser.textContent = timeText;
+
+        const badgeUser = document.getElementById("newArticlesBadgeUser");
+        const textUser  = document.getElementById("newArticlesTextUser");
+        if (badgeUser && textUser) {
+            textUser.textContent   = newText;
+            badgeUser.style.display = "";
+        }
+
     } catch (e) {
-        const el = document.getElementById("lastScrapeTime");
-        if (el) el.textContent = "—";
+        ["lastScrapeTime", "lastScrapeTimeUser"].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = "—";
+        });
     }
 }
 
@@ -141,8 +157,12 @@ async function loadUserInfo() {
             const userEl = document.getElementById("headerUser");
             if (userEl) userEl.textContent = json.username;
 
-            // Sembunyikan scrape section untuk non-admin
-            if (json.role !== "admin") {
+            // Admin: sembunyikan info bar (sudah ada di scrape card)
+            // Non-admin: sembunyikan scrape section
+            if (json.role === "admin") {
+                const infoBar = document.getElementById("scrapeInfoBar");
+                if (infoBar) infoBar.style.display = "none";
+            } else {
                 const scrapeSection = document.getElementById("scrapeSection");
                 if (scrapeSection) scrapeSection.style.display = "none";
             }

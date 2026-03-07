@@ -41,7 +41,27 @@
     </header>
 
     <main class="main">
-        <!-- Scrape Section -->
+        <!-- Info Bar: last scrape & berita baru (visible untuk semua user) -->
+        <section class="scrape-info-bar" id="scrapeInfoBar">
+            <div class="last-scrape-badge" id="lastScrapeBadgeUser">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <circle cx="12" cy="12" r="10" />
+                    <polyline points="12 6 12 12 16 14" />
+                </svg>
+                <span>Terakhir scraping: </span>
+                <strong id="lastScrapeTimeUser">memuat...</strong>
+            </div>
+            <div class="last-scrape-badge" id="newArticlesBadgeUser" style="display:none">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+                </svg>
+                <span id="newArticlesTextUser">—</span>
+            </div>
+        </section>
+
+        <!-- Scrape Section (admin only) -->
         <section class="scrape-section" id="scrapeSection">
             <div class="scrape-card">
                 <div class="scrape-info">
