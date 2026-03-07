@@ -40,20 +40,34 @@ async function loadLastScrape() {
         const res = await fetch("/api/last-scrape");
         if (!res.ok) return;
         const json = await res.json();
+
+        // ── Waktu terakhir scraping ───────────────────────────────────────────
         const el = document.getElementById("lastScrapeTime");
-        if (!el) return;
-        if (json.status === "ok" && json.last_scrape) {
-            const dt = new Date(json.last_scrape);
-            el.textContent = dt.toLocaleString("id-ID", {
-                day:    "2-digit",
-                month:  "long",
-                year:   "numeric",
-                hour:   "2-digit",
-                minute: "2-digit",
-                timeZone: "Asia/Jakarta",
-            }) + " WIB";
-        } else {
-            el.textContent = "belum pernah";
+        if (el) {
+            if (json.status === "ok" && json.last_scrape) {
+                const dt = new Date(json.last_scrape);
+                el.textContent = dt.toLocaleString("id-ID", {
+                    day:      "2-digit",
+                    month:    "long",
+                    year:     "numeric",
+                    hour:     "2-digit",
+                    minute:   "2-digit",
+                    timeZone: "Asia/Jakarta",
+                }) + " WIB";
+            } else {
+                el.textContent = "belum pernah";
+            }
+        }
+
+        // ── Berita baru sejak 1 jam ───────────────────────────────────────────
+        const badge = document.getElementById("newArticlesBadge");
+        const text  = document.getElementById("newArticlesText");
+        if (badge && text && json.status === "ok") {
+            const count = json.new_count ?? 0;
+            text.textContent = count > 0
+                ? `${count} berita baru sejak 1 jam terakhir`
+                : "Tidak ada berita baru dalam 1 jam terakhir";
+            badge.style.display = "";
         }
     } catch (e) {
         const el = document.getElementById("lastScrapeTime");

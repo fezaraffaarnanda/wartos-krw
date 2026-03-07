@@ -226,25 +226,59 @@ def get_berita_by_id(berita_id):
         return jsonify({"status": "error", "message": "Berita tidak ditemukan."}), 404
 
 
+
 # ── API: last scrape time ──────────────────────────────────────────────────────
 
 @app.route("/api/last-scrape", methods=["GET"])
 @login_required
 def get_last_scrape():
-    """Kembalikan timestamp artikel terakhir yang diinsert ke database."""
+    """
+    Kembalikan:
+      - last_scrape : timestamp terakhir scraping berjalan (dari scrape_log)
+      - new_count   : jumlah berita yang masuk sejak 1 jam terakhir
+    """
+    from datetime import datetime, timezone, timedelta
+
     try:
-        result = (
-            supabase.table("berita")
-            .select("created_at")
-            .order("created_at", desc=True)
+        # ── Waktu scraping terakhir dari scrape_log ───────────────────────────
+        log_result = (
+            supabase.table("scrape_log")
+            .select("scraped_at, total_inserted")
+            .order("scraped_at", desc=True)
             .limit(1)
             .execute()
         )
-        if result.data:
-            return jsonify({"status": "ok", "last_scrape": result.data[0]["created_at"]})
-        return jsonify({"status": "ok", "last_scrape": None})
-    except Exception:
-        return jsonify({"status": "error", "message": "Gagal mengambil data."}), 500
+        last_scrape = log_result.data[0]["scraped_at"] if log_result.data else None
+
+        # ── Hitung berita baru sejak 1 jam lalu ──────────────────────────────
+        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        count_result = (
+            supabase.table("berita")
+            .select("id", count="exact")
+            .gte("created_at", one_hour_ago)
+            .execute()
+        )
+        new_count = count_result.count if count_result.count is not None else 0
+
+        return jsonify({
+            "status":     "ok",
+            "last_scrape": last_scrape,
+            "new_count":  new_count,
+        })
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
+# ── Helper: catat scrape run ke scrape_log ─────────────────────────────────────
+
+def _log_scrape_run(total_inserted: int):
+    """Insert satu baris ke scrape_log. Gagal diam-diam agar tidak mengganggu flow."""
+    try:
+        supabase.table("scrape_log").insert({
+            "total_inserted": total_inserted,
+        }).execute()
+    except Exception as exc:
+        print(f"[LOG] Gagal catat scrape_log: {exc}")
 
 
 
@@ -405,6 +439,7 @@ def _scrape_worker(max_articles: int):
         print(f"[SCRAPE] Kompas selesai: {n} disimpan")
 
         _scrape_overall["total_inserted"] = total_inserted
+        _log_scrape_run(total_inserted)
         print(f"[SCRAPE] Semua selesai. Total {total_inserted} berita baru disimpan.")
 
     except Exception as exc:
@@ -465,6 +500,7 @@ def _scrape_sync(max_articles: int) -> dict:
             print(f"[SCRAPE-SYNC ERROR] {key}: {exc}")
 
     print(f"[SCRAPE-SYNC] Selesai. Total {total_inserted} berita baru disimpan.")
+    _log_scrape_run(total_inserted)
     return {
         "status":         "ok",
         "total_inserted": total_inserted,
