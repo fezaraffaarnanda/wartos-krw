@@ -179,17 +179,24 @@ function animateCards() {
 }
 
 // ── Load berita dari API ──────────────────────────────────────────────────────
+// Params opsional: { search, date_from, date_to } — dikirim ke backend
+// sehingga response tidak membawa kolom `content` yang berat.
 
-async function loadBerita() {
+async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
     try {
-        const res = await fetch("/api/berita");
+        const params = new URLSearchParams();
+        if (search)    params.set("search",    search);
+        if (date_from) params.set("date_from", date_from);
+        if (date_to)   params.set("date_to",   date_to);
+
+        const url = "/api/berita" + (params.toString() ? "?" + params.toString() : "");
+        const res = await fetch(url);
         if (res.status === 401) { window.location.href = "/login"; return; }
         const json = await res.json();
         if (json.status === "ok") {
-            allData = json.data || [];
-            applySortDate(allData);
-            filteredData = [...allData];
-            currentPage = 1;
+            allData      = json.data || [];
+            filteredData = [...allData];  // sudah difilter di server
+            currentPage  = 1;
             updateSummary();
             renderTable();
             renderChart();
@@ -646,43 +653,30 @@ function parseDateToISO(str) {
     return `${y}-${m}-${day}`;
 }
 
+// Debounce helper — tunda panggilan applyFilters agar tidak spam API
+let _filterDebounce = null;
+function debounceFilters() {
+    if (_filterDebounce) clearTimeout(_filterDebounce);
+    _filterDebounce = setTimeout(applyFilters, 350);
+}
+
 function applyFilters() {
-    const q = (document.getElementById('searchInput').value || '').toLowerCase().trim();
-    const dateFrom = document.getElementById('dateFrom').value;   // "yyyy-mm-dd" or ""
-    const dateTo   = document.getElementById('dateTo').value;     // "yyyy-mm-dd" or ""
+    const search    = (document.getElementById('searchInput').value || '').trim();
+    const date_from = document.getElementById('dateFrom').value;   // "yyyy-mm-dd" or ""
+    const date_to   = document.getElementById('dateTo').value;
 
     // Toggle reset button visibility
     const resetBtn = document.getElementById('btnResetDate');
     if (resetBtn) {
-        if (dateFrom || dateTo) {
+        if (date_from || date_to) {
             resetBtn.classList.remove('hidden');
         } else {
             resetBtn.classList.add('hidden');
         }
     }
 
-    filteredData = allData.filter(item => {
-        // ── Text search
-        if (q) {
-            const matchText =
-                (item.title || '').toLowerCase().includes(q) ||
-                (item.tags  || '').toLowerCase().includes(q);
-            if (!matchText) return false;
-        }
-
-        // ── Date range
-        if (dateFrom || dateTo) {
-            const isoDate = parseDateToISO(item.date);
-            if (!isoDate) return false;   // skip artikel tanpa tanggal valid
-            if (dateFrom && isoDate < dateFrom) return false;
-            if (dateTo   && isoDate > dateTo)   return false;
-        }
-
-        return true;
-    });
-
-    currentPage = 1;
-    renderTable();
+    // Kirim filter ke server — backend yang filter, bukan client
+    loadBerita({ search, date_from, date_to });
 }
 
 function resetDateFilter() {
@@ -741,13 +735,35 @@ function sortTable(field) {
 
 // ── Download Excel ────────────────────────────────────────────────────────────
 
-function downloadExcel() {
+async function downloadExcel() {
     if (allData.length === 0) {
         alert("Belum ada data untuk diunduh.");
         return;
     }
 
-    const rows = filteredData.map((item, i) => ({
+    // Fetch ulang dengan kolom content (tidak ada di tabel biasa)
+    let exportData = filteredData;
+    try {
+        const params = new URLSearchParams();
+        // Ambil filter aktif saat ini
+        const searchVal   = (document.getElementById('searchInput')?.value || '').trim();
+        const date_from   = document.getElementById('dateFrom')?.value || '';
+        const date_to     = document.getElementById('dateTo')?.value   || '';
+        if (searchVal)  params.set('search',    searchVal);
+        if (date_from)  params.set('date_from', date_from);
+        if (date_to)    params.set('date_to',   date_to);
+        params.set('with_content', '1');
+
+        const res = await fetch("/api/berita/export?" + params.toString());
+        if (res.ok) {
+            const json = await res.json();
+            if (json.status === 'ok') exportData = json.data;
+        }
+    } catch (e) {
+        console.warn("Export fetch gagal, pakai data tabel saja:", e);
+    }
+
+    const rows = exportData.map((item, i) => ({
         No:      i + 1,
         Judul:   item.title   || "",
         Sumber:  item.source  || "",

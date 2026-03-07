@@ -185,13 +185,35 @@ def api_me():
 @app.route("/api/berita", methods=["GET"])
 @login_required
 def get_berita():
+    """
+    Kembalikan daftar berita TANPA kolom content (berat).
+    Kolom content hanya dimuat di /api/berita/<id>.
+
+    Query params opsional:
+      - search    : filter judul/tags (case-insensitive)
+      - date_from : filter date_parsed >= nilai (format YYYY-MM-DD)
+      - date_to   : filter date_parsed <= nilai (format YYYY-MM-DD)
+    """
+    search    = request.args.get("search",    "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+
     try:
-        result = (
+        query = (
             supabase.table("berita")
-            .select("*")
+            # Ambil semua kolom KECUALI content — hemat bandwidth & RAM
+            .select("id, title, date, date_parsed, url, tags, source, created_at")
             .order("id", desc=True)
-            .execute()
         )
+
+        if search:
+            query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
+        if date_from:
+            query = query.gte("date_parsed", date_from)
+        if date_to:
+            query = query.lte("date_parsed", date_to)
+
+        result = query.execute()
         return jsonify({"status": "ok", "data": result.data})
     except Exception:
         return jsonify({"status": "error", "message": "Gagal mengambil data."}), 500
@@ -215,6 +237,38 @@ def get_berita_by_id(berita_id):
         return jsonify({"status": "ok", "data": result.data})
     except Exception:
         return jsonify({"status": "error", "message": "Berita tidak ditemukan."}), 404
+
+
+@app.route("/api/berita/export", methods=["GET"])
+@login_required
+def export_berita():
+    """
+    Endpoint khusus untuk download Excel.
+    Kembalikan SEMUA kolom termasuk content, dengan filter opsional.
+    Dipanggil hanya saat user klik Download Excel — bukan saat load halaman biasa.
+    """
+    search    = request.args.get("search",    "").strip()
+    date_from = request.args.get("date_from", "").strip()
+    date_to   = request.args.get("date_to",   "").strip()
+
+    try:
+        query = (
+            supabase.table("berita")
+            .select("id, title, date, date_parsed, url, tags, source, content")
+            .order("id", desc=True)
+        )
+        if search:
+            query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
+        if date_from:
+            query = query.gte("date_parsed", date_from)
+        if date_to:
+            query = query.lte("date_parsed", date_to)
+
+        result = query.execute()
+        return jsonify({"status": "ok", "data": result.data})
+    except Exception:
+        return jsonify({"status": "error", "message": "Gagal mengekspor data."}), 500
+
 
 
 
