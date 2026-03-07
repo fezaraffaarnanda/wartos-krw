@@ -29,7 +29,9 @@ function parseDateID(str) {
 let chartInstance = null;
 let clockTimer = null;
 let pollTimer = null;
+let refreshTimer = null;  // auto-refresh untuk last scrape & data
 let maxArticlesGlobal = 150;
+
 
 // ── Last Scrape Time ──────────────────────────────────────────────────────────
 
@@ -67,13 +69,31 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadBerita();
     loadLastScrape();
     animateCards();
+    startAutoRefresh();
 });
+
 
 function startRealtimeClock() {
     updateTimestamp();
     if (clockTimer) clearInterval(clockTimer);
     clockTimer = setInterval(updateTimestamp, 1000);
 }
+
+// ── Auto-refresh (tiap 5 menit) ───────────────────────────────────────────────
+// Biar last scrape & data tabel otomatis update kalau cron baru saja jalan.
+
+const AUTO_REFRESH_MS = 5 * 60 * 1000; // 5 menit
+
+function startAutoRefresh() {
+    if (refreshTimer) clearInterval(refreshTimer);
+    refreshTimer = setInterval(async () => {
+        // Jangan refresh kalau sedang ada polling scraping manual
+        if (pollTimer) return;
+        await loadLastScrape();
+        await loadBerita();
+    }, AUTO_REFRESH_MS);
+}
+
 
 function updateTimestamp() {
     const el = document.getElementById("headerTimestamp");

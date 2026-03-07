@@ -8,8 +8,13 @@ PANTURAPOST_SOURCE = "Pantura Post"
 PANTURAPOST_BASE   = "https://www.panturapost.com"
 PANTURAPOST_TEGAL  = "https://www.panturapost.com/tegal"
 
-headers = {"User-Agent": "Mozilla/5.0"}
-
+headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8",
+    "Accept-Language": "id-ID,id;q=0.9,en;q=0.8",
+    "Connection": "keep-alive",
+    "Referer": "https://www.google.com/"
+}
 
 # ── Pembersih konten ───────────────────────────────────────────────────────────
 

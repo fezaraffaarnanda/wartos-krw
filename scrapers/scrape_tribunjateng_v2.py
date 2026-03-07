@@ -16,6 +16,7 @@ headers = {
     "Connection": "keep-alive",
     "Referer": "https://www.google.com/"
 }
+
 session = requests.Session()
 session.headers.update(headers)
 

@@ -252,6 +252,7 @@ def get_last_scrape():
 
 @app.route("/api/scrape/progress", methods=["GET"])
 @login_required
+@limiter.exempt
 def get_progress():
     return jsonify({
         "progress": _scrape_progress,
@@ -420,49 +421,20 @@ def _scrape_worker(max_articles: int):
         _scraping_lock.release()
 
 
-# ── API: jalankan scraping ─────────────────────────────────────────────────────
-
-@app.route("/api/scrape", methods=["POST"])
-@login_required
-def start_scrape():
-    if current_user.role != "admin":
-        return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin yang dapat menjalankan scraping."}), 403
-
-    if not _scraping_lock.acquire(blocking=False):
-        return jsonify({
-            "status":  "error",
-            "message": "Scraping sedang berjalan, tunggu hingga selesai.",
-        }), 409
-
-    body         = request.get_json(silent=True) or {}
-    max_articles = int(body.get("max_articles", 150))
-    max_articles = max(1, min(max_articles, 999))
-
-    _reset_progress()
-    t = threading.Thread(target=_scrape_worker, args=(max_articles,), daemon=True)
-    t.start()
-
-    return jsonify({"status": "started", "max_articles": max_articles})
-
-
-# ── API: Vercel Cron ───────────────────────────────────────────────────
-
-@app.route("/api/cron", methods=["GET"])
-def cron_scrape():
-    """
-    Endpoint dipanggil oleh Vercel Cron setiap jam sekali.
-    Vercel secara otomatis mengirim header:
-        Authorization: Bearer <CRON_SECRET>
-    Set CRON_SECRET di Vercel environment variables.
-    """
+# ── Helper: cek API-key auth (untuk cron-job.org) ──────────────────────────────
+def _check_api_key():
+    """Return True jika request membawa header Authorization: Bearer <CRON_SECRET> yang valid."""
     cron_secret = os.getenv("CRON_SECRET", "")
+    if not cron_secret:
+        return False
     auth_header = request.headers.get("Authorization", "")
-    expected    = f"Bearer {cron_secret}"
+    return auth_header == f"Bearer {cron_secret}"
 
-    if not cron_secret or auth_header != expected:
-        return jsonify({"status": "error", "message": "Unauthorized"}), 401
 
-    print("[CRON] Mulai scraping otomatis (Vercel Cron)")
+# ── Synchronous scrape (untuk cron / Vercel serverless) ────────────────────────
+
+def _scrape_sync(max_articles: int) -> dict:
+    """Jalankan scraping secara synchronous. Cocok untuk Vercel serverless."""
     results = {}
     total_inserted = 0
     errors = []
@@ -470,17 +442,15 @@ def cron_scrape():
     try:
         existing = supabase.table("berita").select("url").execute()
         existing_urls = {row["url"] for row in existing.data}
-        print(f"[CRON] {len(existing_urls)} URL sudah ada.")
+        print(f"[SCRAPE-SYNC] {len(existing_urls)} URL sudah ada di database.")
     except Exception as exc:
-        return jsonify({"status": "error", "message": f"Gagal fetch existing URLs: {exc}"}), 500
-
-    MAX_PER_SOURCE = 50  # batas per sumber agar tidak timeout di Vercel
+        return {"status": "error", "message": f"Gagal fetch existing URLs: {exc}"}
 
     scrapers = [
-        ("radartegal",   scrape_radartegal,   {"max_pages": 2}),
-        ("panturapost",  scrape_panturapost,  {"max_articles": MAX_PER_SOURCE}),
-        ("tribunjateng", scrape_tribunjateng, {"max_articles": MAX_PER_SOURCE}),
-        ("kompas",       scrape_kompas,       {"max_articles": MAX_PER_SOURCE}),
+        ("radartegal",   scrape_radartegal,   {"max_pages": max(1, max_articles // 30)}),
+        ("panturapost",  scrape_panturapost,  {"max_articles": max_articles}),
+        ("tribunjateng", scrape_tribunjateng, {"max_articles": max_articles}),
+        ("kompas",       scrape_kompas,       {"max_articles": max_articles}),
     ]
 
     for key, scraper_fn, kwargs in scrapers:
@@ -489,18 +459,65 @@ def cron_scrape():
             n = _insert_articles(articles, key)
             results[key] = n
             total_inserted += n
-            print(f"[CRON] {key}: {n} disimpan")
+            print(f"[SCRAPE-SYNC] {key}: {n} disimpan")
         except Exception as exc:
             errors.append(f"{key}: {exc}")
-            print(f"[CRON ERROR] {key}: {exc}")
+            print(f"[SCRAPE-SYNC ERROR] {key}: {exc}")
 
-    print(f"[CRON] Selesai. Total {total_inserted} berita baru disimpan.")
-    return jsonify({
+    print(f"[SCRAPE-SYNC] Selesai. Total {total_inserted} berita baru disimpan.")
+    return {
         "status":         "ok",
         "total_inserted": total_inserted,
         "results":        results,
         "errors":         errors,
-    })
+    }
+
+
+# ── API: jalankan scraping ─────────────────────────────────────────────────────
+
+@app.route("/api/scrape", methods=["POST"])
+def start_scrape():
+    """
+    Dual auth:
+      1. Session (dashboard) → threaded, return langsung
+      2. API key via header Authorization: Bearer <CRON_SECRET> → synchronous
+         Cocok untuk cron-job.org atau service eksternal lainnya.
+    """
+    is_api_key = _check_api_key()
+    is_session = current_user.is_authenticated
+
+    if not is_api_key and not is_session:
+        return jsonify({"status": "error", "message": "Unauthorized"}), 401
+
+    # Kalau session, pastikan admin
+    if is_session and not is_api_key and current_user.role != "admin":
+        return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin yang dapat menjalankan scraping."}), 403
+
+    body         = request.get_json(silent=True) or {}
+    max_articles = int(body.get("max_articles", 150))
+    max_articles = max(1, min(max_articles, 999))
+
+    # ── API key → jalankan synchronous (Vercel serverless friendly) ────────
+    if is_api_key:
+        print(f"[SCRAPE] Dipanggil via API key — mode synchronous, maks {max_articles} artikel")
+        result = _scrape_sync(max_articles)
+        return jsonify(result), 200 if result.get("status") == "ok" else 500
+
+    # ── Session (dashboard) → jalankan threaded ────────────────────────────
+    if not _scraping_lock.acquire(blocking=False):
+        return jsonify({
+            "status":  "error",
+            "message": "Scraping sedang berjalan, tunggu hingga selesai.",
+        }), 409
+
+    _reset_progress()
+    t = threading.Thread(target=_scrape_worker, args=(max_articles,), daemon=True)
+    t.start()
+
+    return jsonify({"status": "started", "max_articles": max_articles})
+
+
+
 
 
 # ── Error handlers ─────────────────────────────────────────────────────────────
