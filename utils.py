@@ -74,3 +74,21 @@ def normalize_date(raw: str) -> str:
 
     # fallback: kembalikan apa adanya
     return raw
+
+
+def parse_date_to_iso(normalized: str) -> str | None:
+    """
+    Ubah hasil normalize_date ("DD MMMM YYYY, HH:MM WIB") ke "YYYY-MM-DD".
+    Return None jika tidak bisa di-parse.
+    Contoh: "7 Maret 2026, 14:30 WIB"  →  "2026-03-07"
+    """
+    if not normalized:
+        return None
+    m = re.search(r"(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})", normalized)
+    if not m:
+        return None
+    day, month_str, year = m.group(1), m.group(2), m.group(3)
+    month_num = BULAN_NUM.get(month_str.lower())
+    if not month_num:
+        return None
+    return f"{year}-{month_num}-{int(day):02d}"

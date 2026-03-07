@@ -1,12 +1,3 @@
-"""
-Backend Flask untuk Dashboard Berita.
-Serve frontend + API scraping 4 sumber + Supabase + Auth.
-
-Jalankan:
-    python app.py
-    Buka http://localhost:5000
-"""
-
 import os
 import threading
 from datetime import timedelta
@@ -29,7 +20,7 @@ from scrapers.scrape_radartegal_bs4 import scrape_new_articles as scrape_radarte
 from scrapers.scraping_panturapost import scrape_new_articles as scrape_panturapost
 from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
 from scrapers.scrape_kompas import scrape_new_articles as scrape_kompas
-from utils import normalize_date
+from utils import normalize_date, parse_date_to_iso
 
 load_dotenv()
 
@@ -235,7 +226,7 @@ def get_last_scrape():
     """
     Kembalikan:
       - last_scrape : timestamp terakhir scraping berjalan (dari scrape_log)
-      - new_count   : jumlah berita yang masuk sejak 1 jam terakhir
+      - new_count   : jumlah berita yang masuk hari ini (sejak 00:00 WIB)
     """
     from datetime import datetime, timezone, timedelta
 
@@ -250,12 +241,13 @@ def get_last_scrape():
         )
         last_scrape = log_result.data[0]["scraped_at"] if log_result.data else None
 
-        # ── Hitung berita baru sejak 1 jam lalu ──────────────────────────────
-        one_hour_ago = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+        # ── Hitung berita dengan tanggal publikasi hari ini (WIB) ──────────
+        wib = timezone(timedelta(hours=7))
+        today_str = datetime.now(wib).strftime("%Y-%m-%d")
         count_result = (
             supabase.table("berita")
             .select("id", count="exact")
-            .gte("created_at", one_hour_ago)
+            .eq("date_parsed", today_str)
             .execute()
         )
         new_count = count_result.count if count_result.count is not None else 0
@@ -346,13 +338,15 @@ def _insert_articles(articles: list, source_key: str) -> int:
                 continue
 
         try:
+            normalized_date = normalize_date(article["date"])
             supabase.table("berita").insert({
-                "title":   article["title"],
-                "date":    normalize_date(article["date"]),
-                "url":     article["url"],
-                "content": article["content"],
-                "tags":    article["tags"],
-                "source":  article.get("source") or source_label,
+                "title":       article["title"],
+                "date":        normalized_date,
+                "date_parsed": parse_date_to_iso(normalized_date),
+                "url":         article["url"],
+                "content":     article["content"],
+                "tags":        article["tags"].lower() if article.get("tags") else article.get("tags"),
+                "source":      article.get("source") or source_label,
             }).execute()
             inserted += 1
         except Exception as exc:
