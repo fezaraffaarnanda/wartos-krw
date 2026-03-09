@@ -22,6 +22,7 @@ from scrapers.scraping_panturapost import scrape_new_articles as scrape_panturap
 from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
 from scrapers.scrape_kompas import scrape_new_articles as scrape_kompas
 from utils import normalize_date, parse_date_to_iso
+from ai_insights import generate_insights
 
 load_dotenv()
 
@@ -266,6 +267,197 @@ def export_berita():
         return jsonify({"status": "ok", "data": result.data})
     except Exception:
         return jsonify({"status": "error", "message": "Gagal mengekspor data."}), 500
+
+
+# ── Helpers: AI Insights ──────────────────────────────────────────────────────
+
+# Cache in-memory per period_key: { period_key: {"data": ..., "ts": float} }
+_INSIGHTS_CACHE: dict = {}
+_INSIGHTS_CACHE_TTL  = 60 * 60  # 1 jam (setelah itu re-check DB)
+
+
+def _get_period_range(period: str) -> tuple[str, str, str]:
+    """
+    Kembalikan (period_key, period_label, date_from, date_to) berdasarkan param period.
+
+    Opsi period:
+      q1, q2, q3, q4     — triwulan tahun berjalan
+      s1, s2             — semester tahun berjalan
+      yearly             — satu tahun penuh
+      (kosong/lainnya)   — triwulan berjalan (default)
+    """
+    now   = datetime.now(WIB)
+    year  = now.year
+    month = now.month
+
+    _PERIODS = {
+        "q1":     (f"q1_{year}",     f"Triwulan I {year} (Januari–Maret)",      f"{year}-01-01", f"{year}-03-31"),
+        "q2":     (f"q2_{year}",     f"Triwulan II {year} (April–Juni)",         f"{year}-04-01", f"{year}-06-30"),
+        "q3":     (f"q3_{year}",     f"Triwulan III {year} (Juli–September)",    f"{year}-07-01", f"{year}-09-30"),
+        "q4":     (f"q4_{year}",     f"Triwulan IV {year} (Oktober–Desember)",   f"{year}-10-01", f"{year}-12-31"),
+        "s1":     (f"s1_{year}",     f"Semester I {year} (Januari–Juni)",        f"{year}-01-01", f"{year}-06-30"),
+        "s2":     (f"s2_{year}",     f"Semester II {year} (Juli–Desember)",      f"{year}-07-01", f"{year}-12-31"),
+        "yearly": (f"yearly_{year}", f"Tahunan {year} (Januari–Desember)",       f"{year}-01-01", f"{year}-12-31"),
+    }
+
+    if period in _PERIODS:
+        return _PERIODS[period]
+
+    # Default: triwulan berjalan
+    if month <= 3:
+        return _PERIODS["q1"]
+    elif month <= 6:
+        return _PERIODS["q2"]
+    elif month <= 9:
+        return _PERIODS["q3"]
+    else:
+        return _PERIODS["q4"]
+
+
+def _fetch_period_articles(date_from: str, date_to: str) -> list[dict]:
+    """Ambil berita pada rentang tanggal tertentu dari Supabase."""
+    result = (
+        supabase.table("berita")
+        .select("title, date, url, content, tags, source")
+        .gte("date_parsed", date_from)
+        .lte("date_parsed", date_to)
+        .order("date_parsed", desc=True)
+        .execute()
+    )
+    return result.data or []
+
+
+def _load_insight_from_db(period_key: str) -> dict | None:
+    """Cek apakah ada insight tersimpan di DB untuk period_key ini."""
+    try:
+        result = (
+            supabase.table("ai_insights")
+            .select("pdrb, kemiskinan, pengangguran, sources_json, article_count, period_label, created_at")
+            .eq("period_key", period_key)
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        if result.data:
+            row = result.data[0]
+            return {
+                "pdrb":          row["pdrb"],
+                "kemiskinan":    row["kemiskinan"],
+                "pengangguran":  row["pengangguran"],
+                "sources":       row["sources_json"] or {},
+                "article_count": row["article_count"],
+                "period_label":  row["period_label"],
+                "created_at":    row["created_at"],
+            }
+    except Exception as exc:
+        print(f"[AI Insights] Gagal baca dari DB: {exc}")
+    return None
+
+
+def _save_insight_to_db(period_key: str, period_label: str, insights: dict, article_count: int):
+    """Simpan hasil insight ke tabel ai_insights."""
+    try:
+        supabase.table("ai_insights").insert({
+            "period_key":    period_key,
+            "period_label":  period_label,
+            "pdrb":          insights.get("pdrb", ""),
+            "kemiskinan":    insights.get("kemiskinan", ""),
+            "pengangguran":  insights.get("pengangguran", ""),
+            "sources_json":  insights.get("sources", {}),
+            "article_count": article_count,
+        }).execute()
+        print(f"[AI Insights] Hasil disimpan ke DB (period_key={period_key}).")
+    except Exception as exc:
+        print(f"[AI Insights] Gagal simpan ke DB: {exc}")
+
+
+@app.route("/api/ai-insights", methods=["GET"])
+@login_required
+@limiter.limit("30 per hour")
+def get_ai_insights():
+    """
+    Hasilkan insight AI (DeepSeek) untuk PDRB, Kemiskinan, Pengangguran.
+
+    Query params:
+      period  — q1/q2/q3/q4/s1/s2/yearly (default: triwulan berjalan)
+      refresh — 1 untuk paksa regenerasi (bypass cache & DB)
+    """
+    import time
+    period        = request.args.get("period", "").strip().lower()
+    force_refresh = request.args.get("refresh", "") == "1"
+
+    period_key, period_label, date_from, date_to = _get_period_range(period)
+
+    # ── 1. Cek memory cache ───────────────────────────────────────────────────
+    now_ts = time.time()
+    cached = _INSIGHTS_CACHE.get(period_key)
+    if not force_refresh and cached and (now_ts - cached["ts"]) < _INSIGHTS_CACHE_TTL:
+        print(f"[AI Insights] Cache hit (memory) untuk {period_key}.")
+        return jsonify({"status": "ok", "cached": True, **cached["data"]})
+
+    # ── 2. Cek DB ─────────────────────────────────────────────────────────────
+    if not force_refresh:
+        db_row = _load_insight_from_db(period_key)
+        if db_row:
+            print(f"[AI Insights] Cache hit (DB) untuk {period_key}.")
+            payload = {
+                "status":        "ok",
+                "cached":        True,
+                "quarter":       db_row["period_label"],
+                "article_count": db_row["article_count"],
+                "data": {
+                    "pdrb":         db_row["pdrb"],
+                    "kemiskinan":   db_row["kemiskinan"],
+                    "pengangguran": db_row["pengangguran"],
+                },
+                "sources":       db_row["sources"],
+                "generated_at":  db_row["created_at"],
+            }
+            _INSIGHTS_CACHE[period_key] = {"ts": now_ts, "data": payload}
+            return jsonify(payload)
+
+    # ── 3. Generate baru ──────────────────────────────────────────────────────
+    try:
+        articles = _fetch_period_articles(date_from, date_to)
+        if not articles:
+            return jsonify({
+                "status": "ok",
+                "cached": False,
+                "quarter": period_label,
+                "article_count": 0,
+                "data": {
+                    "pdrb":         "Belum ada data berita untuk periode ini.",
+                    "kemiskinan":   "Belum ada data berita untuk periode ini.",
+                    "pengangguran": "Belum ada data berita untuk periode ini.",
+                },
+                "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
+            })
+
+        insights = generate_insights(articles, period_label)
+
+        _save_insight_to_db(period_key, period_label, insights, len(articles))
+
+        payload = {
+            "status":        "ok",
+            "cached":        False,
+            "quarter":       period_label,
+            "article_count": len(articles),
+            "data": {
+                "pdrb":         insights["pdrb"],
+                "kemiskinan":   insights["kemiskinan"],
+                "pengangguran": insights["pengangguran"],
+            },
+            "sources": insights.get("sources", {}),
+        }
+        _INSIGHTS_CACHE[period_key] = {"ts": now_ts, "data": payload}
+        return jsonify(payload)
+
+    except ValueError as exc:
+        print(f"[AI Insights ERROR] {exc}")
+        return jsonify({"status": "error", "message": str(exc)}), 503
+    except Exception as exc:
+        print(f"[AI Insights ERROR] {exc}")
+        return jsonify({"status": "error", "message": f"Gagal menghasilkan insight: {exc}"}), 500
 
 
 # ── API: last scrape time ──────────────────────────────────────────────────────

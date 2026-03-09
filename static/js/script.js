@@ -98,6 +98,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     await loadUserInfo();
     loadBerita();
     loadLastScrape();
+    loadAIInsights();
     animateCards();
     startAutoRefresh();
 });
@@ -788,4 +789,197 @@ async function downloadExcel() {
     ];
 
     XLSX.writeFile(wb, "berita_lokal_tegal.xlsx");
+}
+
+// ── AI Insights ───────────────────────────────────────────────────────────────
+
+let _aiLoading = false;
+
+// Mapping dropdown value → triwulan berjalan otomatis
+function _getDefaultPeriod() {
+    const month = new Date().getMonth() + 1; // 1-12
+    if (month <= 3)  return "q1";
+    if (month <= 6)  return "q2";
+    if (month <= 9)  return "q3";
+    return "q4";
+}
+
+function _initPeriodSelect() {
+    const sel = document.getElementById("aiPeriodSelect");
+    if (sel && !sel.dataset.initialized) {
+        sel.value = _getDefaultPeriod();
+        sel.dataset.initialized = "1";
+    }
+}
+
+function setAILoading(loading, articleCount) {
+    _aiLoading = loading;
+    const btn        = document.getElementById("btnRefreshAI");
+    const statusBar  = document.getElementById("aiLoadingStatus");
+    const statusText = document.getElementById("aiLoadingText");
+    const refreshTxt = document.getElementById("btnRefreshText");
+    const icon       = document.getElementById("refreshIcon");
+
+    if (loading) {
+        if (btn)  { btn.classList.add("loading"); btn.disabled = true; }
+        if (refreshTxt) refreshTxt.textContent = "Memuat...";
+        if (statusBar)  statusBar.style.display = "";
+        const n = articleCount ? `${articleCount}` : "";
+        if (statusText) statusText.textContent = n
+            ? `Menganalisis ${n} berita dengan DeepSeek AI...`
+            : "Menganalisis berita dengan DeepSeek AI...";
+        // Animasi pulse pada cards
+        ["aiCardPdrb", "aiCardKemiskinan", "aiCardPengangguran"].forEach(id => {
+            document.getElementById(id)?.classList.add("ai-card-loading");
+        });
+    } else {
+        if (btn)  { btn.classList.remove("loading"); btn.disabled = false; }
+        if (refreshTxt) refreshTxt.textContent = "Refresh";
+        if (statusBar)  statusBar.style.display = "none";
+        ["aiCardPdrb", "aiCardKemiskinan", "aiCardPengangguran"].forEach(id => {
+            document.getElementById(id)?.classList.remove("ai-card-loading");
+        });
+    }
+}
+
+function _showAISkeleton() {
+    const skeletonHtml = `<div class="ai-skeleton">
+        <div class="ai-skeleton-line"></div>
+        <div class="ai-skeleton-line w80"></div>
+        <div class="ai-skeleton-line w90"></div>
+        <div class="ai-skeleton-line w70"></div>
+    </div>`;
+    ["aiBodyPdrb", "aiBodyKemiskinan", "aiBodyPengangguran"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = skeletonHtml;
+    });
+    // Sembunyikan sumber
+    ["aiSourcesPdrb", "aiSourcesKemiskinan", "aiSourcesPengangguran"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = "none";
+    });
+}
+
+function _showAIError(message) {
+    const errorHtml = `<div class="ai-error">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/>
+            <line x1="12" y1="16" x2="12.01" y2="16"/>
+        </svg>
+        ${escapeHtml(message)}
+    </div>`;
+    ["aiBodyPdrb", "aiBodyKemiskinan", "aiBodyPengangguran"].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = errorHtml;
+    });
+}
+
+function _renderSources(catKey, sources) {
+    // catKey: "Pdrb" | "Kemiskinan" | "Pengangguran"
+    const wrap  = document.getElementById(`aiSources${catKey}`);
+    const label = document.getElementById(`aiSourcesLabel${catKey}`);
+    const list  = document.getElementById(`aiSourcesList${catKey}`);
+    if (!wrap || !label || !list) return;
+
+    if (!sources || sources.length === 0) {
+        wrap.style.display = "none";
+        return;
+    }
+
+    label.textContent = `Sumber Berita (${sources.length})`;
+    list.innerHTML = sources.map(s => {
+        const title = escapeHtml(s.title || "—");
+        const url   = escapeHtml(s.url || "#");
+        return `<li><a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a></li>`;
+    }).join("");
+    wrap.style.display = "";
+    list.style.display = "none";  // collapsed by default
+}
+
+function toggleSources(catKey) {
+    const list   = document.getElementById(`aiSourcesList${catKey}`);
+    const btn    = document.querySelector(`#aiSources${catKey} .ai-sources-toggle`);
+    if (!list) return;
+    const isOpen = list.style.display !== "none";
+    list.style.display = isOpen ? "none" : "";
+    if (btn) btn.classList.toggle("open", !isOpen);
+}
+
+function renderAIInsights(json) {
+    const { data, article_count: count, quarter, sources = {} } = json;
+
+    // Teks insight
+    const categoryMap = {
+        aiBodyPdrb:         data?.pdrb         || "—",
+        aiBodyKemiskinan:   data?.kemiskinan   || "—",
+        aiBodyPengangguran: data?.pengangguran || "—",
+    };
+    for (const [id, text] of Object.entries(categoryMap)) {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = `<p class="ai-insight-text">${escapeHtml(text)}</p>`;
+    }
+
+    // Label periode
+    const quarterEl = document.getElementById("aiQuarterLabel");
+    if (quarterEl) quarterEl.textContent = quarter || "periode ini";
+
+    // Badge jumlah berita
+    const countBadge = document.getElementById("aiArticleCount");
+    const countText  = document.getElementById("aiArticleCountText");
+    if (countBadge && countText) {
+        countText.textContent    = `${count} berita dianalisis`;
+        countBadge.style.display = count ? "" : "none";
+    }
+
+    // Sumber berita per kategori
+    _renderSources("Pdrb",         sources.pdrb         || []);
+    _renderSources("Kemiskinan",   sources.kemiskinan   || []);
+    _renderSources("Pengangguran", sources.pengangguran || []);
+}
+
+async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
+    if (_aiLoading) return;
+
+    _initPeriodSelect();
+    const sel = document.getElementById("aiPeriodSelect");
+    const selectedPeriod = period || sel?.value || _getDefaultPeriod();
+
+    // Ambil jumlah berita dummy untuk status text (opsional, lewatkan dulu)
+    setAILoading(true);
+    _showAISkeleton();
+
+    try {
+        const params = new URLSearchParams({ period: selectedPeriod });
+        if (forceRefresh) params.set("refresh", "1");
+        const url = "/api/ai-insights?" + params.toString();
+
+        const res = await fetch(url);
+        if (res.status === 401) { window.location.href = "/login"; return; }
+        const json = await res.json();
+
+        if (json.status === "ok") {
+            // Update status text dengan jumlah artikel nyata sebelum render
+            const statusText = document.getElementById("aiLoadingText");
+            if (statusText && json.article_count) {
+                statusText.textContent = `Selesai — ${json.article_count} berita dianalisis.`;
+            }
+            renderAIInsights(json);
+        } else {
+            _showAIError(json.message || "Gagal memuat insight AI.");
+        }
+    } catch (err) {
+        _showAIError("Gagal menghubungi server. Coba refresh halaman.");
+        console.error("AI Insights error:", err);
+    } finally {
+        setAILoading(false);
+    }
+}
+
+function refreshAIInsights() {
+    loadAIInsights({ forceRefresh: true });
+}
+
+function onPeriodChange() {
+    loadAIInsights({ forceRefresh: false });
 }

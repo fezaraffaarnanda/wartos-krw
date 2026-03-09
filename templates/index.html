@@ -239,6 +239,157 @@
             </div>
         </section>
 
+        <!-- AI Insight Section -->
+        <section class="ai-insight-section" id="aiInsightSection">
+            <div class="ai-insight-header">
+                <div>
+                    <h2 class="ai-insight-title">
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M12 2a10 10 0 1 0 10 10H12V2z"/>
+                            <path d="M12 2a10 10 0 0 1 10 10"/>
+                            <circle cx="12" cy="12" r="3"/>
+                        </svg>
+                        Insight AI — DeepSeek
+                    </h2>
+                    <p class="ai-insight-subtitle">
+                        Analisis otomatis berita <span id="aiQuarterLabel">triwulan ini</span> untuk tiga indikator utama BPS
+                    </p>
+                </div>
+                <div class="ai-insight-actions">
+                    <!-- Badge jumlah berita -->
+                    <span class="ai-article-count" id="aiArticleCount" style="display:none">
+                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                        <span id="aiArticleCountText">—</span>
+                    </span>
+
+                    <!-- Dropdown periode -->
+                    <div class="ai-period-select-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                            <line x1="16" y1="2" x2="16" y2="6"/>
+                            <line x1="8" y1="2" x2="8" y2="6"/>
+                            <line x1="3" y1="10" x2="21" y2="10"/>
+                        </svg>
+                        <select id="aiPeriodSelect" class="ai-period-select" onchange="onPeriodChange()">
+                            <option value="q1">Triwulan I (Jan–Mar)</option>
+                            <option value="q2">Triwulan II (Apr–Jun)</option>
+                            <option value="q3">Triwulan III (Jul–Sep)</option>
+                            <option value="q4">Triwulan IV (Okt–Des)</option>
+                            <option value="s1">Semester I (Jan–Jun)</option>
+                            <option value="s2">Semester II (Jul–Des)</option>
+                            <option value="yearly">Tahunan (Jan–Des)</option>
+                        </select>
+                    </div>
+
+                    <!-- Tombol Refresh -->
+                    <button class="btn-refresh-ai" id="btnRefreshAI" onclick="refreshAIInsights()" title="Regenerasi insight AI">
+                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon">
+                            <path d="M21 12a9 9 0 11-6.22-8.56"/>
+                            <path d="M21 3v6h-6"/>
+                        </svg>
+                        <span id="btnRefreshText">Refresh</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Loading status text -->
+            <div class="ai-loading-status" id="aiLoadingStatus" style="display:none">
+                <div class="ai-loading-dot"></div>
+                <span id="aiLoadingText">Memuat insight...</span>
+            </div>
+
+            <div class="ai-insight-grid" id="aiInsightGrid">
+                <!-- PDRB Card -->
+                <div class="ai-card ai-card-pdrb" id="aiCardPdrb">
+                    <div class="ai-card-header">
+                        <div class="ai-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="12" y1="2" x2="12" y2="22"/>
+                                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="ai-card-label">Indikator Ekonomi</div>
+                            <div class="ai-card-title">PDRB</div>
+                            <div class="ai-card-sub">Klasifikasi Lapangan Usaha</div>
+                        </div>
+                    </div>
+                    <div class="ai-card-body" id="aiBodyPdrb">
+                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
+                    </div>
+                    <div class="ai-sources-wrap" id="aiSourcesPdrb" style="display:none">
+                        <button class="ai-sources-toggle" onclick="toggleSources('Pdrb')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                            <span id="aiSourcesLabelPdrb">Sumber Berita (0)</span>
+                        </button>
+                        <ul class="ai-sources-list" id="aiSourcesListPdrb" style="display:none"></ul>
+                    </div>
+                </div>
+
+                <!-- Kemiskinan Card -->
+                <div class="ai-card ai-card-kemiskinan" id="aiCardKemiskinan">
+                    <div class="ai-card-header">
+                        <div class="ai-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
+                                <circle cx="9" cy="7" r="4"/>
+                                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
+                                <path d="M16 3.13a4 4 0 010 7.75"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="ai-card-label">Indikator Sosial</div>
+                            <div class="ai-card-title">Kemiskinan</div>
+                            <div class="ai-card-sub">Tingkat &amp; Penyebab</div>
+                        </div>
+                    </div>
+                    <div class="ai-card-body" id="aiBodyKemiskinan">
+                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
+                    </div>
+                    <div class="ai-sources-wrap" id="aiSourcesKemiskinan" style="display:none">
+                        <button class="ai-sources-toggle" onclick="toggleSources('Kemiskinan')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                            <span id="aiSourcesLabelKemiskinan">Sumber Berita (0)</span>
+                        </button>
+                        <ul class="ai-sources-list" id="aiSourcesListKemiskinan" style="display:none"></ul>
+                    </div>
+                </div>
+
+                <!-- Pengangguran Card -->
+                <div class="ai-card ai-card-pengangguran" id="aiCardPengangguran">
+                    <div class="ai-card-header">
+                        <div class="ai-card-icon">
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
+                                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+                            </svg>
+                        </div>
+                        <div>
+                            <div class="ai-card-label">Indikator Ketenagakerjaan</div>
+                            <div class="ai-card-title">Pengangguran</div>
+                            <div class="ai-card-sub">Tingkat &amp; Fenomena</div>
+                        </div>
+                    </div>
+                    <div class="ai-card-body" id="aiBodyPengangguran">
+                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
+                    </div>
+                    <div class="ai-sources-wrap" id="aiSourcesPengangguran" style="display:none">
+                        <button class="ai-sources-toggle" onclick="toggleSources('Pengangguran')">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
+                            <span id="aiSourcesLabelPengangguran">Sumber Berita (0)</span>
+                        </button>
+                        <ul class="ai-sources-list" id="aiSourcesListPengangguran" style="display:none"></ul>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- Table Section -->
         <section class="table-section" id="tableSection">
             <div class="section-card">

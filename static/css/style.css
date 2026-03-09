@@ -1653,3 +1653,422 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
     background: var(--gray-500);
 }
+
+/* ============================================
+   AI Insight Section
+   ============================================ */
+
+.ai-insight-section {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.ai-insight-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+}
+
+.ai-insight-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 1.08rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.ai-insight-title svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.ai-insight-subtitle {
+    font-size: 0.82rem;
+    color: var(--text-secondary);
+    margin-top: 4px;
+    padding-left: 30px;
+}
+
+.ai-insight-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+}
+
+.ai-article-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 20px;
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.btn-refresh-ai {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 9px 18px;
+    background: var(--white);
+    color: var(--accent);
+    border: 1.5px solid var(--accent);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 0.82rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-base);
+    white-space: nowrap;
+}
+
+.btn-refresh-ai:hover {
+    background: var(--accent);
+    color: var(--white);
+    box-shadow: var(--shadow-accent);
+    transform: translateY(-1px);
+}
+
+.btn-refresh-ai:active {
+    transform: translateY(0);
+}
+
+.btn-refresh-ai.loading {
+    pointer-events: none;
+    opacity: 0.6;
+}
+
+.btn-refresh-ai.loading svg {
+    animation: spin 0.8s linear infinite;
+}
+
+/* Grid layout */
+
+.ai-insight-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 18px;
+}
+
+/* Individual card */
+
+.ai-card {
+    background: var(--bg-card);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--border-color);
+    padding: 22px 22px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    transition: box-shadow var(--transition-base), transform var(--transition-base);
+}
+
+.ai-card:hover {
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+}
+
+.ai-card-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.ai-card-icon {
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-sm);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.ai-card-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 2px;
+}
+
+.ai-card-title {
+    font-size: 1.05rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.ai-card-sub {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+}
+
+/* PDRB — biru/teal */
+.ai-card-pdrb {
+    border-left: 4px solid #3B82F6;
+    background: linear-gradient(135deg, #EFF6FF 0%, var(--white) 60%);
+}
+.ai-card-pdrb .ai-card-icon {
+    background: #DBEAFE;
+    color: #2563EB;
+}
+.ai-card-pdrb .ai-card-label { color: #2563EB; }
+.ai-card-pdrb .ai-card-title  { color: #1E40AF; }
+
+/* Kemiskinan — merah/coral */
+.ai-card-kemiskinan {
+    border-left: 4px solid #EF4444;
+    background: linear-gradient(135deg, #FEF2F2 0%, var(--white) 60%);
+}
+.ai-card-kemiskinan .ai-card-icon {
+    background: #FEE2E2;
+    color: #DC2626;
+}
+.ai-card-kemiskinan .ai-card-label { color: #DC2626; }
+.ai-card-kemiskinan .ai-card-title  { color: #991B1B; }
+
+/* Pengangguran — hijau */
+.ai-card-pengangguran {
+    border-left: 4px solid #22C55E;
+    background: linear-gradient(135deg, #F0FDF4 0%, var(--white) 60%);
+}
+.ai-card-pengangguran .ai-card-icon {
+    background: #DCFCE7;
+    color: #16A34A;
+}
+.ai-card-pengangguran .ai-card-label { color: #16A34A; }
+.ai-card-pengangguran .ai-card-title  { color: #15803D; }
+
+/* Body */
+
+.ai-card-body {
+    flex: 1;
+}
+
+.ai-insight-text {
+    font-size: 0.875rem;
+    color: var(--text-primary);
+    line-height: 1.75;
+    margin: 0;
+}
+
+/* Skeleton shimmer */
+
+.ai-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 4px 0;
+}
+
+.ai-skeleton-line {
+    height: 14px;
+    background: linear-gradient(90deg, var(--gray-200) 25%, var(--gray-100) 50%, var(--gray-200) 75%);
+    background-size: 200% 100%;
+    border-radius: 6px;
+    animation: shimmer 1.4s ease-in-out infinite;
+    width: 100%;
+}
+
+.ai-skeleton-line.w80 { width: 80%; }
+.ai-skeleton-line.w90 { width: 90%; }
+.ai-skeleton-line.w70 { width: 70%; }
+
+@keyframes shimmer {
+    0%   { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+/* Error state */
+
+.ai-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    font-size: 0.82rem;
+    color: #DC2626;
+    background: #FEF2F2;
+    border: 1px solid #FECACA;
+    border-radius: var(--radius-sm);
+    padding: 12px 14px;
+    line-height: 1.5;
+}
+
+.ai-error svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+/* Responsive */
+
+@media (max-width: 900px) {
+    .ai-insight-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .ai-insight-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+@media (max-width: 640px) {
+    .ai-insight-subtitle {
+        padding-left: 0;
+    }
+}
+
+/* Period selector */
+
+.ai-period-select-wrap {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    background: var(--gray-50);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    transition: border-color var(--transition-fast);
+}
+
+.ai-period-select-wrap:focus-within {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.1);
+}
+
+.ai-period-select-wrap svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.ai-period-select {
+    border: none;
+    background: transparent;
+    font-family: var(--font-family);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    outline: none;
+    padding: 0;
+    appearance: none;
+    -webkit-appearance: none;
+}
+
+/* Loading status bar */
+
+.ai-loading-status {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    background: linear-gradient(135deg, var(--orange-50) 0%, var(--white) 100%);
+    border: 1px solid var(--orange-200);
+    border-radius: var(--radius-md);
+    font-size: 0.82rem;
+    color: var(--orange-700);
+    font-weight: 500;
+}
+
+.ai-loading-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: ai-dot-pulse 1.2s ease-in-out infinite;
+    flex-shrink: 0;
+}
+
+@keyframes ai-dot-pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%       { opacity: 0.4; transform: scale(0.7); }
+}
+
+/* Card pulse animation during loading */
+
+.ai-card-loading {
+    animation: ai-card-pulse 2s ease-in-out infinite;
+}
+
+@keyframes ai-card-pulse {
+    0%, 100% { box-shadow: none; }
+    50%       { box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.15); }
+}
+
+/* Sources collapsible */
+
+.ai-sources-wrap {
+    border-top: 1px solid var(--gray-100);
+    padding-top: 10px;
+    margin-top: 2px;
+}
+
+.ai-sources-toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: none;
+    border: none;
+    padding: 0;
+    font-family: var(--font-family);
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: color var(--transition-fast);
+}
+
+.ai-sources-toggle:hover {
+    color: var(--accent);
+}
+
+.ai-sources-toggle svg {
+    transition: transform var(--transition-fast);
+    flex-shrink: 0;
+}
+
+.ai-sources-toggle.open svg {
+    transform: rotate(180deg);
+}
+
+.ai-sources-list {
+    list-style: none;
+    padding: 8px 0 0 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.ai-sources-list li a {
+    font-size: 0.76rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    line-height: 1.4;
+    display: block;
+    padding: 2px 0;
+    transition: color var(--transition-fast);
+    border-bottom: 1px dotted transparent;
+}
+
+.ai-sources-list li a:hover {
+    color: var(--accent);
+    text-decoration: none;
+    border-bottom-color: var(--accent);
+}
+
+.ai-sources-list li a::before {
+    content: "↗ ";
+    font-size: 0.68rem;
+    opacity: 0.5;
+}

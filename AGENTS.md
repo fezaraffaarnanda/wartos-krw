@@ -1,215 +1,169 @@
-# AGENTS.md — Coding Agent Instructions
+# AGENTS.md
+
+This file provides guidance to AI coding agents working in this repository.
 
 ## Project Overview
 
-Python Flask web application: a news scraping dashboard for BPS (Badan Pusat Statistik)
-that scrapes articles from 4 Indonesian news sources about the Tegal region.
-UI and code comments are in **Bahasa Indonesia**.
+Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 4 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
 
-### Tech Stack
-
-- **Backend**: Flask, Flask-Login, Flask-Bcrypt, Flask-Limiter
-- **Scraping**: requests + BeautifulSoup4, Playwright (Kompas)
-- **Database**: Supabase (PostgreSQL) via `supabase-py`
-- **Frontend**: Jinja2 templates, vanilla JS, CSS
-- **Deployment**: Vercel (serverless) + local threaded mode
-- **Python**: 3.10+ (uses `str | None`, `list[dict]` syntax)
-
-### Directory Structure
-
-```
-app.py                  # Main Flask app — routes, auth, scraping orchestration
-utils.py                # Date normalization utilities
-requirements.txt        # Python dependencies
-scrapers/               # One module per news source
-  __init__.py
-  scrape_radartegal_bs4.py
-  scraping_panturapost.py
-  scrape_tribunjateng_v2.py
-  scrape_kompas.py
-tools/
-  create_user.py        # CLI tool to create users in Supabase
-database/               # SQL migration files
-templates/              # Jinja2 HTML templates
-static/                 # JS, CSS, images
-```
-
----
-
-## Build / Run Commands
-
-### Setup
+## Commands
 
 ```bash
-python -m venv venv
-venv\Scripts\activate          # Windows
-pip install -r requirements.txt
-playwright install chromium     # Required for Kompas scraper
+python app.py                                      # Run Flask dev server (localhost:5000)
+python -m scrapers.scrape_radartegal_bs4            # Run RadarTegal scraper standalone
+python -m scrapers.scraping_panturapost             # Run PanturaPost scraper standalone
+python -m scrapers.scrape_tribunjateng_v2           # Run TribunJateng scraper standalone
+python -m scrapers.scrape_kompas                    # Run Kompas scraper standalone
+python tools/create_user.py <user> <pass> [role]    # Create user (role: admin/user)
+pip install -r requirements.txt                     # Install dependencies
+playwright install chromium                         # REQUIRED before running Kompas scraper
 ```
 
-### Run locally
+No test suite, linter, or formatter is configured. There is no `pyproject.toml`, `setup.py`, or `Makefile`.
 
-```bash
-python app.py
+## Project Structure
+
+```
+app.py                  # Flask app: routes, auth, scraping orchestration, threading
+utils.py                # normalize_date(), parse_date_to_iso() — shared date utilities
+requirements.txt        # pip dependencies (no pinned versions)
+scrapers/               # One module per news source, each exports scrape_new_articles()
+  __init__.py            # Empty
+  scrape_radartegal_bs4.py   # RadarTegal — requests + BS4, offset-based pagination
+  scraping_panturapost.py    # PanturaPost — requests + BS4
+  scrape_tribunjateng_v2.py  # TribunJateng — requests + BS4
+  scrape_kompas.py           # Kompas — requests + BS4 (was Playwright, now HTTP)
+database/               # Raw SQL files — run manually in Supabase SQL Editor
+  schema.sql             # Core berita table
+  migration_*.sql        # Additive migrations (indexes, source column, users table)
+templates/              # Jinja2-style HTML (served as static files via send_from_directory)
+static/css/style.css    # Single stylesheet
+static/js/script.js     # Single JS file — vanilla JS, no framework
+tools/create_user.py    # CLI script to seed users into Supabase
 ```
 
-The app starts on `http://localhost:5000` with threaded scraping enabled.
+## Critical Patterns
 
-### Run a single scraper standalone
+### Scraper API Contract
 
-Each scraper has an `if __name__ == "__main__"` block:
+Every scraper module in `scrapers/` MUST export this function:
 
-```bash
-python -m scrapers.scrape_radartegal_bs4
-python -m scrapers.scraping_panturapost
-python -m scrapers.scrape_tribunjateng_v2
-python -m scrapers.scrape_kompas
+```python
+def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]:
+    # Returns list of: {"title", "date", "url", "content", "tags", "source"}
 ```
 
-### Create a user
+- `existing_urls`: set of URLs already in DB — scraper must stop when it hits a duplicate
+- `on_progress(count, msg)`: optional callback for real-time progress updates
+- `source`: string matching one of SOURCE_LABELS values in app.py:62 ("Radar Tegal", "Pantura Post", "Tribun Jateng", "Kompas")
+- RadarTegal uses `max_pages` instead of `max_articles` — see `_build_scraper_config()` at app.py:431
 
-```bash
-python tools/create_user.py
+### Date Normalization
+
+ALL date strings from scrapers pass through `utils.normalize_date()` (utils.py:28) before DB insert. Target format: `"DD MMMM YYYY, HH:MM WIB"` (e.g., `"23 Februari 2026, 16:04 WIB"`). The companion `parse_date_to_iso()` (utils.py:79) converts to `"YYYY-MM-DD"` for the `date_parsed` column. Month names are in Bahasa Indonesia (Januari, Februari, Maret, etc.).
+
+### Duplicate Detection
+
+`_fetch_existing_urls()` (app.py:396) loads all URLs from Supabase before scraping begins. Scrapers receive this set and must stop pagination when they encounter a known URL. The `berita.url` column has a UNIQUE constraint.
+
+### Threading & Shared State
+
+`_scrape_progress` (app.py:315) and `_scrape_overall` (app.py:321) are module-level dicts shared across threads. Use `_scraping_lock` (app.py:313) when modifying. The lock is acquired in `start_scrape()` and released in `_scrape_worker()`'s `finally` block.
+
+### Dual Auth on /api/scrape
+
+`/api/scrape` (app.py:518) supports two auth modes:
+1. Session auth (dashboard) → spawns background thread, returns immediately
+2. `Authorization: Bearer <CRON_SECRET>` header → runs synchronously via `_scrape_sync()`
+
+### Content Cleaning
+
+Each scraper has its own `clean_content()` function that strips boilerplate (BACA JUGA, domain watermarks, editor/author lines, Google News footers). Pattern is consistent: regex domain removal → line-by-line prefix/regex filtering → rejoin.
+
+## Database
+
+Supabase PostgreSQL via `supabase-py` client. No ORM.
+
+Tables:
+- `berita`: `id, title, date, date_parsed, url (UNIQUE), content, tags, source, created_at`
+- `scrape_log`: `id, total_inserted, scraped_at`
+- `users`: `id, username, password_hash, role, created_at`
+
+Queries use the Supabase fluent builder pattern:
+```python
+supabase.table("berita").select("*").eq("id", berita_id).single().execute()
 ```
-
-### Tests
-
-There is **no test suite**. No pytest, unittest, or test files exist.
-If adding tests, use `pytest` and place them in a `tests/` directory.
-
-### Linting
-
-There is **no linter configuration**. No flake8, ruff, or pyproject.toml.
-If adding a linter, use `ruff` with default settings.
-
----
 
 ## Environment Variables
 
-Required in `.env` (loaded via `python-dotenv`):
+Required in `.env`: `SUPABASE_URL`, `SUPABASE_KEY`, `FLASK_SECRET_KEY`, `CRON_SECRET`
 
-- `SUPABASE_URL` — Supabase project URL
-- `SUPABASE_KEY` — Supabase anon/service key
-- `FLASK_SECRET_KEY` — Flask session secret
-- `CRON_SECRET` — Secret for cron endpoint authentication
+If `FLASK_SECRET_KEY` is missing, a random key is generated (sessions won't persist across restarts).
 
-**Never commit `.env` or secrets to the repository.**
-
----
-
-## Code Style
-
-### Imports
-
-1. Standard library imports first
-2. Third-party imports second
-3. Local imports third
-4. Separate each group with a blank line
-5. Flask multi-line imports use parenthesized form
-
-```python
-import os
-import json
-from datetime import datetime
-
-from flask import Flask, request, jsonify
-from supabase import create_client
-
-from scrapers.scrape_kompas import scrape_new_articles
-```
-
-### Naming
-
-- **Functions / variables**: `snake_case`
-- **Classes**: `PascalCase` (only `User` class exists)
-- **Private functions / variables**: prefix with `_` (e.g., `_scrape_progress`, `_insert_articles`)
-- **Constants**: not formally distinguished; use `UPPER_SNAKE_CASE` for new constants
-
-### Type Hints
-
-Used sparingly. When present, use Python 3.10+ syntax:
-
-```python
-def normalize_date(raw: str) -> str | None:
-    ...
-
-def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]:
-    ...
-```
-
-### Section Headers
-
-Use Unicode box-drawing comment style for major sections:
-
-```python
-# ── Section Name ──────────────────────────────────────
-```
-
-### Docstrings
-
-Not enforced project-wide. Key functions have triple-quote docstrings.
-When adding docstrings, use simple triple-quote style (no reStructuredText or Google style).
-
-### Error Handling
-
-- Broad `except Exception` with `print()` logging is the current pattern
-- Generic error messages are returned to users (no stack traces exposed)
-- Prefer this pattern for consistency, but add specific exception types when feasible
-
-### Scraper Module Convention
-
-Every scraper module must follow this structure:
-
-1. A public `scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]` function — this is the API called by `app.py`
-2. A `clean_content(text: str) -> str` function for source-specific boilerplate removal
-3. A standalone `if __name__ == "__main__"` block for independent testing
-4. Each returned article dict must contain: `judul`, `tanggal`, `url`, `konten`, `source`
-
-### Article Dict Schema
-
-```python
-{
-    "judul": str,       # Article title
-    "tanggal": str,     # Publication date (normalized via utils.normalize_date)
-    "url": str,         # Full article URL
-    "konten": str,      # Cleaned article content
-    "source": str,      # Source name: "Radar Tegal", "Pantura Post", "Tribun Jateng", "Kompas"
-}
-```
+## Code Style Guidelines
 
 ### Language
 
-- Code comments, log messages, and variable names may be in Indonesian
-- Keep new code consistent with surrounding context
-- UI strings are in Indonesian — do not translate them to English
+- All user-facing strings, log messages, comments, and docstrings: **Bahasa Indonesia**
+- Variable/function names: English (snake_case), except domain terms like `berita`, `judul`, `tanggal`
+- Internal scraper dicts may use Indonesian keys (`judul`, `tanggal`, `isi`, `waktu`) — these are mapped to English keys (`title`, `date`, `content`) in `scrape_new_articles()`
 
----
+### Imports
 
-## Architecture Notes
+- Standard library first, then third-party, then local — separated by blank lines
+- Flask imports use parenthesized multi-line style (see app.py:7-17)
+- Scraper imports in app.py use aliased form: `from scrapers.scrape_X import scrape_new_articles as scrape_X`
 
-### Scraping Modes
+### Formatting
 
-- **Local / threaded**: `app.py` uses `threading.Thread` + `threading.Lock` for concurrent scraping with progress tracking via `_scrape_progress` global dict
-- **Vercel / serverless**: synchronous scraping (no threads), triggered via cron endpoint with `CRON_SECRET` auth
+- 4-space indentation, no tabs
+- Max line length ~100 chars (soft limit, not enforced)
+- Section headers use box-drawing comment style: `# ── Section Name ──────────────────`
+- Alignment padding with spaces for related assignments (e.g., app.py:48, app.py:79)
+- Trailing commas in multi-line function calls and dicts
+- Module-level constants: `UPPER_SNAKE_CASE`
+- Private helpers: `_leading_underscore`
 
-### Database
+### Naming Conventions
 
-- Supabase PostgreSQL with tables: `articles`, `scrape_logs`, `users`
-- Schema and migrations live in `database/` directory
-- All DB operations go through `supabase-py` client (no ORM)
+- Functions/variables: `snake_case`
+- Classes: `PascalCase` (only `User` class exists)
+- Constants: `UPPER_SNAKE_CASE` (e.g., `SOURCE_LABELS`, `BERITA_LIST_COLUMNS`, `BASE_URL`)
+- Module-level compiled regexes: `_UPPER_SNAKE_CASE` with leading underscore (e.g., `_PP_DOMAIN_REGEX`)
+- Source key strings: lowercase, no spaces (`"radartegal"`, `"panturapost"`, `"tribunjateng"`, `"kompas"`)
 
-### Auth
+### Type Hints
 
-- Flask-Login with bcrypt password hashing
-- User records stored in Supabase `users` table
-- Rate limiting via Flask-Limiter on login endpoint
+- Used on function signatures: `def func(param: str) -> dict | None:`
+- Union syntax uses `X | Y` (Python 3.10+), not `Optional[X]` or `Union[X, Y]`
+- Collection types use lowercase builtins: `list[dict]`, `set[str]`, `tuple[str, str]`
+- Not used on local variables
 
----
+### Error Handling
 
-## Common Pitfalls
+- Scrapers: catch `Exception` per-article, log with `print(f"[SOURCE] ...")`, continue to next
+- DB operations: catch `Exception`, return error JSON with `{"status": "error", "message": "..."}` and appropriate HTTP status
+- Log format: `[TAG] message` where TAG is source name or category (e.g., `[SCRAPE]`, `[DB ERROR]`, `[Kompas]`)
+- Silent failures for non-critical ops (e.g., `_log_scrape_run` at app.py:388)
+- Login errors use generic messages — never reveal whether username or password was wrong
 
-- **Playwright**: The Kompas scraper requires `playwright install chromium`. It will fail silently or crash without it.
-- **Global mutable state**: `_scrape_progress` dict is shared across threads — always use `_progress_lock` when reading/writing.
-- **Date parsing**: Indonesian date strings are inconsistent across sources. Always route through `utils.normalize_date()`.
-- **Duplicate detection**: `app.py` fetches existing URLs from Supabase before scraping to avoid duplicates. Scrapers receive these as `existing_urls` parameter.
-- **Vercel cold starts**: Serverless functions have tight timeouts. Scraping all sources may exceed limits.
+### API Response Format
+
+All JSON responses follow: `{"status": "ok"|"error", ...}` with optional `"data"`, `"message"` fields.
+
+### Scraper Conventions
+
+- Each scraper defines a `requests.Session` or uses `requests.get()` with browser-like `User-Agent` headers
+- Rate limiting via `time.sleep(random.uniform(lo, hi))` between requests
+- Each has a standalone `if __name__ == "__main__":` block for independent testing
+- Content cleaning follows the same pattern across all scrapers (regex + line filtering)
+- Inner `log()` closure for prefixed logging: `def log(msg): print(f"[SourceName] {msg}")`
+
+## Gotchas
+
+- Kompas scraper filters out "Jadwal Imsak" / "Jadwal Buka Puasa" articles (scrape_kompas.py:104)
+- TribunJateng has double NA validation: once in the scraper (scrape_tribunjateng_v2.py:284) and once in `_is_valid_article()` (app.py:339)
+- PanturaPost internal article keys are Indonesian (`judul`, `tanggal`, `isi`), Kompas uses capitalized Indonesian (`Judul`, `Tanggal`, `Isi`) — both mapped in `scrape_new_articles()`
+- Vercel serverless may timeout on full scrape — cron mode uses `_scrape_sync()` which runs sequentially
+- Login rate limit: 5 attempts per 15 minutes (app.py:141)
+- `requirements.txt` has no pinned versions — builds may break on dependency updates
