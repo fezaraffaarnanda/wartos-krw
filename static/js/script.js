@@ -795,21 +795,70 @@ async function downloadExcel() {
 
 let _aiLoading = false;
 
-// Mapping dropdown value → triwulan berjalan otomatis
+// ── Custom Period Dropdown ────────────────────────────────────────────────────
+
+let _currentPeriod = "";
+
 function _getDefaultPeriod() {
-    const month = new Date().getMonth() + 1; // 1-12
-    if (month <= 3)  return "q1";
-    if (month <= 6)  return "q2";
-    if (month <= 9)  return "q3";
+    const month = new Date().getMonth() + 1;
+    if (month <= 3) return "q1";
+    if (month <= 6) return "q2";
+    if (month <= 9) return "q3";
     return "q4";
 }
 
-function _initPeriodSelect() {
-    const sel = document.getElementById("aiPeriodSelect");
-    if (sel && !sel.dataset.initialized) {
-        sel.value = _getDefaultPeriod();
-        sel.dataset.initialized = "1";
-    }
+const _PERIOD_LABELS = {
+    q1:     "Triwulan I (Jan–Mar)",
+    q2:     "Triwulan II (Apr–Jun)",
+    q3:     "Triwulan III (Jul–Sep)",
+    q4:     "Triwulan IV (Okt–Des)",
+    s1:     "Semester I (Jan–Jun)",
+    s2:     "Semester II (Jul–Des)",
+    yearly: "Tahunan (Jan–Des)",
+};
+
+function _initPeriodDropdown() {
+    if (_currentPeriod) return;
+    const def = _getDefaultPeriod();
+    _currentPeriod = def;
+    const label = document.getElementById("aiPeriodLabel");
+    if (label) label.textContent = _PERIOD_LABELS[def] || def;
+    // Mark active option
+    document.querySelectorAll(".ai-period-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.value === def);
+    });
+    // Close menu on outside click
+    document.addEventListener("click", e => {
+        const dd = document.getElementById("aiPeriodDropdown");
+        if (dd && !dd.contains(e.target)) closePeriodDropdown();
+    });
+}
+
+function togglePeriodDropdown() {
+    const menu = document.getElementById("aiPeriodMenu");
+    const btn  = document.getElementById("aiPeriodBtn");
+    if (!menu) return;
+    const isOpen = menu.style.display !== "none";
+    menu.style.display = isOpen ? "none" : "";
+    btn?.classList.toggle("open", !isOpen);
+}
+
+function closePeriodDropdown() {
+    const menu = document.getElementById("aiPeriodMenu");
+    const btn  = document.getElementById("aiPeriodBtn");
+    if (menu) menu.style.display = "none";
+    btn?.classList.remove("open");
+}
+
+function selectPeriod(value, label) {
+    _currentPeriod = value;
+    const labelEl = document.getElementById("aiPeriodLabel");
+    if (labelEl) labelEl.textContent = label;
+    document.querySelectorAll(".ai-period-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.value === value);
+    });
+    closePeriodDropdown();
+    loadAIInsights({ forceRefresh: false });
 }
 
 function setAILoading(loading, articleCount) {
@@ -941,11 +990,9 @@ function renderAIInsights(json) {
 async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
     if (_aiLoading) return;
 
-    _initPeriodSelect();
-    const sel = document.getElementById("aiPeriodSelect");
-    const selectedPeriod = period || sel?.value || _getDefaultPeriod();
+    _initPeriodDropdown();
+    const selectedPeriod = period || _currentPeriod || _getDefaultPeriod();
 
-    // Ambil jumlah berita dummy untuk status text (opsional, lewatkan dulu)
     setAILoading(true);
     _showAISkeleton();
 
@@ -978,8 +1025,4 @@ async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
 
 function refreshAIInsights() {
     loadAIInsights({ forceRefresh: true });
-}
-
-function onPeriodChange() {
-    loadAIInsights({ forceRefresh: false });
 }
