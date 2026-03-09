@@ -2164,3 +2164,54 @@ a:hover {
     font-size: 0.68rem;
     opacity: 0.5;
 }
+
+/* Year select dropdown */
+
+.ai-year-select {
+    appearance: none;
+    -webkit-appearance: none;
+    padding: 8px 28px 8px 12px;
+    background: var(--white) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") no-repeat right 8px center;
+    border: 1.5px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+    white-space: nowrap;
+    min-width: 76px;
+}
+
+.ai-year-select:hover,
+.ai-year-select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.1);
+    outline: none;
+}
+
+/* Inline citation — academic superscript footnote style */
+
+.ai-cite {
+    display: inline;
+    font-size: 0.7em;
+    font-weight: 700;
+    font-family: var(--font-family);
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 1px;
+    text-decoration-style: dotted;
+    vertical-align: super;
+    line-height: 0;
+    margin: 0 1px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color var(--transition-fast);
+}
+
+.ai-cite:hover {
+    color: var(--accent-hover, #c25e00);
+    text-decoration: underline;
+    text-decoration-style: solid;
+}

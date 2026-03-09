@@ -799,7 +799,8 @@ async function downloadExcel() {
 
 // ── AI Insights ───────────────────────────────────────────────────────────────
 
-let _aiLoading = false;
+let _aiLoading  = false;
+let _currentYear = String(new Date().getFullYear()); // default tahun ini
 
 // ── Custom Period Dropdown ────────────────────────────────────────────────────
 
@@ -838,6 +839,68 @@ function _initPeriodDropdown() {
         const dd = document.getElementById("aiPeriodDropdown");
         if (dd && !dd.contains(e.target)) closePeriodDropdown();
     });
+    // Isi dropdown tahun
+    _initYearDropdown();
+}
+
+async function _initYearDropdown() {
+    const menu  = document.getElementById("aiYearMenu");
+    const label = document.getElementById("aiYearLabel");
+    if (!menu) return;
+    try {
+        const res  = await fetch("/api/berita/years");
+        const json = await res.json();
+        const years = (json.status === "ok" && json.years?.length)
+            ? json.years
+            : [_currentYear];
+        // Pastikan _currentYear valid
+        if (!years.includes(_currentYear)) {
+            _currentYear = years[0];
+        }
+        if (label) label.textContent = _currentYear;
+        // Render opsi
+        menu.innerHTML = years.map(y =>
+            `<button class="ai-period-option${y === _currentYear ? ' active' : ''}" 
+                data-year="${y}" onclick="selectYear('${y}')">${y}</button>`
+        ).join("");
+        // Close on outside click
+        document.addEventListener("click", e => {
+            const dd = document.getElementById("aiYearDropdown");
+            if (dd && !dd.contains(e.target)) closeYearDropdown();
+        }, { once: false });
+    } catch {
+        if (label) label.textContent = _currentYear;
+        menu.innerHTML = `<button class="ai-period-option active" onclick="selectYear('${_currentYear}')">${_currentYear}</button>`;
+    }
+}
+
+function toggleYearDropdown() {
+    const menu = document.getElementById("aiYearMenu");
+    const btn  = document.getElementById("aiYearBtn");
+    if (!menu) return;
+    const isOpen = menu.style.display !== "none";
+    menu.style.display = isOpen ? "none" : "";
+    btn?.classList.toggle("open", !isOpen);
+}
+
+function closeYearDropdown() {
+    const menu = document.getElementById("aiYearMenu");
+    const btn  = document.getElementById("aiYearBtn");
+    if (menu) menu.style.display = "none";
+    btn?.classList.remove("open");
+}
+
+function selectYear(value) {
+    _currentYear = value;
+    // Update label
+    const label = document.getElementById("aiYearLabel");
+    if (label) label.textContent = value;
+    // Update active state
+    document.querySelectorAll("#aiYearMenu .ai-period-option").forEach(btn => {
+        btn.classList.toggle("active", btn.dataset.year === value);
+    });
+    closeYearDropdown();
+    loadAIInsights({ forceRefresh: false });
 }
 
 function togglePeriodDropdown() {
@@ -972,7 +1035,8 @@ function renderAIInsights(json) {
     };
     for (const [id, text] of Object.entries(categoryMap)) {
         const el = document.getElementById(id);
-        if (el) el.innerHTML = `<p class="ai-insight-text">${escapeHtml(text)}</p>`;
+        // text may contain trusted HTML <a> tags from inline citations (backend-generated)
+        if (el) el.innerHTML = `<p class="ai-insight-text">${text}</p>`;
     }
 
     // Label periode
@@ -1004,7 +1068,8 @@ async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
 
     try {
         const params = new URLSearchParams({ period: selectedPeriod });
-        if (forceRefresh) params.set("refresh", "1");
+        if (forceRefresh)  params.set("refresh", "1");
+        if (_currentYear)  params.set("year",    _currentYear);
         const url = "/api/ai-insights?" + params.toString();
 
         const res = await fetch(url);

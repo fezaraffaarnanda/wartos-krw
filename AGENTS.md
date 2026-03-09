@@ -4,7 +4,43 @@ This file provides guidance to AI coding agents working in this repository.
 
 ## Project Overview
 
-Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 4 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
+Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 5 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. Includes AI-powered insights using DeepSeek LLM for analyzing PDRB, Kemiskinan, and Pengangguran trends. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
+
+## Initialization
+
+```bash
+# 1. Clone repository and navigate to project directory
+cd "C:\Users\fezaa\OneDrive\Documents\01. BPS\SCRAPING"
+
+# 2. Create virtual environment (recommended)
+python -m venv venv
+venv\Scripts\activate  # Windows
+# source venv/bin/activate  # Linux/Mac
+
+# 3. Install Python dependencies
+pip install -r requirements.txt
+
+# 4. Install Playwright browser (required for Kompas scraper)
+playwright install chromium
+
+# 5. Configure environment variables
+# Create .env file with:
+SUPABASE_URL=your_supabase_project_url
+SUPABASE_KEY=your_supabase_anon_key
+FLASK_SECRET_KEY=your_random_secret_key_here
+CRON_SECRET=your_cron_secret_for_api_auth
+DEEPSEEK_API_KEY=your_deepseek_api_key  # For AI insights feature
+
+# 6. Initialize database (run SQL files in Supabase SQL Editor)
+# - database/schema.sql (core tables)
+# - database/migration_*.sql (in order)
+
+# 7. Create initial admin user
+python tools/create_user.py admin your_password admin
+
+# 8. Run development server
+python app.py  # Access at http://localhost:5000
+```
 
 ## Commands
 
@@ -14,6 +50,7 @@ python -m scrapers.scrape_radartegal_bs4            # Run RadarTegal scraper sta
 python -m scrapers.scraping_panturapost             # Run PanturaPost scraper standalone
 python -m scrapers.scrape_tribunjateng_v2           # Run TribunJateng scraper standalone
 python -m scrapers.scrape_kompas                    # Run Kompas scraper standalone
+python -m scrapers.scraping_tegal                   # Run Setda Tegal scraper standalone
 python tools/create_user.py <user> <pass> [role]    # Create user (role: admin/user)
 pip install -r requirements.txt                     # Install dependencies
 playwright install chromium                         # REQUIRED before running Kompas scraper
@@ -26,6 +63,7 @@ No test suite, linter, or formatter is configured. There is no `pyproject.toml`,
 ```
 app.py                  # Flask app: routes, auth, scraping orchestration, threading
 utils.py                # normalize_date(), parse_date_to_iso() — shared date utilities
+ai_insights.py          # AI insights using DeepSeek LLM for PDRB/Kemiskinan/Pengangguran
 requirements.txt        # pip dependencies (no pinned versions)
 scrapers/               # One module per news source, each exports scrape_new_articles()
   __init__.py            # Empty
@@ -33,6 +71,7 @@ scrapers/               # One module per news source, each exports scrape_new_ar
   scraping_panturapost.py    # PanturaPost — requests + BS4
   scrape_tribunjateng_v2.py  # TribunJateng — requests + BS4
   scrape_kompas.py           # Kompas — requests + BS4 (was Playwright, now HTTP)
+  scraping_tegal.py          # Setda Tegal — requests + BS4, JNews theme
 database/               # Raw SQL files — run manually in Supabase SQL Editor
   schema.sql             # Core berita table
   migration_*.sql        # Additive migrations (indexes, source column, users table)
@@ -55,8 +94,8 @@ def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None)
 
 - `existing_urls`: set of URLs already in DB — scraper must stop when it hits a duplicate
 - `on_progress(count, msg)`: optional callback for real-time progress updates
-- `source`: string matching one of SOURCE_LABELS values in app.py:62 ("Radar Tegal", "Pantura Post", "Tribun Jateng", "Kompas")
-- RadarTegal uses `max_pages` instead of `max_articles` — see `_build_scraper_config()` at app.py:431
+- `source`: string matching one of SOURCE_LABELS values in app.py:64 ("Radar Tegal", "Pantura Post", "Tribun Jateng", "Kompas", "Setda Tegal")
+- RadarTegal uses `max_pages` instead of `max_articles` — see `_build_scraper_config()` in app.py
 
 ### Date Normalization
 
@@ -80,6 +119,16 @@ ALL date strings from scrapers pass through `utils.normalize_date()` (utils.py:2
 
 Each scraper has its own `clean_content()` function that strips boilerplate (BACA JUGA, domain watermarks, editor/author lines, Google News footers). Pattern is consistent: regex domain removal → line-by-line prefix/regex filtering → rejoin.
 
+### AI Insights Feature
+
+`ai_insights.py` provides AI-powered analysis using DeepSeek LLM:
+- `generate_insights(articles: list[dict]) -> dict`: Analyzes articles for PDRB, Kemiskinan, Pengangguran trends
+- Pre-filters articles by keywords per category (ai_insights.py:27-49)
+- Limits to 30 articles per category, 500 chars per article content (token optimization)
+- Returns structured insights with summaries, trends, and source references
+- Requires `DEEPSEEK_API_KEY` in environment variables
+- Called from `/api/insights` endpoint in app.py
+
 ## Database
 
 Supabase PostgreSQL via `supabase-py` client. No ORM.
@@ -96,9 +145,12 @@ supabase.table("berita").select("*").eq("id", berita_id).single().execute()
 
 ## Environment Variables
 
-Required in `.env`: `SUPABASE_URL`, `SUPABASE_KEY`, `FLASK_SECRET_KEY`, `CRON_SECRET`
-
-If `FLASK_SECRET_KEY` is missing, a random key is generated (sessions won't persist across restarts).
+Required in `.env`:
+- `SUPABASE_URL`: Supabase project URL
+- `SUPABASE_KEY`: Supabase anon/service key
+- `FLASK_SECRET_KEY`: Flask session secret (auto-generated if missing, but sessions won't persist)
+- `CRON_SECRET`: Bearer token for `/api/scrape` cron authentication
+- `DEEPSEEK_API_KEY`: DeepSeek API key for AI insights feature (optional, required for insights)
 
 ## Code Style Guidelines
 
@@ -130,7 +182,7 @@ If `FLASK_SECRET_KEY` is missing, a random key is generated (sessions won't pers
 - Classes: `PascalCase` (only `User` class exists)
 - Constants: `UPPER_SNAKE_CASE` (e.g., `SOURCE_LABELS`, `BERITA_LIST_COLUMNS`, `BASE_URL`)
 - Module-level compiled regexes: `_UPPER_SNAKE_CASE` with leading underscore (e.g., `_PP_DOMAIN_REGEX`)
-- Source key strings: lowercase, no spaces (`"radartegal"`, `"panturapost"`, `"tribunjateng"`, `"kompas"`)
+- Source key strings: lowercase, no spaces (`"radartegal"`, `"panturapost"`, `"tribunjateng"`, `"kompas"`, `"setdategal"`)
 
 ### Type Hints
 
@@ -162,8 +214,11 @@ All JSON responses follow: `{"status": "ok"|"error", ...}` with optional `"data"
 ## Gotchas
 
 - Kompas scraper filters out "Jadwal Imsak" / "Jadwal Buka Puasa" articles (scrape_kompas.py:104)
-- TribunJateng has double NA validation: once in the scraper (scrape_tribunjateng_v2.py:284) and once in `_is_valid_article()` (app.py:339)
+- TribunJateng has double NA validation: once in the scraper and once in `_is_valid_article()` in app.py
 - PanturaPost internal article keys are Indonesian (`judul`, `tanggal`, `isi`), Kompas uses capitalized Indonesian (`Judul`, `Tanggal`, `Isi`) — both mapped in `scrape_new_articles()`
+- Setda Tegal uses JNews WordPress theme with specific date format parsing (scraping_tegal.py:34-48)
 - Vercel serverless may timeout on full scrape — cron mode uses `_scrape_sync()` which runs sequentially
 - Login rate limit: 5 attempts per 15 minutes (app.py:141)
 - `requirements.txt` has no pinned versions — builds may break on dependency updates
+- AI insights feature requires OpenAI-compatible client but uses DeepSeek endpoint (ai_insights.py:16-17)
+- DeepSeek responses are parsed as JSON — malformed responses will cause insight generation to fail

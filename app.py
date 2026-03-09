@@ -271,6 +271,31 @@ def export_berita():
         return jsonify({"status": "error", "message": "Gagal mengekspor data."}), 500
 
 
+# ── API: distinct years ───────────────────────────────────────────────────────
+
+@app.route("/api/berita/years", methods=["GET"])
+@login_required
+def get_berita_years():
+    """
+    Kembalikan list tahun unik yang ada di kolom date_parsed.
+    Diurutkan descending (terbaru dulu).
+    """
+    try:
+        result = (
+            supabase.table("berita")
+            .select("date_parsed")
+            .not_.is_("date_parsed", "null")
+            .execute()
+        )
+        years = sorted(
+            {str(row["date_parsed"])[:4] for row in result.data if row.get("date_parsed")},
+            reverse=True,
+        )
+        return jsonify({"status": "ok", "years": years})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": str(exc)}), 500
+
+
 # ── Helpers: AI Insights ──────────────────────────────────────────────────────
 
 # Cache in-memory per period_key: { period_key: {"data": ..., "ts": float} }
@@ -278,42 +303,39 @@ _INSIGHTS_CACHE: dict = {}
 _INSIGHTS_CACHE_TTL  = 60 * 60  # 1 jam (setelah itu re-check DB)
 
 
-def _get_period_range(period: str) -> tuple[str, str, str]:
+def _get_period_range(period: str, year: int | None = None) -> tuple[str, str, str]:
     """
-    Kembalikan (period_key, period_label, date_from, date_to) berdasarkan param period.
+    Kembalikan (period_key, period_label, date_from, date_to).
 
-    Opsi period:
-      q1, q2, q3, q4     — triwulan tahun berjalan
-      s1, s2             — semester tahun berjalan
-      yearly             — satu tahun penuh
-      (kosong/lainnya)   — triwulan berjalan (default)
+    Opsi period: q1/q2/q3/q4, s1/s2, yearly.
+    year: tahun yang dipilih user; default = tahun berjalan.
     """
-    now   = datetime.now(WIB)
-    year  = now.year
-    month = now.month
+    now          = datetime.now(WIB)
+    current_year = now.year
+    y            = year if year else current_year
+    month        = now.month
 
     _PERIODS = {
-        "q1":     (f"q1_{year}",     f"Triwulan I {year} (Januari–Maret)",      f"{year}-01-01", f"{year}-03-31"),
-        "q2":     (f"q2_{year}",     f"Triwulan II {year} (April–Juni)",         f"{year}-04-01", f"{year}-06-30"),
-        "q3":     (f"q3_{year}",     f"Triwulan III {year} (Juli–September)",    f"{year}-07-01", f"{year}-09-30"),
-        "q4":     (f"q4_{year}",     f"Triwulan IV {year} (Oktober–Desember)",   f"{year}-10-01", f"{year}-12-31"),
-        "s1":     (f"s1_{year}",     f"Semester I {year} (Januari–Juni)",        f"{year}-01-01", f"{year}-06-30"),
-        "s2":     (f"s2_{year}",     f"Semester II {year} (Juli–Desember)",      f"{year}-07-01", f"{year}-12-31"),
-        "yearly": (f"yearly_{year}", f"Tahunan {year} (Januari–Desember)",       f"{year}-01-01", f"{year}-12-31"),
+        "q1":     (f"q1_{y}",     f"Triwulan I {y} (Jan–Mar)",      f"{y}-01-01", f"{y}-03-31"),
+        "q2":     (f"q2_{y}",     f"Triwulan II {y} (Apr–Jun)",      f"{y}-04-01", f"{y}-06-30"),
+        "q3":     (f"q3_{y}",     f"Triwulan III {y} (Jul–Sep)",     f"{y}-07-01", f"{y}-09-30"),
+        "q4":     (f"q4_{y}",     f"Triwulan IV {y} (Okt–Des)",      f"{y}-10-01", f"{y}-12-31"),
+        "s1":     (f"s1_{y}",     f"Semester I {y} (Jan–Jun)",       f"{y}-01-01", f"{y}-06-30"),
+        "s2":     (f"s2_{y}",     f"Semester II {y} (Jul–Des)",      f"{y}-07-01", f"{y}-12-31"),
+        "yearly": (f"yearly_{y}", f"Tahunan {y} (Jan–Des)",          f"{y}-01-01", f"{y}-12-31"),
     }
 
     if period in _PERIODS:
         return _PERIODS[period]
 
-    # Default: triwulan berjalan
-    if month <= 3:
-        return _PERIODS["q1"]
-    elif month <= 6:
-        return _PERIODS["q2"]
-    elif month <= 9:
-        return _PERIODS["q3"]
-    else:
-        return _PERIODS["q4"]
+    # Default: triwulan berjalan (hanya berlaku kalau year == current year)
+    if y == current_year:
+        if month <= 3:  return _PERIODS["q1"]
+        elif month <= 6: return _PERIODS["q2"]
+        elif month <= 9: return _PERIODS["q3"]
+        else:            return _PERIODS["q4"]
+
+    return _PERIODS["yearly"]
 
 
 def _fetch_period_articles(date_from: str, date_to: str) -> list[dict]:
@@ -387,8 +409,10 @@ def get_ai_insights():
     import time
     period        = request.args.get("period", "").strip().lower()
     force_refresh = request.args.get("refresh", "") == "1"
+    year_str      = request.args.get("year", "").strip()
+    year          = int(year_str) if year_str.isdigit() else None
 
-    period_key, period_label, date_from, date_to = _get_period_range(period)
+    period_key, period_label, date_from, date_to = _get_period_range(period, year)
 
     # ── 1. Cek memory cache ───────────────────────────────────────────────────
     now_ts = time.time()
