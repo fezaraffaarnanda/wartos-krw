@@ -18,9 +18,10 @@ from flask_login import (
 from supabase import create_client
 
 from scrapers.scrape_radartegal_bs4 import scrape_new_articles as scrape_radartegal
-from scrapers.scraping_panturapost import scrape_new_articles as scrape_panturapost
+from scrapers.scraping_panturapost  import scrape_new_articles as scrape_panturapost
 from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
-from scrapers.scrape_kompas import scrape_new_articles as scrape_kompas
+from scrapers.scrape_kompas         import scrape_new_articles as scrape_kompas
+from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
 from utils import normalize_date, parse_date_to_iso
 from ai_insights import generate_insights
 
@@ -65,6 +66,7 @@ SOURCE_LABELS = {
     "panturapost":  "Pantura Post",
     "tribunjateng": "Tribun Jateng",
     "kompas":       "Kompas",
+    "setdategal":   "Setda Tegal",
 }
 
 BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, source, created_at"
@@ -195,7 +197,7 @@ def _build_berita_query(columns: str, search: str, date_from: str, date_to: str)
     query = (
         supabase.table("berita")
         .select(columns)
-        .order("id", desc=True)
+        .order("date_parsed", desc=True, nullsfirst=False)
     )
     if search:
         query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
@@ -509,6 +511,7 @@ _scrape_progress: dict = {
     "panturapost":  {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "tribunjateng": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
     "kompas":       {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "setdategal":   {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
 }
 _scrape_overall: dict = {"active": False, "done": False, "total_inserted": 0, "error": ""}
 
@@ -628,6 +631,7 @@ def _build_scraper_config(max_articles: int) -> list[tuple]:
         ("panturapost",  scrape_panturapost,  {"max_articles": max_articles}),
         ("tribunjateng", scrape_tribunjateng, {"max_articles": max_articles}),
         ("kompas",       scrape_kompas,       {"max_articles": max_articles}),
+        ("setdategal",   scrape_tegal,        {"max_articles": max_articles}),
     ]
 
 

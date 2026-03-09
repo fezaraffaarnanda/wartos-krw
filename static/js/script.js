@@ -1,6 +1,6 @@
 /* ============================================
    Dashboard Berita — Frontend Logic
-   4 Sumber: Radar Tegal, Pantura Post, Tribun Jateng, Kompas
+   5 Sumber: Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal
    ============================================ */
 
 let allData = [];
@@ -277,7 +277,7 @@ async function fetchProgress() {
     }
 }
 
-const SOURCE_KEYS = ["radartegal", "panturapost", "tribunjateng", "kompas"];
+const SOURCE_KEYS = ["radartegal", "panturapost", "tribunjateng", "kompas", "setdategal"];
 
 function resetProgressBars() {
     document.getElementById("progressSubtitle").textContent = "Memulai...";
@@ -323,8 +323,14 @@ function updateProgressUI(progress, overall) {
 
     const subtitle = document.getElementById("progressSubtitle");
     if (runningSource) {
-        const labels = { radartegal: "Radar Tegal", panturapost: "Pantura Post", tribunjateng: "Tribun Jateng", kompas: "Kompas" };
-        subtitle.textContent = `Sedang: ${labels[runningSource]}`;
+        const labels = {
+            radartegal:   "Radar Tegal",
+            panturapost:  "Pantura Post",
+            tribunjateng: "Tribun Jateng",
+            kompas:       "Kompas",
+            setdategal:   "Setda Tegal",
+        };
+        subtitle.textContent = `Sedang: ${labels[runningSource] || runningSource}`;
     } else if (overall && overall.active) {
         subtitle.textContent = "Menyiapkan sumber berikutnya...";
     }
