@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from supabase import create_client
-from embeddings import batch_embed_articles, _build_embedding_client
+from core.embeddings import batch_embed_articles, _build_embedding_client
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 

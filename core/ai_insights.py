@@ -16,7 +16,7 @@ import re
 
 from openai import OpenAI
 
-from embeddings import semantic_search_multi
+from core.embeddings import semantic_search_multi
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 

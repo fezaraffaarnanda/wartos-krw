@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from dotenv import load_dotenv
 from supabase import create_client
 
-from kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.kbli_utils import load_kbli_predictor, predict_kbli_label
 
 load_dotenv()
 

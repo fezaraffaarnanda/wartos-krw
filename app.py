@@ -22,10 +22,10 @@ from scrapers.scraping_panturapost  import scrape_new_articles as scrape_pantura
 from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribunjateng
 from scrapers.scrape_kompas         import scrape_new_articles as scrape_kompas
 from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
-from utils import normalize_date, parse_date_to_iso
-from ai_insights import generate_insights
-from embeddings import embed_article
-from kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.utils import normalize_date, parse_date_to_iso
+from core.ai_insights import generate_insights
+from core.embeddings import embed_article
+from core.kbli_utils import load_kbli_predictor, predict_kbli_label
 
 load_dotenv()
 

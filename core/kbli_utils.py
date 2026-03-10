@@ -57,7 +57,7 @@ def format_kbli_hasil(kode: str | None, confidence_low: bool = False) -> str | N
 def load_kbli_predictor(model_dir: str = "model_kbli"):
     """Load model predictor KBLI. Return None jika gagal."""
     try:
-        from predictor_kbli import KBLIPredictor
+        from core.predictor_kbli import KBLIPredictor
     except Exception as exc:
         print(f"[KBLI] Gagal import predictor_kbli: {exc}")
         return None
