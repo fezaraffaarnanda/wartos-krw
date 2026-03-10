@@ -16,6 +16,45 @@ const BULAN_ID = {
     juli: 6, agustus: 7, september: 8, oktober: 9, november: 10, desember: 11,
 };
 
+// ── KBLI: Mapping kode → deskripsi (sinkron dengan kbli_utils.py) ─────────────
+const KBLI_KEY_MAPPING = {
+    "A1":   "Pertanian, Peternakan, Perburuan dan Jasa Pertanian",
+    "A2":   "Kehutanan dan Penebangan Kayu",
+    "A3":   "Perikanan",
+    "B1":   "Pertambangan Migas",
+    "B2":   "Pertambangan Batu Bara",
+    "B3":   "Pertambangan Bijih Logam",
+    "B4":   "Pertambangan dan Penggalian Lainnya",
+    "C1":   "Industri Migas",
+    "C2":   "Industri Makan Minum (CPO, padi,dll)",
+    "C3":   "Industri Kimia dan Farmasi",
+    "C4":   "Industri Barang Galian",
+    "C5":   "Industri selain 1-4",
+    "D":    "Pengadaan Listrik dan Gas",
+    "E":    "Pengadaan Air, Pengelolaan Sampah, Limbah dan Daur Ulang",
+    "F":    "Konstruksi",
+    "G":    "Perdagangan Besar & Eceran Reparasi Mobil & Sepeda Motor",
+    "H1":   "Transportasi Darat",
+    "H2":   "Transportasi Udara",
+    "H3":   "Transportasi Laut",
+    "H4":   "Penyeberangan/ASDP",
+    "H5":   "Penunjang Angkutan dan Pergudangan",
+    "I":    "Penyediaan Akomodasi dan Makan Minum",
+    "J":    "Informasi dan Komunikasi",
+    "K":    "Jasa Keuangan dan Asuransi",
+    "L":    "Real Estate",
+    "MN":   "Jasa Perusahaan",
+    "O":    "Administrasi Pemerintahan Pertahanan & Jaminan Sosial Wajib",
+    "P":    "Jasa Pendidikan",
+    "Q":    "Jasa Kesehatan dan Kegiatan Sosial",
+    "RSTU": "Jasa lainnya",
+    "KE":   "Kemiskinan",
+    "PG":   "Pengangguran",
+};
+
+// Regex deteksi format confidence rendah: "KODE (Tingkat Kepercayaan Model Rendah)"
+const _RE_LOW_CONF = /^(.+?)\s+\(Tingkat Kepercayaan Model Rendah\)$/;
+
 function parseDateID(str) {
     if (!str) return new Date(0);
     // Format: "23 Februari 2026, 16:04 WIB"
@@ -101,6 +140,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadAIInsights();
     animateCards();
     startAutoRefresh();
+
+    // ── Tooltip KBLI: delegasi event ke dokumen ───────────────────────────────
+    document.addEventListener("mouseover", e => {
+        const btn = e.target.closest(".kbli-info-btn");
+        if (btn) _showKbliTooltip(btn);
+    });
+    document.addEventListener("mouseout", e => {
+        const btn = e.target.closest(".kbli-info-btn");
+        if (btn) _hideKbliTooltip();
+    });
 });
 
 
@@ -539,7 +588,7 @@ function renderTable() {
 
     if (pageData.length === 0) {
         tbody.innerHTML = `
-            <tr class="empty-row"><td colspan="6">
+            <tr class="empty-row"><td colspan="7">
                 <div class="empty-state">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc"
                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
@@ -560,6 +609,7 @@ function renderTable() {
             .join(" ");
         const source = escapeHtml(item.source || "—");
         const date = escapeHtml(item.date || "—");
+        const kbli = renderKbliCell(item.kbli || "");
         const internalLink = item.id ? `/berita/${item.id}` : "#";
         const externalLink = escapeHtml(item.url || "#");
         return `
@@ -569,6 +619,7 @@ function renderTable() {
             <td class="td-source">${source}</td>
             <td class="td-date">${date}</td>
             <td class="td-tags">${tags || "—"}</td>
+            <td class="td-kbli">${kbli}</td>
             <td class="td-link">
                 <div class="td-link-inner">
                     <a href="${internalLink}" class="link-btn">Buka</a>
@@ -596,6 +647,100 @@ function escapeHtml(str) {
     const div = document.createElement("div");
     div.textContent = str;
     return div.innerHTML;
+}
+
+// ── KBLI: Render sel tabel + floating tooltip ─────────────────────────────────
+
+/**
+ * Render konten sel KBLI.
+ * - Confidence normal  → teks biasa "Kode/Deskripsi"
+ * - Confidence rendah  → badge "Tidak Relevan" + tombol ⓘ dengan tooltip prediksi model
+ */
+function renderKbliCell(kbliStr) {
+    if (!kbliStr || !kbliStr.trim()) return "—";
+
+    const m = kbliStr.match(_RE_LOW_CONF);
+    if (m) {
+        const kode = m[1].trim().toUpperCase();
+        const deskripsi = KBLI_KEY_MAPPING[kode];
+        const rawText = deskripsi
+            ? `Prediksi model: ${kode} — ${deskripsi}`
+            : `Prediksi model: ${kode}`;
+        // Escape untuk nilai atribut HTML (termasuk tanda kutip)
+        const safeAttr = rawText
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        return `<span class="kbli-tidak-relevan">Tidak Relevan</span>`
+            + `<button class="kbli-info-btn" type="button"`
+            + ` data-kbli-tooltip="${safeAttr}"`
+            + ` aria-label="Lihat prediksi model">`
+            + `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">`
+            + `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48`
+            + ` 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>`
+            + `</svg></button>`;
+    }
+
+    return escapeHtml(kbliStr);
+}
+
+// Elemen tooltip floating (satu, di-append ke body saat pertama dipakai)
+let _kbliTooltipEl = null;
+let _kbliTooltipArrow = null;
+
+function _ensureKbliTooltip() {
+    if (!_kbliTooltipEl) {
+        _kbliTooltipEl = document.createElement("div");
+        _kbliTooltipEl.className = "kbli-tooltip-floating";
+        _kbliTooltipArrow = document.createElement("span");
+        _kbliTooltipArrow.className = "kbli-tooltip-arrow";
+        _kbliTooltipEl.appendChild(_kbliTooltipArrow);
+        document.body.appendChild(_kbliTooltipEl);
+    }
+    return _kbliTooltipEl;
+}
+
+function _showKbliTooltip(btn) {
+    const text = btn.dataset.kbliTooltip || "";
+    const tooltip = _ensureKbliTooltip();
+
+    // Isi teks (bersihkan node teks lama, biarkan arrow)
+    Array.from(_kbliTooltipEl.childNodes).forEach(n => {
+        if (n !== _kbliTooltipArrow) _kbliTooltipEl.removeChild(n);
+    });
+    _kbliTooltipEl.insertBefore(document.createTextNode(text), _kbliTooltipArrow);
+
+    tooltip.style.display = "block";
+    tooltip.style.visibility = "hidden";
+
+    // Posisi: hitung setelah layout
+    requestAnimationFrame(() => {
+        const bRect = btn.getBoundingClientRect();
+        const tRect = tooltip.getBoundingClientRect();
+        const scrollY = window.scrollY || window.pageYOffset;
+        const scrollX = window.scrollX || window.pageXOffset;
+
+        let top  = bRect.top  + scrollY - tRect.height - 10;
+        let left = bRect.left + scrollX + bRect.width / 2 - tRect.width / 2;
+
+        // Klem agar tidak melewati tepi viewport
+        const vw = window.innerWidth;
+        if (left < 8) left = 8;
+        if (left + tRect.width > vw - 8) left = vw - 8 - tRect.width;
+
+        // Posisi arrow relatif terhadap tooltip
+        const arrowCenter = bRect.left + scrollX + bRect.width / 2 - left;
+        _kbliTooltipArrow.style.left = Math.max(10, Math.min(tRect.width - 10, arrowCenter)) + "px";
+
+        tooltip.style.top  = top  + "px";
+        tooltip.style.left = left + "px";
+        tooltip.style.visibility = "visible";
+    });
+}
+
+function _hideKbliTooltip() {
+    if (_kbliTooltipEl) _kbliTooltipEl.style.display = "none";
 }
 
 // ── Pagination ────────────────────────────────────────────────────────────────
@@ -777,6 +922,7 @@ async function downloadExcel() {
         Tanggal: item.date    || "",
         URL:     item.url     || "",
         Tags:    item.tags    || "",
+        KBLI:    item.kbli    || "",
         Konten:  item.content || "",
     }));
 
@@ -791,6 +937,7 @@ async function downloadExcel() {
         { wch: 25 },   // Tanggal
         { wch: 40 },   // URL
         { wch: 30 },   // Tags
+        { wch: 48 },   // KBLI
         { wch: 80 },   // Konten
     ];
 
@@ -800,6 +947,9 @@ async function downloadExcel() {
 // ── AI Insights ───────────────────────────────────────────────────────────────
 
 let _aiLoading  = false;
+let _aiPolling  = false;   // true saat polling loop sedang aktif menunggu background generation
+let _aiPollTimer = null;
+let _aiPollPeriod = "";
 let _currentYear = String(new Date().getFullYear()); // default tahun ini
 
 // ── Custom Period Dropdown ────────────────────────────────────────────────────
@@ -812,6 +962,26 @@ function _getDefaultPeriod() {
     if (month <= 6) return "q2";
     if (month <= 9) return "q3";
     return "q4";
+}
+
+function _startAIPolling(period) {
+    if (_aiPollTimer) return;
+    _aiPolling = true;
+    _aiPollPeriod = period;
+    _aiPollTimer = setInterval(() => {
+        if (!_aiLoading && _aiPollPeriod) {
+            loadAIInsights({ period: _aiPollPeriod, fromPoll: true });
+        }
+    }, 3000);
+}
+
+function _stopAIPolling() {
+    if (_aiPollTimer) {
+        clearInterval(_aiPollTimer);
+        _aiPollTimer = null;
+    }
+    _aiPolling = false;
+    _aiPollPeriod = "";
 }
 
 const _PERIOD_LABELS = {
@@ -1057,18 +1227,41 @@ function renderAIInsights(json) {
     _renderSources("Pengangguran", sources.pengangguran || []);
 }
 
-async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
+async function loadAIInsights({ forceRefresh = false, period = "", fromPoll = false } = {}) {
     if (_aiLoading) return;
+
+    // Saat refresh manual, hentikan polling lama dan mulai siklus baru
+    if (forceRefresh) _stopAIPolling();
 
     _initPeriodDropdown();
     const selectedPeriod = period || _currentPeriod || _getDefaultPeriod();
 
+    // ── Cek sessionStorage terlebih dahulu ────────────────────────────────────
+    // Tujuan: hindari hit backend (dan baris DB) setiap kali user logout/login
+    // ulang dalam satu sesi browser yang sama.
+    // forceRefresh & fromPoll bypass cache karena keduanya butuh data segar.
+    if (!forceRefresh && !fromPoll) {
+        const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
+        try {
+            const raw = sessionStorage.getItem(cacheKey);
+            if (raw) {
+                const cached = JSON.parse(raw);
+                if (cached && cached.status === "ok") {
+                    renderAIInsights(cached);
+                    return;   // ← langsung render, tidak hit backend sama sekali
+                }
+            }
+        } catch (_) { /* abaikan error parse / storage penuh */ }
+    }
+
     setAILoading(true);
-    _showAISkeleton();
+    // Skeleton hanya ditampilkan saat initial load — saat refresh, hasil lama tetap tampil
+    if (!forceRefresh && !fromPoll) _showAISkeleton();
 
     try {
         const params = new URLSearchParams({ period: selectedPeriod });
         if (forceRefresh)  params.set("refresh", "1");
+        if (fromPoll)      params.set("poll",    "1");
         if (_currentYear)  params.set("year",    _currentYear);
         const url = "/api/ai-insights?" + params.toString();
 
@@ -1082,18 +1275,50 @@ async function loadAIInsights({ forceRefresh = false, period = "" } = {}) {
             if (statusText && json.article_count) {
                 statusText.textContent = `Selesai — ${json.article_count} berita dianalisis.`;
             }
+            _stopAIPolling();
+
+            // Simpan ke sessionStorage agar login ulang tidak re-hit backend
+            try {
+                const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
+                sessionStorage.setItem(cacheKey, JSON.stringify(json));
+            } catch (_) { /* abaikan jika storage penuh / mode privat */ }
+
             renderAIInsights(json);
+
+        } else if (json.status === "generating") {
+            // Background thread sedang berjalan — polling tiap 3 detik.
+            // Reset _aiLoading agar guard di awal fungsi tidak blokir poll berikutnya,
+            // tapi JANGAN panggil setAILoading(false) agar visual skeleton tetap tampil.
+            _aiLoading = false;
+            const statusText = document.getElementById("aiLoadingText");
+            if (statusText) {
+                statusText.textContent = "Insight AI sedang dibuat, harap tunggu...";
+            }
+            _startAIPolling(selectedPeriod);
+            return;   // finally akan skip setAILoading(false) karena _aiPolling === true
+
         } else {
+            _stopAIPolling();
             _showAIError(json.message || "Gagal memuat insight AI.");
         }
     } catch (err) {
+        _stopAIPolling();
         _showAIError("Gagal menghubungi server. Coba refresh halaman.");
         console.error("AI Insights error:", err);
     } finally {
-        setAILoading(false);
+        // Reset loading state kecuali saat polling aktif
+        // (saat polling, _aiLoading sudah di-reset manual di atas)
+        if (!_aiPolling) setAILoading(false);
     }
 }
 
 function refreshAIInsights() {
+    _stopAIPolling();
+    // Hapus cache sessionStorage untuk periode yang sedang aktif,
+    // agar forceRefresh benar-benar mengambil data segar dari backend.
+    try {
+        const p = _currentPeriod || _getDefaultPeriod();
+        sessionStorage.removeItem(`ai_insights_v1_${p}_${_currentYear || ""}`);
+    } catch (_) { /* abaikan */ }
     loadAIInsights({ forceRefresh: true });
 }

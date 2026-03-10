@@ -486,8 +486,9 @@ def generate_insights(
             {"role": "user",   "content": user_prompt},
         ],
         temperature=0.4,      # Sedikit lebih rendah dari sebelumnya (0.5) → lebih konsisten
-        max_tokens=2000,      # Dinaikkan dari 1500 → ruang lebih untuk insight mendalam
+        max_tokens=1000,      # Cukup untuk 3-5 kalimat × 3 kategori (~600-900 token aktual)
         response_format={"type": "json_object"},
+        timeout=300,          # Timeout diperpanjang agar proses analisis mendalam tidak terpotong
     )
 
     raw = response.choices[0].message.content or ""

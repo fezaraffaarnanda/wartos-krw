@@ -864,6 +864,10 @@ a:hover {
     width: 200px;
 }
 
+.th-kbli {
+    width: 260px;
+}
+
 .data-table td {
     padding: 13px 16px;
     border-bottom: 1px solid var(--gray-100);
@@ -916,6 +920,92 @@ a:hover {
     max-width: 220px;
     white-space: normal;
     line-height: 1.7;
+}
+
+.td-kbli {
+    max-width: 280px;
+    white-space: normal;
+    line-height: 1.5;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+}
+
+/* ── KBLI: Badge "Tidak Relevan" + tombol info ──────────────────────────────── */
+
+.kbli-tidak-relevan {
+    display: inline-block;
+    padding: 2px 8px;
+    background: var(--gray-100);
+    color: var(--text-muted);
+    border: 1px solid var(--gray-300);
+    border-radius: 12px;
+    font-size: 0.76rem;
+    font-weight: 600;
+    font-style: italic;
+    vertical-align: middle;
+    line-height: 1.6;
+    white-space: nowrap;
+}
+
+.kbli-info-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 17px;
+    height: 17px;
+    border: 1.5px solid var(--gray-300);
+    border-radius: 50%;
+    background: var(--white);
+    color: var(--text-muted);
+    cursor: pointer;
+    padding: 0;
+    margin-left: 5px;
+    vertical-align: middle;
+    flex-shrink: 0;
+    transition: border-color var(--transition-fast), color var(--transition-fast),
+                background var(--transition-fast);
+}
+
+.kbli-info-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+    background: var(--accent-bg);
+}
+
+.kbli-info-btn svg {
+    display: block;
+    pointer-events: none;
+}
+
+/* Floating tooltip (diappend ke <body> via JS, posisi dihitung dinamis) */
+
+.kbli-tooltip-floating {
+    position: absolute;
+    z-index: 9999;
+    background: var(--gray-900);
+    color: var(--white);
+    font-family: var(--font-family);
+    font-size: 0.76rem;
+    font-weight: 500;
+    line-height: 1.55;
+    padding: 8px 12px 12px;
+    border-radius: var(--radius-sm);
+    max-width: 300px;
+    white-space: normal;
+    pointer-events: none;
+    display: none;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+/* Segitiga bawah tooltip — posisi left diset via JS */
+.kbli-tooltip-arrow {
+    position: absolute;
+    top: 100%;
+    transform: translateX(-50%);
+    width: 0;
+    height: 0;
+    border: 5px solid transparent;
+    border-top-color: var(--gray-900);
 }
 
 .tag-chip {

@@ -25,6 +25,7 @@ from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
 from utils import normalize_date, parse_date_to_iso
 from ai_insights import generate_insights
 from embeddings import embed_article
+from kbli_utils import load_kbli_predictor, predict_kbli_label
 
 load_dotenv()
 
@@ -70,10 +71,15 @@ SOURCE_LABELS = {
     "setdategal":   "Setda Tegal",
 }
 
-BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, source, created_at"
-BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, source, content"
+BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, kbli, source, created_at"
+BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, kbli, source, content"
 
 WIB = timezone(timedelta(hours=7))
+
+
+# ── KBLI predictor ──────────────────────────────────────────────────────────────
+
+_kbli_predictor = load_kbli_predictor(os.getenv("KBLI_MODEL_DIR", "model_kbli"))
 
 
 # ── User model ─────────────────────────────────────────────────────────────────
@@ -201,7 +207,7 @@ def _build_berita_query(columns: str, search: str, date_from: str, date_to: str)
         .order("date_parsed", desc=True, nullsfirst=False)
     )
     if search:
-        query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%")
+        query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%,kbli.ilike.%{search}%")
     if date_from:
         query = query.gte("date_parsed", date_from)
     if date_to:
@@ -300,8 +306,14 @@ def get_berita_years():
 # ── Helpers: AI Insights ──────────────────────────────────────────────────────
 
 # Cache in-memory per period_key: { period_key: {"data": ..., "ts": float} }
-_INSIGHTS_CACHE: dict = {}
-_INSIGHTS_CACHE_TTL  = 60 * 60  # 1 jam (setelah itu re-check DB)
+_INSIGHTS_CACHE: dict     = {}
+_INSIGHTS_CACHE_TTL       = 60 * 60  # 1 jam (setelah itu re-check DB)
+
+# Tracking generasi background per period_key:
+#   False / key tidak ada → belum pernah / siap generate baru
+#   True                  → thread sedang berjalan
+#   "error: <pesan>"      → thread terakhir gagal
+_INSIGHTS_GENERATING: dict[str, bool | str] = {}
 
 
 def _get_period_range(period: str, year: int | None = None) -> tuple[str, str, str]:
@@ -396,72 +408,27 @@ def _save_insight_to_db(period_key: str, period_label: str, insights: dict, arti
         print(f"[AI Insights] Gagal simpan ke DB: {exc}")
 
 
-@app.route("/api/ai-insights", methods=["GET"])
-@login_required
-@limiter.limit("30 per hour")
-def get_ai_insights():
+def _generate_insights_worker(
+    period_key:   str,
+    period_label: str,
+    date_from:    str,
+    date_to:      str,
+    articles:     list,
+):
     """
-    Hasilkan insight AI (DeepSeek) untuk PDRB, Kemiskinan, Pengangguran.
+    Worker thread: jalankan generate_insights() di background lalu simpan ke cache & DB.
+    Dipanggil via threading.Thread agar HTTP request bisa langsung return < 1 detik.
 
-    Query params:
-      period  — q1/q2/q3/q4/s1/s2/yearly (default: triwulan berjalan)
-      refresh — 1 untuk paksa regenerasi (bypass cache & DB)
+    articles diteruskan dari route agar tidak perlu fetch ulang ke Supabase.
+
+    State:
+      _INSIGHTS_GENERATING[period_key] = True       → sedang berjalan
+      _INSIGHTS_GENERATING[period_key] = False      → selesai (hasil sudah di cache/DB)
+      _INSIGHTS_GENERATING[period_key] = "error: ..." → gagal
     """
-    import time
-    period        = request.args.get("period", "").strip().lower()
-    force_refresh = request.args.get("refresh", "") == "1"
-    year_str      = request.args.get("year", "").strip()
-    year          = int(year_str) if year_str.isdigit() else None
-
-    period_key, period_label, date_from, date_to = _get_period_range(period, year)
-
-    # ── 1. Cek memory cache ───────────────────────────────────────────────────
-    now_ts = time.time()
-    cached = _INSIGHTS_CACHE.get(period_key)
-    if not force_refresh and cached and (now_ts - cached["ts"]) < _INSIGHTS_CACHE_TTL:
-        print(f"[AI Insights] Cache hit (memory) untuk {period_key}.")
-        return jsonify({"status": "ok", "cached": True, **cached["data"]})
-
-    # ── 2. Cek DB ─────────────────────────────────────────────────────────────
-    if not force_refresh:
-        db_row = _load_insight_from_db(period_key)
-        if db_row:
-            print(f"[AI Insights] Cache hit (DB) untuk {period_key}.")
-            payload = {
-                "status":        "ok",
-                "cached":        True,
-                "quarter":       db_row["period_label"],
-                "article_count": db_row["article_count"],
-                "data": {
-                    "pdrb":         db_row["pdrb"],
-                    "kemiskinan":   db_row["kemiskinan"],
-                    "pengangguran": db_row["pengangguran"],
-                },
-                "sources":       db_row["sources"],
-                "generated_at":  db_row["created_at"],
-            }
-            _INSIGHTS_CACHE[period_key] = {"ts": now_ts, "data": payload}
-            return jsonify(payload)
-
-    # ── 3. Generate baru ──────────────────────────────────────────────────────
+    import time as _time
+    print(f"[AI Insights] Worker thread dimulai untuk {period_key} ({len(articles)} artikel).")
     try:
-        articles = _fetch_period_articles(date_from, date_to)
-        if not articles:
-            return jsonify({
-                "status": "ok",
-                "cached": False,
-                "quarter": period_label,
-                "article_count": 0,
-                "data": {
-                    "pdrb":         "Belum ada data berita untuk periode ini.",
-                    "kemiskinan":   "Belum ada data berita untuk periode ini.",
-                    "pengangguran": "Belum ada data berita untuk periode ini.",
-                },
-                "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
-            })
-
-        # Gunakan RAG (semantic search via pgvector) jika tersedia,
-        # dengan fallback ke articles list (keyword filter) di dalam generate_insights
         insights = generate_insights(
             period_label    = period_label,
             date_from       = date_from,
@@ -484,15 +451,141 @@ def get_ai_insights():
             },
             "sources": insights.get("sources", {}),
         }
-        _INSIGHTS_CACHE[period_key] = {"ts": now_ts, "data": payload}
-        return jsonify(payload)
+        _INSIGHTS_CACHE[period_key] = {"ts": _time.time(), "data": payload}
+        _INSIGHTS_GENERATING[period_key] = False
+        print(f"[AI Insights] Worker selesai untuk {period_key}.")
 
-    except ValueError as exc:
-        print(f"[AI Insights ERROR] {exc}")
-        return jsonify({"status": "error", "message": str(exc)}), 503
     except Exception as exc:
-        print(f"[AI Insights ERROR] {exc}")
-        return jsonify({"status": "error", "message": f"Gagal menghasilkan insight: {exc}"}), 500
+        _INSIGHTS_GENERATING[period_key] = f"error: {exc}"
+        print(f"[AI Insights] Worker error untuk {period_key}: {exc}")
+
+
+@app.route("/api/ai-insights", methods=["GET"])
+@login_required
+@limiter.limit("30 per hour")
+def get_ai_insights():
+    """
+    Hasilkan insight AI (DeepSeek) untuk PDRB, Kemiskinan, Pengangguran.
+
+    Query params:
+      period  — q1/q2/q3/q4/s1/s2/yearly (default: triwulan berjalan)
+      year    — tahun (default: tahun berjalan)
+      refresh — 1 untuk paksa regenerasi (bypass cache & DB)
+
+    Response status:
+      "ok"         → data baru selesai di-generate
+      "generating" → background thread sedang berjalan, client harus poll ulang
+      "error"      → thread terakhir gagal
+    """
+    period        = request.args.get("period", "").strip().lower()
+    force_refresh = request.args.get("refresh", "") == "1"
+    poll_request  = request.args.get("poll", "") == "1"
+    year_str      = request.args.get("year", "").strip()
+    year          = int(year_str) if year_str.isdigit() else None
+
+    period_key, period_label, date_from, date_to = _get_period_range(period, year)
+
+    # ── State generation ───────────────────────────────────────────────────────
+    gen_state = _INSIGHTS_GENERATING.get(period_key)
+
+    # Sumber utama hasil insight adalah DB (persisten antar restart/deploy)
+    db_row = _load_insight_from_db(period_key)
+
+    # Thread sebelumnya gagal — reset agar bisa dicoba ulang saat refresh
+    if isinstance(gen_state, str) and gen_state.startswith("error"):
+        error_msg = gen_state[len("error: "):]
+        print(f"[AI Insights] Thread sebelumnya gagal untuk {period_key}: {error_msg}")
+        return jsonify({
+            "status":  "error",
+            "message": f"Gagal menghasilkan insight: {error_msg}",
+        }), 500
+
+    # Request dari polling frontend: cek apakah hasil worker sudah siap
+    if poll_request:
+        if gen_state is True:
+            print(f"[AI Insights] Poll: thread masih berjalan untuk {period_key}.")
+            return jsonify({"status": "generating"})
+
+        if db_row:
+            print(f"[AI Insights] Poll: hasil DB siap untuk {period_key}.")
+            return jsonify({
+                "status":        "ok",
+                "cached":        True,
+                "quarter":       db_row["period_label"],
+                "article_count": db_row["article_count"],
+                "data": {
+                    "pdrb":         db_row["pdrb"],
+                    "kemiskinan":   db_row["kemiskinan"],
+                    "pengangguran": db_row["pengangguran"],
+                },
+                "sources":      db_row["sources"],
+                "generated_at": db_row["created_at"],
+            })
+
+        ready = _INSIGHTS_CACHE.get(period_key)
+        if ready:
+            print(f"[AI Insights] Poll: hasil siap untuk {period_key}.")
+            return jsonify(ready["data"])
+
+        print(f"[AI Insights] Poll: belum ada hasil untuk {period_key}.")
+        return jsonify({"status": "generating"})
+
+    # Request normal: jika DB sudah ada, selalu pakai DB (tidak overwrite hasil lama)
+    if db_row:
+        if force_refresh:
+            print(f"[AI Insights] Refresh diabaikan karena data DB sudah ada untuk {period_key}.")
+        else:
+            print(f"[AI Insights] Ambil hasil dari DB untuk {period_key}.")
+        return jsonify({
+            "status":        "ok",
+            "cached":        True,
+            "quarter":       db_row["period_label"],
+            "article_count": db_row["article_count"],
+            "data": {
+                "pdrb":         db_row["pdrb"],
+                "kemiskinan":   db_row["kemiskinan"],
+                "pengangguran": db_row["pengangguran"],
+            },
+            "sources":      db_row["sources"],
+            "generated_at": db_row["created_at"],
+        })
+
+    # Request non-poll: DB belum ada → generate baru
+    if gen_state is True:
+        print(f"[AI Insights] Thread masih berjalan untuk {period_key} — return generating.")
+        return jsonify({"status": "generating"})
+
+    # Belum ada thread — fetch artikel terlebih dulu (cepat, < 2 detik)
+    articles = _fetch_period_articles(date_from, date_to)
+
+    # Jika tidak ada artikel untuk periode ini, return langsung tanpa spawn thread
+    if not articles:
+        print(f"[AI Insights] Tidak ada artikel untuk {period_key} — return langsung.")
+        empty_payload = {
+            "status":        "ok",
+            "cached":        False,
+            "quarter":       period_label,
+            "article_count": 0,
+            "data": {
+                "pdrb":         "Belum ada data berita untuk periode ini.",
+                "kemiskinan":   "Belum ada data berita untuk periode ini.",
+                "pengangguran": "Belum ada data berita untuk periode ini.",
+            },
+            "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
+        }
+        _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": empty_payload}
+        return jsonify(empty_payload)
+
+    # Ada artikel — spawn thread, pass articles agar tidak fetch ulang di worker
+    _INSIGHTS_GENERATING[period_key] = True
+    threading.Thread(
+        target  = _generate_insights_worker,
+        args    = (period_key, period_label, date_from, date_to, articles),
+        daemon  = True,
+        name    = f"ai-insights-{period_key}",
+    ).start()
+    print(f"[AI Insights] Thread spawned untuk {period_key} ({len(articles)} artikel) — return generating.")
+    return jsonify({"status": "generating"})
 
 
 # ── API: last scrape time ──────────────────────────────────────────────────────
@@ -583,6 +676,8 @@ def _is_valid_article(article: dict | None, source_key: str) -> bool:
 def _build_article_row(article: dict, source_label: str) -> dict:
     """Rakit dict row siap insert ke tabel berita."""
     normalized_date = normalize_date(article["date"])
+    prediction_text = article.get("content") or article.get("title")
+    kbli = predict_kbli_label(prediction_text, _kbli_predictor)
     return {
         "title":       article["title"],
         "date":        normalized_date,
@@ -590,6 +685,7 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         "url":         article["url"],
         "content":     article["content"],
         "tags":        article["tags"].lower() if article.get("tags") else article.get("tags"),
+        "kbli":        kbli,
         "source":      article.get("source") or source_label,
     }
 
