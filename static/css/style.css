@@ -464,7 +464,7 @@ a:hover {
 
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(5, 1fr);
     gap: 18px;
 }
 
@@ -930,6 +930,107 @@ a:hover {
     font-size: 0.82rem;
 }
 
+/* ── KBLI: Badge berwarna per kategori ──────────────────────────────────────── */
+
+.kbli-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px 3px 4px;
+    border-radius: 20px;
+    border: 1px solid transparent;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: normal;
+    max-width: 100%;
+    transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+
+.kbli-badge:hover {
+    filter: brightness(0.94);
+    transform: translateY(-1px);
+}
+
+.kbli-badge-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 0.68rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    letter-spacing: -0.01em;
+    color: white;
+}
+
+.kbli-badge-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+/* Color variants per group */
+/* A — Pertanian: hijau */
+.kbli-g-a { background: #ecfdf5; border-color: #6ee7b7; color: #065f46; }
+.kbli-g-a .kbli-badge-letter { background: #059669; }
+/* B — Pertambangan: coklat/abu */
+.kbli-g-b { background: #fef9c3; border-color: #fde047; color: #713f12; }
+.kbli-g-b .kbli-badge-letter { background: #ca8a04; }
+/* C — Industri: biru indigo */
+.kbli-g-c { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
+.kbli-g-c .kbli-badge-letter { background: #4f46e5; }
+/* D — Listrik & Gas: kuning amber */
+.kbli-g-d { background: #fffbeb; border-color: #fcd34d; color: #92400e; }
+.kbli-g-d .kbli-badge-letter { background: #f59e0b; }
+/* E — Air & Lingkungan: teal */
+.kbli-g-e { background: #f0fdfa; border-color: #5eead4; color: #134e4a; }
+.kbli-g-e .kbli-badge-letter { background: #0f9488; }
+/* F — Konstruksi: oranye bata */
+.kbli-g-f { background: #fff7ed; border-color: #fdba74; color: #9a3412; }
+.kbli-g-f .kbli-badge-letter { background: #ea580c; }
+/* G — Perdagangan: merah */
+.kbli-g-g { background: #fef2f2; border-color: #fca5a5; color: #991b1b; }
+.kbli-g-g .kbli-badge-letter { background: #dc2626; }
+/* H — Transportasi: biru */
+.kbli-g-h { background: #eff6ff; border-color: #93c5fd; color: #1e3a5f; }
+.kbli-g-h .kbli-badge-letter { background: #2563eb; }
+/* I — Akomodasi: pink */
+.kbli-g-i { background: #fdf2f8; border-color: #f0abfc; color: #86198f; }
+.kbli-g-i .kbli-badge-letter { background: #c026d3; }
+/* J — Informasi: violet */
+.kbli-g-j { background: #f5f3ff; border-color: #c4b5fd; color: #4c1d95; }
+.kbli-g-j .kbli-badge-letter { background: #7c3aed; }
+/* K — Keuangan: hijau tua */
+.kbli-g-k { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+.kbli-g-k .kbli-badge-letter { background: #16a34a; }
+/* L — Real Estate: slate */
+.kbli-g-l { background: #f8fafc; border-color: #94a3b8; color: #1e293b; }
+.kbli-g-l .kbli-badge-letter { background: #475569; }
+/* MN — Jasa Perusahaan: rose */
+.kbli-g-mn { background: #fff1f2; border-color: #fda4af; color: #881337; }
+.kbli-g-mn .kbli-badge-letter { background: #e11d48; }
+/* O — Pemerintahan: biru navy */
+.kbli-g-o { background: #eff6ff; border-color: #7dd3fc; color: #0c4a6e; }
+.kbli-g-o .kbli-badge-letter { background: #0369a1; }
+/* P — Pendidikan: hijau lime */
+.kbli-g-p { background: #f7fee7; border-color: #a3e635; color: #365314; }
+.kbli-g-p .kbli-badge-letter { background: #65a30d; }
+/* Q — Kesehatan: merah muda */
+.kbli-g-q { background: #fff0f3; border-color: #ffb3c1; color: #9b1d1d; }
+.kbli-g-q .kbli-badge-letter { background: #e63950; }
+/* RSTU — Jasa lainnya: abu-abu */
+.kbli-g-rstu { background: #f9fafb; border-color: #d1d5db; color: #374151; }
+.kbli-g-rstu .kbli-badge-letter { background: #6b7280; }
+/* KE — Kemiskinan: merah tua */
+.kbli-g-ke { background: #fef2f2; border-color: #fca5a5; color: #7f1d1d; }
+.kbli-g-ke .kbli-badge-letter { background: #b91c1c; }
+/* PG — Pengangguran: orange tua */
+.kbli-g-pg { background: #fff7ed; border-color: #fb923c; color: #7c2d12; }
+.kbli-g-pg .kbli-badge-letter { background: #c2410c; }
+
 /* ── KBLI: Badge "Tidak Relevan" + tombol info ──────────────────────────────── */
 
 .kbli-tidak-relevan {
@@ -1006,6 +1107,148 @@ a:hover {
     height: 0;
     border: 5px solid transparent;
     border-top-color: var(--gray-900);
+}
+
+/* ── KBLI: Filter dropdown ───────────────────────────────────────────────────── */
+
+.kbli-filter-wrapper {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+}
+
+.kbli-filter-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 7px 12px;
+    background: var(--gray-50);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    font-family: var(--font-family);
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    white-space: nowrap;
+    outline: none;
+}
+
+.kbli-filter-btn:hover,
+.kbli-filter-btn.active {
+    border-color: var(--accent);
+    background: var(--white);
+    color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.1);
+}
+
+.kbli-filter-btn .kbli-filter-chevron {
+    transition: transform var(--transition-fast);
+    opacity: 0.5;
+}
+
+.kbli-filter-btn.open .kbli-filter-chevron {
+    transform: rotate(180deg);
+    opacity: 1;
+}
+
+.kbli-filter-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
+}
+
+.kbli-filter-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 200;
+    background: var(--white);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+    min-width: 270px;
+    max-height: 340px;
+    overflow-y: auto;
+    padding: 6px 0;
+    display: none;
+    scrollbar-width: thin;
+}
+
+.kbli-filter-menu.open {
+    display: block;
+    animation: fadeInUp 0.15s ease;
+}
+
+.kbli-filter-option {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font-size: 0.82rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    cursor: pointer;
+    transition: background var(--transition-fast);
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    font-family: var(--font-family);
+}
+
+.kbli-filter-option:hover {
+    background: var(--orange-50);
+    color: var(--accent);
+}
+
+.kbli-filter-option.selected {
+    background: var(--accent-light);
+    color: var(--accent);
+    font-weight: 700;
+}
+
+.kbli-filter-option .kbli-filter-opt-letter {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    font-size: 0.65rem;
+    font-weight: 800;
+    color: white;
+    flex-shrink: 0;
+}
+
+.kbli-filter-sep {
+    height: 1px;
+    background: var(--gray-100);
+    margin: 4px 0;
+}
+
+.kbli-filter-clear {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    font-family: var(--font-family);
+    transition: background var(--transition-fast);
+}
+
+.kbli-filter-clear:hover {
+    background: var(--orange-50);
 }
 
 .tag-chip {
@@ -1175,6 +1418,18 @@ a:hover {
 /* ============================================
    Responsive
    ============================================ */
+
+@media (max-width: 1400px) {
+    .cards-grid {
+        grid-template-columns: repeat(5, 1fr);
+    }
+}
+
+@media (max-width: 1200px) {
+    .cards-grid {
+        grid-template-columns: repeat(3, 1fr);
+    }
+}
 
 @media (max-width: 1100px) {
     .cards-grid {

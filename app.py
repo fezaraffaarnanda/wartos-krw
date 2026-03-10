@@ -732,6 +732,84 @@ def _insert_articles(articles: list, source_key: str) -> int:
     return inserted
 
 
+def _run_kbli_backfill(batch_size: int = 100) -> int:
+    """
+    Prediksi KBLI untuk semua berita yang kbli-nya NULL.
+
+    Opsi B — penanganan artikel yang tidak dapat diprediksi:
+      - Prediksi return None + content DAN title keduanya kosong
+        → set kbli = "—" agar tidak di-retry selamanya.
+      - Prediksi return None + masih ada isi content/title
+        → skip (akan dicoba lagi di backfill berikutnya).
+
+    Return jumlah artikel yang berhasil diupdate.
+    """
+    if _kbli_predictor is None:
+        print("[KBLI Backfill] Predictor tidak tersedia, backfill dilewati.")
+        return 0
+
+    total_updated = 0
+    MAX_BATCHES   = 100   # batas keamanan agar tidak loop selamanya
+    iteration     = 0
+
+    print("[KBLI Backfill] Mulai memproses artikel tanpa KBLI...")
+
+    while iteration < MAX_BATCHES:
+        iteration += 1
+
+        try:
+            result = (
+                supabase.table("berita")
+                .select("id, title, content")
+                .is_("kbli", "null")
+                .limit(batch_size)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[KBLI Backfill] Gagal query DB (batch {iteration}): {exc}")
+            break
+
+        rows = result.data or []
+        if not rows:
+            break   # tidak ada lagi artikel tanpa KBLI
+
+        updated_this_batch = 0
+
+        for row in rows:
+            content = (row.get("content") or "").strip()
+            title   = (row.get("title")   or "").strip()
+            prediction_text = content or title
+
+            label = predict_kbli_label(prediction_text, _kbli_predictor)
+
+            if label is None:
+                # Opsi B: jika content DAN title benar-benar kosong,
+                # tandai "—" agar tidak di-query ulang terus-menerus.
+                if not content and not title:
+                    label = "—"
+                else:
+                    # Prediksi gagal sementara (model error/exception),
+                    # biarkan NULL dan coba lagi di run berikutnya.
+                    continue
+
+            try:
+                supabase.table("berita").update({"kbli": label}).eq("id", row["id"]).execute()
+                updated_this_batch += 1
+                total_updated += 1
+            except Exception as exc:
+                print(f"[KBLI Backfill] Gagal update id={row['id']}: {exc}")
+
+        # Anti-infinite-loop: hentikan jika satu batch penuh tidak ada yang terupdate.
+        # Ini terjadi ketika semua artikel NULL yang tersisa memiliki content/title
+        # tetapi model terus gagal memprediksinya (transient error).
+        if updated_this_batch == 0:
+            print(f"[KBLI Backfill] Batch {iteration} tidak ada update — menghentikan loop.")
+            break
+
+    print(f"[KBLI Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
+    return total_updated
+
+
 def _log_scrape_run(total_inserted: int):
     """Insert satu baris ke scrape_log. Gagal diam-diam agar tidak mengganggu flow."""
     try:
@@ -803,6 +881,16 @@ def _scrape_worker(max_articles: int):
         _log_scrape_run(total_inserted)
         print(f"[SCRAPE] Semua selesai. Total {total_inserted} berita baru disimpan.")
 
+        # Jalankan backfill KBLI setelah scraping selesai.
+        # Menangani artikel baru yang mungkin masuk dengan kbli = NULL
+        # (misalnya karena prediksi gagal sementara saat insert).
+        if _kbli_predictor is not None:
+            threading.Thread(
+                target=_run_kbli_backfill,
+                daemon=True,
+                name="kbli-backfill-post-scrape",
+            ).start()
+
     except Exception as exc:
         _scrape_overall["error"] = str(exc)
         print(f"[SCRAPE ERROR] {exc}")
@@ -843,6 +931,16 @@ def _scrape_sync(max_articles: int) -> dict:
 
     print(f"[SCRAPE-SYNC] Selesai. Total {total_inserted} berita baru disimpan.")
     _log_scrape_run(total_inserted)
+
+    # Backfill KBLI setelah scraping sync — dijalankan di thread agar tidak
+    # menambah waktu respons cron (Vercel mungkin sudah dekat timeout).
+    if _kbli_predictor is not None:
+        threading.Thread(
+            target=_run_kbli_backfill,
+            daemon=True,
+            name="kbli-backfill-post-scrape-sync",
+        ).start()
+
     return {
         "status":         "ok",
         "total_inserted": total_inserted,
@@ -895,6 +993,32 @@ def start_scrape():
     return jsonify({"status": "started", "max_articles": max_articles})
 
 
+# ── API: backfill KBLI manual (admin only) ─────────────────────────────────────
+
+@app.route("/api/admin/backfill-kbli", methods=["POST"])
+@login_required
+def api_backfill_kbli():
+    """
+    Trigger backfill prediksi KBLI untuk semua berita yang kbli-nya NULL.
+    Admin only. Berjalan di background thread, return langsung.
+    """
+    if current_user.role != "admin":
+        return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin."}), 403
+
+    if _kbli_predictor is None:
+        return jsonify({
+            "status":  "error",
+            "message": "Model KBLI tidak tersedia. Periksa folder model_kbli/.",
+        }), 503
+
+    threading.Thread(
+        target=_run_kbli_backfill,
+        daemon=True,
+        name="kbli-backfill-manual",
+    ).start()
+    return jsonify({"status": "started", "message": "Backfill KBLI dimulai di background."})
+
+
 # ── Error handlers ─────────────────────────────────────────────────────────────
 
 @app.errorhandler(401)
@@ -915,6 +1039,16 @@ def rate_limit_exceeded(e):
 
 
 # ── Main ───────────────────────────────────────────────────────────────────────
+
+# Jalankan backfill KBLI saat startup — mengisi artikel lama yang kbli-nya NULL.
+# Harus ditempatkan di sini (bukan di atas) karena _run_kbli_backfill
+# baru terdefinisi setelah seluruh fungsi di atas dimuat.
+if _kbli_predictor is not None:
+    threading.Thread(
+        target=_run_kbli_backfill,
+        daemon=True,
+        name="kbli-backfill-startup",
+    ).start()
 
 if __name__ == "__main__":
     print("=" * 50)
