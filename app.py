@@ -1,12 +1,15 @@
 import os
+import json
 import secrets
 import threading
 from datetime import datetime, timedelta, timezone
+from time import perf_counter
 
 from dotenv import load_dotenv
 from flask import (
-    Flask, jsonify, redirect, request,
+    Flask, Response, jsonify, redirect, request,
     send_from_directory, url_for,
+    stream_with_context,
 )
 from flask_bcrypt import Bcrypt
 from flask_limiter import Limiter
@@ -23,9 +26,25 @@ from scrapers.scrape_tribunjateng_v2 import scrape_new_articles as scrape_tribun
 from scrapers.scrape_kompas         import scrape_new_articles as scrape_kompas
 from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
 from core.utils import normalize_date, parse_date_to_iso
-from core.ai_insights import generate_insights
+from core.ai_insights import (
+    build_deepseek_client,
+    build_stream_category_context,
+    extract_sources_from_markers,
+    generate_insights,
+    normalize_inline_markers,
+    prepare_insight_articles,
+    stream_category_tokens,
+)
 from core.embeddings import embed_article
 from core.kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.rag_chat import (
+    finalize_citations,
+    generate_rag_answer,
+    normalize_citation_markers,
+    prepare_rag_chat_context,
+    sanitize_answer_citation_tokens,
+    stream_deepseek_answer,
+)
 
 load_dotenv()
 
@@ -586,6 +605,545 @@ def get_ai_insights():
     ).start()
     print(f"[AI Insights] Thread spawned untuk {period_key} ({len(articles)} artikel) — return generating.")
     return jsonify({"status": "generating"})
+
+
+@app.route("/api/ai-insights/stream", methods=["GET"])
+@login_required
+@limiter.limit("20 per hour")
+def stream_ai_insights():
+    """Streaming insight AI via SSE (token-by-token) untuk UX realtime."""
+    period = request.args.get("period", "").strip().lower()
+    force_refresh = request.args.get("refresh", "") == "1"
+    year_str = request.args.get("year", "").strip()
+    year = int(year_str) if year_str.isdigit() else None
+
+    period_key, period_label, date_from, date_to = _get_period_range(period, year)
+
+    # Jika sudah ada di DB dan tidak force refresh, kirim cepat dari cache/DB
+    db_row = _load_insight_from_db(period_key)
+    if db_row and not force_refresh:
+        payload = {
+            "status": "ok",
+            "cached": True,
+            "quarter": db_row["period_label"],
+            "article_count": db_row["article_count"],
+            "data": {
+                "pdrb": db_row["pdrb"],
+                "kemiskinan": db_row["kemiskinan"],
+                "pengangguran": db_row["pengangguran"],
+            },
+            "sources": db_row["sources"],
+            "generated_at": db_row["created_at"],
+        }
+
+        def _cached_stream():
+            yield _sse_payload({"type": "start", "quarter": db_row["period_label"], "article_count": db_row["article_count"], "cached": True})
+            yield _sse_payload({"type": "done", **payload})
+
+        return Response(
+            stream_with_context(_cached_stream()),
+            mimetype="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
+    articles = _fetch_period_articles(date_from, date_to)
+
+    @stream_with_context
+    def _generate_stream():
+        total_start = perf_counter()
+        try:
+            if not articles:
+                empty_data = {
+                    "pdrb": "Belum ada data berita untuk periode ini.",
+                    "kemiskinan": "Belum ada data berita untuk periode ini.",
+                    "pengangguran": "Belum ada data berita untuk periode ini.",
+                }
+                done_payload = {
+                    "status": "ok",
+                    "cached": False,
+                    "quarter": period_label,
+                    "article_count": 0,
+                    "data": empty_data,
+                    "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
+                    "latency_ms": {"total": round((perf_counter() - total_start) * 1000, 1)},
+                }
+                _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": done_payload}
+                yield _sse_payload({"type": "start", "quarter": period_label, "article_count": 0, "cached": False})
+                yield _sse_payload({"type": "done", **done_payload})
+                return
+
+            prepared = prepare_insight_articles(
+                period_label=period_label,
+                date_from=date_from,
+                date_to=date_to,
+                supabase_client=supabase,
+                articles=articles,
+            )
+
+            article_count = int(prepared.get("article_count", 0))
+            yield _sse_payload({
+                "type": "start",
+                "quarter": period_label,
+                "article_count": article_count,
+                "cached": False,
+            })
+
+            client = build_deepseek_client()
+            categories = ("pdrb", "kemiskinan", "pengangguran")
+            final_data: dict[str, str] = {}
+            final_sources: dict[str, list[dict]] = {}
+
+            for cat in categories:
+                cat_articles = prepared.get(cat, []) or []
+                if not cat_articles:
+                    text = "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini."
+                    final_data[cat] = text
+                    final_sources[cat] = []
+                    yield _sse_payload({"type": "category_start", "category": cat, "source_map": []})
+                    yield _sse_payload({"type": "category_done", "category": cat, "text": text, "sources": []})
+                    continue
+
+                ctx = build_stream_category_context(cat, period_label, cat_articles)
+                source_map = ctx["source_map"]
+                yield _sse_payload({"type": "category_start", "category": cat, "source_map": source_map})
+
+                chunks: list[str] = []
+                for delta in stream_category_tokens(client=client, user_prompt=ctx["prompt"]):
+                    chunks.append(delta)
+                    yield _sse_payload({"type": "delta", "category": cat, "text": delta})
+
+                raw_text = "".join(chunks).strip()
+                normalized = normalize_inline_markers(raw_text, prefixes="PKT")
+                if not normalized:
+                    normalized = "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini."
+
+                used_sources = extract_sources_from_markers(normalized, source_map)
+                if not used_sources:
+                    used_sources = source_map[:2]
+
+                final_data[cat] = normalized
+                final_sources[cat] = used_sources
+
+                yield _sse_payload({
+                    "type": "category_done",
+                    "category": cat,
+                    "text": normalized,
+                    "sources": used_sources,
+                })
+
+            insights_payload = {
+                "pdrb": final_data.get("pdrb", ""),
+                "kemiskinan": final_data.get("kemiskinan", ""),
+                "pengangguran": final_data.get("pengangguran", ""),
+                "sources": final_sources,
+            }
+            _save_insight_to_db(period_key, period_label, insights_payload, article_count)
+
+            total_ms = (perf_counter() - total_start) * 1000
+            done_payload = {
+                "status": "ok",
+                "cached": False,
+                "quarter": period_label,
+                "article_count": article_count,
+                "data": {
+                    "pdrb": insights_payload["pdrb"],
+                    "kemiskinan": insights_payload["kemiskinan"],
+                    "pengangguran": insights_payload["pengangguran"],
+                },
+                "sources": final_sources,
+                "latency_ms": {"total": round(total_ms, 1)},
+            }
+            _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": done_payload}
+            yield _sse_payload({"type": "done", **done_payload})
+        except Exception as exc:
+            print(f"[AI Insights] Stream error {period_key}: {exc}")
+            yield _sse_payload({
+                "type": "error",
+                "message": f"Gagal menghasilkan insight AI: {exc}",
+            })
+
+    return Response(
+        _generate_stream(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
+
+
+# ── Helpers: AI Chat (RAG) ─────────────────────────────────────────────────────
+
+def _current_user_id() -> int:
+    return int(current_user.id)
+
+
+def _get_or_create_chat_session(user_id: int) -> dict:
+    """Ambil session terbaru milik user, atau buat baru jika belum ada."""
+    result = (
+        supabase.table("ai_chat_sessions")
+        .select("id, user_id, title, created_at, updated_at")
+        .eq("user_id", user_id)
+        .order("updated_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if result.data:
+        return result.data[0]
+
+    created = (
+        supabase.table("ai_chat_sessions")
+        .insert({"user_id": user_id, "title": "Percakapan AI"})
+        .execute()
+    )
+    return created.data[0]
+
+
+def _create_chat_session(user_id: int) -> dict:
+    created = (
+        supabase.table("ai_chat_sessions")
+        .insert({"user_id": user_id, "title": "Percakapan AI"})
+        .execute()
+    )
+    return created.data[0]
+
+
+def _get_chat_session_owned(user_id: int, session_id: int) -> dict | None:
+    try:
+        result = (
+            supabase.table("ai_chat_sessions")
+            .select("id, user_id, title, created_at, updated_at")
+            .eq("id", session_id)
+            .eq("user_id", user_id)
+            .single()
+            .execute()
+        )
+        return result.data
+    except Exception:
+        return None
+
+
+def _load_chat_history(session_id: int, limit: int = 30) -> list[dict]:
+    result = (
+        supabase.table("ai_chat_messages")
+        .select("id, role, content, citations_json, created_at")
+        .eq("session_id", session_id)
+        .order("created_at", desc=False)
+        .limit(limit)
+        .execute()
+    )
+    return result.data or []
+
+
+def _save_chat_message(
+    session_id: int,
+    role: str,
+    content: str,
+    citations: list[dict] | None = None,
+) -> None:
+    supabase.table("ai_chat_messages").insert({
+        "session_id": session_id,
+        "role": role,
+        "content": content,
+        "citations_json": citations or [],
+    }).execute()
+
+    supabase.table("ai_chat_sessions").update({
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", session_id).execute()
+
+
+def _serialize_cite_map(cite_map: dict[str, dict]) -> list[dict]:
+    """Ubah map sitasi menjadi list agar mudah dikirim ke frontend."""
+    items = []
+    ordered_keys = sorted(cite_map.keys())
+    for idx, cid in enumerate(ordered_keys, 1):
+        info = cite_map.get(cid) or {}
+        items.append({"cite_id": cid, "num": idx, **info})
+    return items
+
+
+def _sse_payload(payload: dict) -> str:
+    return f"data: {json.dumps(payload, ensure_ascii=False)}\n\n"
+
+
+# ── API: AI Chat (RAG) ─────────────────────────────────────────────────────────
+
+@app.route("/api/ai-chat/session", methods=["POST"])
+@login_required
+@limiter.limit("120 per hour")
+def api_ai_chat_session():
+    """Buat session baru atau ambil session terbaru milik user."""
+    body = request.get_json(silent=True) or {}
+    force_new = bool(body.get("new", False))
+    user_id = _current_user_id()
+
+    try:
+        session = _create_chat_session(user_id) if force_new else _get_or_create_chat_session(user_id)
+        return jsonify({
+            "status": "ok",
+            "session": session,
+        })
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal membuat session chat: {exc}"}), 500
+
+
+@app.route("/api/ai-chat/history", methods=["GET"])
+@login_required
+@limiter.limit("240 per hour")
+def api_ai_chat_history():
+    """Ambil riwayat chat untuk session milik user."""
+    user_id = _current_user_id()
+    session_id_raw = request.args.get("session_id", "").strip()
+
+    try:
+        if session_id_raw:
+            session_id = int(session_id_raw)
+            session = _get_chat_session_owned(user_id, session_id)
+            if not session:
+                return jsonify({"status": "error", "message": "Session chat tidak ditemukan."}), 404
+        else:
+            session = _get_or_create_chat_session(user_id)
+            session_id = int(session["id"])
+
+        history = _load_chat_history(session_id, limit=60)
+        return jsonify({
+            "status": "ok",
+            "session": session,
+            "history": history,
+        })
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal mengambil riwayat chat: {exc}"}), 500
+
+
+@app.route("/api/ai-chat/clear", methods=["POST"])
+@login_required
+@limiter.limit("30 per hour")
+def api_ai_chat_clear():
+    """Hapus seluruh pesan dalam satu session chat milik user."""
+    body = request.get_json(silent=True) or {}
+    user_id = _current_user_id()
+    session_id_raw = str(body.get("session_id", "")).strip()
+
+    if not session_id_raw.isdigit():
+        return jsonify({"status": "error", "message": "session_id tidak valid."}), 400
+
+    session_id = int(session_id_raw)
+    session = _get_chat_session_owned(user_id, session_id)
+    if not session:
+        return jsonify({"status": "error", "message": "Session chat tidak ditemukan."}), 404
+
+    try:
+        supabase.table("ai_chat_messages").delete().eq("session_id", session_id).execute()
+        supabase.table("ai_chat_sessions").update({
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", session_id).execute()
+        return jsonify({"status": "ok", "message": "Percakapan berhasil dibersihkan."})
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal membersihkan percakapan: {exc}"}), 500
+
+
+@app.route("/api/ai-chat", methods=["POST"])
+@login_required
+@limiter.limit("80 per hour")
+def api_ai_chat():
+    """Endpoint non-stream fallback untuk kompatibilitas."""
+    body = request.get_json(silent=True) or {}
+    user_id = _current_user_id()
+
+    message = str(body.get("message", "")).strip()
+    session_id_raw = str(body.get("session_id", "")).strip()
+
+    if not message:
+        return jsonify({"status": "error", "message": "Pesan tidak boleh kosong."}), 400
+    if len(message) > 1200:
+        return jsonify({"status": "error", "message": "Pesan terlalu panjang. Maksimal 1200 karakter."}), 400
+
+    try:
+        if session_id_raw and session_id_raw.isdigit():
+            session_id = int(session_id_raw)
+            session = _get_chat_session_owned(user_id, session_id)
+            if not session:
+                return jsonify({"status": "error", "message": "Session chat tidak ditemukan."}), 404
+        else:
+            session = _get_or_create_chat_session(user_id)
+            session_id = int(session["id"])
+
+        history = _load_chat_history(session_id, limit=20)
+        _save_chat_message(session_id, "user", message, citations=[])
+
+        t0 = perf_counter()
+        result = generate_rag_answer(
+            query=message,
+            supabase_client=supabase,
+            history=history,
+        )
+        total_ms = result.get("total_ms", (perf_counter() - t0) * 1000)
+        print(
+            "[AI Chat] non-stream "
+            f"retrieve={result.get('retrieve_ms', 0.0):.1f}ms "
+            f"llm={result.get('llm_ms', 0.0):.1f}ms "
+            f"total={total_ms:.1f}ms"
+        )
+
+        answer = result.get("answer", "")
+        citations_raw = result.get("citations", [])
+        citation_nums = {
+            c.get("cite_id"): idx + 1
+            for idx, c in enumerate(citations_raw)
+            if c.get("cite_id")
+        }
+        citations = [
+            {**c, "num": citation_nums.get(c.get("cite_id"), idx + 1)}
+            for idx, c in enumerate(citations_raw)
+        ]
+        _save_chat_message(session_id, "assistant", answer, citations=citations)
+
+        return jsonify({
+            "status": "ok",
+            "session_id": session_id,
+            "answer": answer,
+            "citations": citations,
+            "used_docs": result.get("used_docs", 0),
+            "latency_ms": total_ms,
+        })
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal memproses chat AI: {exc}"}), 500
+
+
+@app.route("/api/ai-chat/stream", methods=["POST"])
+@login_required
+@limiter.limit("80 per hour")
+def api_ai_chat_stream():
+    """Endpoint streaming token (SSE) untuk UX chat auto-typing."""
+    body = request.get_json(silent=True) or {}
+    user_id = _current_user_id()
+
+    message = str(body.get("message", "")).strip()
+    session_id_raw = str(body.get("session_id", "")).strip()
+
+    if not message:
+        return jsonify({"status": "error", "message": "Pesan tidak boleh kosong."}), 400
+    if len(message) > 1200:
+        return jsonify({"status": "error", "message": "Pesan terlalu panjang. Maksimal 1200 karakter."}), 400
+
+    try:
+        if session_id_raw and session_id_raw.isdigit():
+            session_id = int(session_id_raw)
+            session = _get_chat_session_owned(user_id, session_id)
+            if not session:
+                return jsonify({"status": "error", "message": "Session chat tidak ditemukan."}), 404
+        else:
+            session = _get_or_create_chat_session(user_id)
+            session_id = int(session["id"])
+    except Exception as exc:
+        return jsonify({"status": "error", "message": f"Gagal menyiapkan session chat: {exc}"}), 500
+
+    history = _load_chat_history(session_id, limit=20)
+    _save_chat_message(session_id, "user", message, citations=[])
+
+    @stream_with_context
+    def generate_events():
+        total_start = perf_counter()
+        try:
+            prepared = prepare_rag_chat_context(
+                query=message,
+                supabase_client=supabase,
+                history=history,
+            )
+
+            retrieve_ms = float(prepared.get("retrieve_ms", 0.0))
+            used_docs = int(prepared.get("used_docs", 0))
+
+            if prepared["status"] != "ok":
+                answer = prepared.get("answer", "Data tidak cukup.")
+                _save_chat_message(session_id, "assistant", answer, citations=[])
+                yield _sse_payload({"type": "start", "session_id": session_id, "sources": []})
+                yield _sse_payload({"type": "delta", "text": answer})
+                yield _sse_payload({
+                    "type": "done",
+                    "session_id": session_id,
+                    "citations": [],
+                    "used_docs": used_docs,
+                    "latency": {
+                        "retrieve_ms": retrieve_ms,
+                        "llm_ms": 0.0,
+                        "total_ms": retrieve_ms,
+                    },
+                })
+                return
+
+            cite_map = prepared["cite_map"]
+            yield _sse_payload({
+                "type": "start",
+                "session_id": session_id,
+                "sources": _serialize_cite_map(cite_map),
+                "used_docs": used_docs,
+            })
+
+            llm_start = perf_counter()
+            chunks: list[str] = []
+            for delta in stream_deepseek_answer(prepared["user_prompt"]):
+                chunks.append(delta)
+                yield _sse_payload({"type": "delta", "text": delta})
+
+            llm_ms = (perf_counter() - llm_start) * 1000
+            answer_raw = "".join(chunks).strip()
+            answer_norm = normalize_citation_markers(answer_raw)
+            answer = sanitize_answer_citation_tokens(answer_norm, cite_map)
+            if not answer:
+                answer = "Terjadi kendala saat memproses chat AI. Silakan coba beberapa saat lagi."
+
+            citations_raw = finalize_citations(answer, cite_map)
+            source_items = _serialize_cite_map(cite_map)
+            source_num_map = {s.get("cite_id"): s.get("num") for s in source_items}
+            citations = [
+                {**c, "num": source_num_map.get(c.get("cite_id"), idx + 1)}
+                for idx, c in enumerate(citations_raw)
+            ]
+            _save_chat_message(session_id, "assistant", answer, citations=citations)
+
+            total_ms = (perf_counter() - total_start) * 1000
+            print(
+                "[AI Chat] stream "
+                f"retrieve={retrieve_ms:.1f}ms llm={llm_ms:.1f}ms total={total_ms:.1f}ms"
+            )
+
+            yield _sse_payload({
+                "type": "done",
+                "session_id": session_id,
+                "citations": citations,
+                "used_docs": used_docs,
+                "latency": {
+                    "retrieve_ms": round(retrieve_ms, 1),
+                    "llm_ms": round(llm_ms, 1),
+                    "total_ms": round(total_ms, 1),
+                },
+            })
+
+        except Exception as exc:
+            print(f"[AI Chat] stream error: {exc}")
+            err_msg = "Gagal memproses chat AI. Silakan coba beberapa saat lagi."
+            try:
+                _save_chat_message(session_id, "assistant", err_msg, citations=[])
+            except Exception:
+                pass
+            yield _sse_payload({"type": "error", "message": err_msg})
+
+    return Response(
+        generate_events(),
+        mimetype="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 # ── API: last scrape time ──────────────────────────────────────────────────────

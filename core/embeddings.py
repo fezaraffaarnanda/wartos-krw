@@ -83,7 +83,18 @@ def generate_embedding(text: str, client: OpenAI | None = None) -> list[float] |
             input=text,
             encoding_format="float",
         )
-        return response.data[0].embedding
+        data = getattr(response, "data", None)
+        if not data or not isinstance(data, list):
+            print("[Embedding] Respons embedding tidak valid: data kosong dari provider.")
+            return None
+
+        first = data[0] if data else None
+        embedding = getattr(first, "embedding", None) if first is not None else None
+        if not embedding:
+            print("[Embedding] Respons embedding tidak valid: vektor kosong.")
+            return None
+
+        return embedding
     except Exception as exc:
         print(f"[Embedding] Gagal generate embedding: {exc}")
         return None
@@ -107,10 +118,11 @@ def batch_embed_texts(texts: list[str], client: OpenAI | None = None) -> list[li
     Return list dengan panjang sama dengan input — None untuk yang gagal.
     """
     if not texts:
-        return []
+        empty: list[list[float] | None] = []
+        return empty
 
     _client    = client or _build_embedding_client()
-    results    = [None] * len(texts)
+    results: list[list[float] | None] = [None for _ in texts]
     total      = len(texts)
 
     for start in range(0, total, _BATCH_SIZE):
@@ -129,8 +141,17 @@ def batch_embed_texts(texts: list[str], client: OpenAI | None = None) -> list[li
                 input=list(texts_valid),
                 encoding_format="float",
             )
-            for emb_obj, original_idx in zip(response.data, idxs_valid):
-                results[original_idx] = emb_obj.embedding
+            data = getattr(response, "data", None)
+            if not data or not isinstance(data, list):
+                print(
+                    f"[Embedding] Respons batch tidak valid untuk rentang {start + 1}-"
+                    f"{start + len(batch)}: data kosong."
+                )
+            else:
+                for emb_obj, original_idx in zip(data, idxs_valid):
+                    emb = getattr(emb_obj, "embedding", None)
+                    if emb:
+                        results[original_idx] = emb
 
             end_idx = start + len(batch)
             print(f"[Embedding] Batch {start + 1}–{end_idx}/{total} selesai.")

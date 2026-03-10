@@ -80,6 +80,21 @@ _KEYWORDS: dict[str, list[str]] = {
     ],
 }
 
+_CATEGORY_CONFIG = {
+    "pdrb": {
+        "prefix": "P",
+        "label": "PDRB dan Ekonomi",
+    },
+    "kemiskinan": {
+        "prefix": "K",
+        "label": "Kemiskinan dan Kesejahteraan",
+    },
+    "pengangguran": {
+        "prefix": "T",
+        "label": "Pengangguran dan Ketenagakerjaan",
+    },
+}
+
 # ── Sistem prompt ──────────────────────────────────────────────────────────────
 
 _SYSTEM_PROMPT = """Kamu adalah analis ekonomi senior dari Badan Pusat Statistik (BPS) Kabupaten Tegal.
@@ -127,6 +142,11 @@ def _build_client() -> OpenAI:
     if not api_key:
         raise ValueError("DEEPSEEK_API_KEY tidak ditemukan di environment variables.")
     return OpenAI(api_key=api_key, base_url=_DEEPSEEK_BASE_URL)
+
+
+def build_deepseek_client() -> OpenAI:
+    """Public wrapper untuk dipakai endpoint streaming di app.py."""
+    return _build_client()
 
 
 def _prefilter_articles(articles: list[dict], category: str) -> list[dict]:
@@ -193,6 +213,188 @@ def _select_articles_for_category(
     combined     = (semantic_hits + extra)[:_MAX_ARTICLES_PER_CAT]
     print(f"[AI Insights] {category}: fallback - total {len(combined)} artikel.")
     return combined
+
+
+def prepare_insight_articles(
+    *,
+    period_label: str,
+    date_from: str | None,
+    date_to: str | None,
+    supabase_client=None,
+    articles: list[dict] | None = None,
+) -> dict:
+    """
+    Siapkan artikel per kategori (semantic + fallback keyword).
+    Return:
+      {
+        "pdrb": [...],
+        "kemiskinan": [...],
+        "pengangguran": [...],
+        "article_count": int,
+      }
+    """
+    fallback_articles = articles or []
+    semantic_results = {}
+
+    use_semantic = (
+        supabase_client is not None
+        and date_from is not None
+        and date_to is not None
+    )
+
+    if use_semantic:
+        print(f"[AI Insights] Menjalankan semantic search untuk periode {period_label}...")
+        try:
+            semantic_results = semantic_search_multi(
+                queries=_SEMANTIC_QUERIES,
+                supabase_client=supabase_client,
+                date_from=date_from,
+                date_to=date_to,
+                top_k=_MAX_ARTICLES_PER_CAT,
+                min_similarity=0.1,
+            )
+        except Exception as exc:
+            print(f"[AI Insights] Semantic search gagal: {exc} -> fallback ke keyword.")
+            semantic_results = {}
+    else:
+        print("[AI Insights] Semantic search tidak tersedia - fallback ke keyword filter.")
+
+    pdrb_articles = _select_articles_for_category("pdrb", semantic_results, fallback_articles)
+    kemiskinan_articles = _select_articles_for_category("kemiskinan", semantic_results, fallback_articles)
+    pengangguran_articles = _select_articles_for_category("pengangguran", semantic_results, fallback_articles)
+
+    article_count = len(pdrb_articles) + len(kemiskinan_articles) + len(pengangguran_articles)
+
+    print(
+        "[AI Insights] Konteks streaming: "
+        f"PDRB={len(pdrb_articles)}, "
+        f"Kemiskinan={len(kemiskinan_articles)}, "
+        f"Pengangguran={len(pengangguran_articles)}"
+    )
+
+    return {
+        "pdrb": pdrb_articles,
+        "kemiskinan": kemiskinan_articles,
+        "pengangguran": pengangguran_articles,
+        "article_count": article_count,
+    }
+
+
+def build_stream_category_context(
+    category: str,
+    period_label: str,
+    category_articles: list[dict],
+) -> dict:
+    """
+    Bangun prompt + source map untuk streaming per kategori.
+    source_map format list:
+      [{"tag_id":"P01", "num":1, "title":"...", "url":"..."}, ...]
+    """
+    conf = _CATEGORY_CONFIG[category]
+    prefix = conf["prefix"]
+    label = conf["label"]
+
+    articles_text, id_map = _format_articles_for_prompt(category_articles, prefix)
+
+    source_map = []
+    for idx, tag_id in enumerate(sorted(id_map.keys()), 1):
+        info = id_map[tag_id]
+        source_map.append({
+            "tag_id": tag_id,
+            "num": idx,
+            "title": info.get("title", ""),
+            "url": info.get("url", ""),
+        })
+
+    prompt = f"""Periode analisis: {period_label}
+Kategori fokus: {label}
+
+Instruksi:
+- Tulis insight 3-5 kalimat dalam markdown ringan.
+- Gunakan Bahasa Indonesia formal.
+- Setiap kalimat faktual WAJIB diakhiri marker sitasi [{prefix}xx] sesuai kode berita.
+- Jangan menulis daftar sumber terpisah.
+- Jangan menulis kode sitasi polos tanpa kurung siku.
+- Jika data tidak cukup, nyatakan secara eksplisit tanpa memaksakan kesimpulan.
+
+Konteks berita {label}:
+{articles_text}
+"""
+
+    return {
+        "prompt": prompt,
+        "source_map": source_map,
+        "id_map": id_map,
+    }
+
+
+def stream_category_tokens(
+    *,
+    client: OpenAI,
+    user_prompt: str,
+    temperature: float = 0.35,
+    max_tokens: int = 420,
+):
+    """Yield token delta dari DeepSeek chat streaming untuk satu kategori."""
+    stream = client.chat.completions.create(
+        model=_DEEPSEEK_MODEL,
+        messages=[
+            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "user", "content": user_prompt},
+        ],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        stream=True,
+        timeout=300,
+    )
+    for chunk in stream:
+        try:
+            delta = chunk.choices[0].delta.content or ""
+        except Exception:
+            delta = ""
+        if delta:
+            yield delta
+
+
+def normalize_inline_markers(text: str, prefixes: str = "PKT") -> str:
+    """Normalisasi marker sitasi agar konsisten [P01]/[K01]/[T01]."""
+    if not text:
+        return ""
+
+    cls = f"[{prefixes}]"
+
+    def _expand_concat(match: re.Match) -> str:
+        token = match.group(0).upper()
+        parts = re.findall(rf"{cls}\d{{2}}", token)
+        return "".join(f"[{p}]" for p in parts)
+
+    normalized = re.sub(rf"(?:{cls}\d{{2}}){{2,}}", _expand_concat, text, flags=re.IGNORECASE)
+    normalized = re.sub(rf"(?<!\[)\b({cls}\d{{2}})\b(?!\])", r"[\1]", normalized, flags=re.IGNORECASE)
+    return normalized
+
+
+def extract_sources_from_markers(text: str, source_map: list[dict]) -> list[dict]:
+    """Ambil sources yang benar-benar disitasi di teks berdasarkan marker [Pxx/Kxx/Txx]."""
+    if not text or not source_map:
+        return []
+
+    map_by_tag = {str(s.get("tag_id", "")).upper(): s for s in source_map}
+    ids = re.findall(r"\[([PKT]\d{2})\]", text.upper())
+
+    results = []
+    seen = set()
+    for tid in ids:
+        if tid in seen:
+            continue
+        src = map_by_tag.get(tid)
+        if not src:
+            continue
+        results.append(src)
+        seen.add(tid)
+        if len(results) >= _MAX_SOURCES_SHOWN:
+            break
+
+    return results
 
 
 def _format_articles_for_prompt(

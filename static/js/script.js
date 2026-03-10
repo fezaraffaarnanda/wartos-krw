@@ -182,6 +182,7 @@ async function loadLastScrape() {
 document.addEventListener("DOMContentLoaded", async () => {
   startRealtimeClock();
   await loadUserInfo();
+  initFloatingChat();
   loadBerita();
   loadLastScrape();
   loadAIInsights();
@@ -771,6 +772,37 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function _normalizeCitationMarkers(text, prefixes = "S") {
+  let normalized = String(text || "");
+  const safePrefixes = String(prefixes || "S").replace(/[^A-Z]/gi, "") || "S";
+  const cls = `[${safePrefixes}]`;
+
+  // Contoh: S01S03S04 -> [S01][S03][S04]
+  const concatRe = new RegExp(`(?:${cls}\\d{2}){2,}`, "gi");
+  normalized = normalized.replace(concatRe, (token) => {
+    const parts = token.toUpperCase().match(new RegExp(`${cls}\\d{2}`, "g")) || [];
+    return parts.map((p) => `[${p}]`).join("");
+  });
+
+  // Contoh: S01 -> [S01] (jika belum dibungkus)
+  const singleRe = new RegExp(`(?<!\\[)\\b(${cls}\\d{2})\\b(?!\\])`, "gi");
+  normalized = normalized.replace(singleRe, "[$1]");
+  return normalized;
+}
+
+function _markdownToHtmlSafe(markdownText) {
+  const escaped = escapeHtml(markdownText || "");
+  if (window.marked && typeof window.marked.parse === "function") {
+    return window.marked.parse(escaped, {
+      gfm: true,
+      breaks: true,
+      headerIds: false,
+      mangle: false,
+    });
+  }
+  return escaped.replace(/\n/g, "<br>");
+}
+
 // ── KBLI: Render sel tabel + floating tooltip ─────────────────────────────────
 
 /**
@@ -1222,10 +1254,8 @@ async function downloadExcel() {
 // ── AI Insights ───────────────────────────────────────────────────────────────
 
 let _aiLoading = false;
-let _aiPolling = false; // true saat polling loop sedang aktif menunggu background generation
-let _aiPollTimer = null;
-let _aiPollPeriod = "";
 let _currentYear = String(new Date().getFullYear()); // default tahun ini
+let _aiInsightStream = null;
 
 // ── Custom Period Dropdown ────────────────────────────────────────────────────
 
@@ -1237,26 +1267,6 @@ function _getDefaultPeriod() {
   if (month <= 6) return "q2";
   if (month <= 9) return "q3";
   return "q4";
-}
-
-function _startAIPolling(period) {
-  if (_aiPollTimer) return;
-  _aiPolling = true;
-  _aiPollPeriod = period;
-  _aiPollTimer = setInterval(() => {
-    if (!_aiLoading && _aiPollPeriod) {
-      loadAIInsights({ period: _aiPollPeriod, fromPoll: true });
-    }
-  }, 3000);
-}
-
-function _stopAIPolling() {
-  if (_aiPollTimer) {
-    clearInterval(_aiPollTimer);
-    _aiPollTimer = null;
-  }
-  _aiPolling = false;
-  _aiPollPeriod = "";
 }
 
 const _PERIOD_LABELS = {
@@ -1470,7 +1480,8 @@ function _renderSources(catKey, sources) {
     .map((s) => {
       const title = escapeHtml(s.title || "—");
       const url = escapeHtml(s.url || "#");
-      return `<li><a href="${url}" target="_blank" rel="noopener noreferrer">${title}</a></li>`;
+      const num = Number(s.num || 0) > 0 ? `<strong>[${Number(s.num)}]</strong> ` : "";
+      return `<li><a href="${url}" target="_blank" rel="noopener noreferrer">${num}${title}</a></li>`;
     })
     .join("");
   wrap.style.display = "";
@@ -1486,20 +1497,74 @@ function toggleSources(catKey) {
   if (btn) btn.classList.toggle("open", !isOpen);
 }
 
+function _buildSourceMapByTag(sourceList = []) {
+  const map = {};
+  if (!Array.isArray(sourceList)) return map;
+  sourceList.forEach((s, idx) => {
+    const tag = String(s?.tag_id || "").toUpperCase();
+    if (!tag) return;
+    map[tag] = {
+      ...s,
+      num: Number(s.num || 0) > 0 ? Number(s.num) : idx + 1,
+    };
+  });
+  return map;
+}
+
+function _renderInsightCitationLink(source) {
+  const num = Number(source?.num || 0) > 0 ? Number(source.num) : 1;
+  const url = escapeHtml(source?.url || "#");
+  const title = escapeHtml(source?.title || "Sumber berita");
+  return `<a class="ai-cite" href="${url}" target="_blank" rel="noopener noreferrer" title="${title}">${num}</a>`;
+}
+
+function _renderInsightMarkdownHtml(text, sourceMapByTag = {}) {
+  const raw = String(text || "");
+
+  // Backward compatibility: data lama dari backend sudah berupa HTML inline citation
+  if (raw.includes("<a") && raw.includes("ai-cite")) {
+    return `<div class="ai-insight-text md-content">${raw}</div>`;
+  }
+
+  const normalized = _normalizeCitationMarkers(raw, "PKT");
+  let html = _markdownToHtmlSafe(normalized);
+
+  // Jika map tersedia, ganti marker [P01]/[K01]/[T01] menjadi link angka inline.
+  if (sourceMapByTag && Object.keys(sourceMapByTag).length > 0) {
+    html = html.replace(/\[([PKT]\d{2})\]/gi, (_, rawId) => {
+      const tag = String(rawId || "").toUpperCase();
+      const src = sourceMapByTag[tag];
+      if (!src) return "";
+      return _renderInsightCitationLink(src);
+    });
+  }
+
+  return `<div class="ai-insight-text md-content">${html}</div>`;
+}
+
 function renderAIInsights(json) {
   const { data, article_count: count, quarter, sources = {} } = json;
 
-  // Teks insight
+  // Teks insight (render langsung; streaming token ditangani event SSE delta)
   const categoryMap = {
     aiBodyPdrb: data?.pdrb || "—",
     aiBodyKemiskinan: data?.kemiskinan || "—",
     aiBodyPengangguran: data?.pengangguran || "—",
   };
-  for (const [id, text] of Object.entries(categoryMap)) {
+
+  Object.entries(categoryMap).forEach(([id, text]) => {
     const el = document.getElementById(id);
-    // text may contain trusted HTML <a> tags from inline citations (backend-generated)
-    if (el) el.innerHTML = `<p class="ai-insight-text">${text}</p>`;
-  }
+    if (!el) return;
+
+    const catKey =
+      id === "aiBodyPdrb"
+        ? "pdrb"
+        : id === "aiBodyKemiskinan"
+        ? "kemiskinan"
+        : "pengangguran";
+    const map = _buildSourceMapByTag(sources[catKey] || []);
+    el.innerHTML = _renderInsightMarkdownHtml(text || "—", map);
+  });
 
   // Label periode
   const quarterEl = document.getElementById("aiQuarterLabel");
@@ -1522,21 +1587,22 @@ function renderAIInsights(json) {
 async function loadAIInsights({
   forceRefresh = false,
   period = "",
-  fromPoll = false,
 } = {}) {
   if (_aiLoading) return;
 
-  // Saat refresh manual, hentikan polling lama dan mulai siklus baru
-  if (forceRefresh) _stopAIPolling();
+  if (_aiInsightStream) {
+    _aiInsightStream.close();
+    _aiInsightStream = null;
+  }
 
   _initPeriodDropdown();
   const selectedPeriod = period || _currentPeriod || _getDefaultPeriod();
 
   // ── Cek sessionStorage terlebih dahulu ────────────────────────────────────
-  // Tujuan: hindari hit backend (dan baris DB) setiap kali user logout/login
-  // ulang dalam satu sesi browser yang sama.
-  // forceRefresh & fromPoll bypass cache karena keduanya butuh data segar.
-  if (!forceRefresh && !fromPoll) {
+  // Tujuan: hindari hit backend setiap kali user kembali ke halaman
+  // dalam sesi browser yang sama.
+  // forceRefresh bypass cache karena butuh data segar.
+  if (!forceRefresh) {
     const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
     try {
       const raw = sessionStorage.getItem(cacheKey);
@@ -1553,68 +1619,152 @@ async function loadAIInsights({
   }
 
   setAILoading(true);
-  // Skeleton hanya ditampilkan saat initial load — saat refresh, hasil lama tetap tampil
-  if (!forceRefresh && !fromPoll) _showAISkeleton();
+  if (!forceRefresh) _showAISkeleton();
 
   try {
     const params = new URLSearchParams({ period: selectedPeriod });
     if (forceRefresh) params.set("refresh", "1");
-    if (fromPoll) params.set("poll", "1");
     if (_currentYear) params.set("year", _currentYear);
-    const url = "/api/ai-insights?" + params.toString();
+    const url = "/api/ai-insights/stream?" + params.toString();
 
-    const res = await fetch(url);
-    if (res.status === 401) {
-      window.location.href = "/login";
-      return;
-    }
-    const json = await res.json();
+    const streamState = {
+      pdrb: "",
+      kemiskinan: "",
+      pengangguran: "",
+      sourceMap: {
+        pdrb: {},
+        kemiskinan: {},
+        pengangguran: {},
+      },
+      sources: {
+        pdrb: [],
+        kemiskinan: [],
+        pengangguran: [],
+      },
+      quarter: "",
+      article_count: 0,
+      done: false,
+    };
 
-    if (json.status === "ok") {
-      // Update status text dengan jumlah artikel nyata sebelum render
-      const statusText = document.getElementById("aiLoadingText");
-      if (statusText && json.article_count) {
-        statusText.textContent = `Selesai — ${json.article_count} berita dianalisis.`;
-      }
-      _stopAIPolling();
+    const categoryToElement = {
+      pdrb: "aiBodyPdrb",
+      kemiskinan: "aiBodyKemiskinan",
+      pengangguran: "aiBodyPengangguran",
+    };
 
-      // Simpan ke sessionStorage agar login ulang tidak re-hit backend
-      try {
-        const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
-        sessionStorage.setItem(cacheKey, JSON.stringify(json));
-      } catch (_) {
-        /* abaikan jika storage penuh / mode privat */
-      }
+    _aiInsightStream = new EventSource(url);
 
-      renderAIInsights(json);
-    } else if (json.status === "generating") {
-      // Background thread sedang berjalan — polling tiap 3 detik.
-      // Reset _aiLoading agar guard di awal fungsi tidak blokir poll berikutnya,
-      // tapi JANGAN panggil setAILoading(false) agar visual skeleton tetap tampil.
-      _aiLoading = false;
-      const statusText = document.getElementById("aiLoadingText");
-      if (statusText) {
-        statusText.textContent = "Insight AI sedang dibuat, harap tunggu...";
-      }
-      _startAIPolling(selectedPeriod);
-      return; // finally akan skip setAILoading(false) karena _aiPolling === true
-    } else {
-      _stopAIPolling();
-      _showAIError(json.message || "Gagal memuat insight AI.");
-    }
+    await new Promise((resolve, reject) => {
+      _aiInsightStream.onmessage = (event) => {
+        try {
+          const payload = JSON.parse(event.data || "{}");
+          const statusText = document.getElementById("aiLoadingText");
+
+          if (payload.type === "start") {
+            streamState.article_count = Number(payload.article_count || 0);
+            streamState.quarter = payload.quarter || "periode ini";
+            if (statusText) {
+              statusText.textContent = `Insight AI sedang dibuat (${streamState.article_count} berita)...`;
+            }
+            return;
+          }
+
+          if (payload.type === "category_start") {
+            const cat = payload.category;
+            streamState.sourceMap[cat] = _buildSourceMapByTag(payload.source_map || []);
+            return;
+          }
+
+          if (payload.type === "delta") {
+            const cat = payload.category;
+            streamState[cat] = (streamState[cat] || "") + (payload.text || "");
+            const el = document.getElementById(categoryToElement[cat]);
+            if (el) {
+              el.innerHTML = _renderInsightMarkdownHtml(
+                streamState[cat],
+                streamState.sourceMap[cat] || {},
+              );
+            }
+            return;
+          }
+
+          if (payload.type === "category_done") {
+            const cat = payload.category;
+            streamState[cat] = payload.text || streamState[cat] || "";
+            streamState.sources[cat] = payload.sources || [];
+            const el = document.getElementById(categoryToElement[cat]);
+            if (el) {
+              el.innerHTML = _renderInsightMarkdownHtml(
+                streamState[cat],
+                streamState.sourceMap[cat] || {},
+              );
+            }
+            return;
+          }
+
+          if (payload.type === "done") {
+            const finalJson = {
+              status: payload.status || "ok",
+              cached: !!payload.cached,
+              quarter: payload.quarter || streamState.quarter,
+              article_count: payload.article_count ?? streamState.article_count,
+              data: payload.data || {
+                pdrb: streamState.pdrb,
+                kemiskinan: streamState.kemiskinan,
+                pengangguran: streamState.pengangguran,
+              },
+              sources: payload.sources || streamState.sources,
+            };
+
+            renderAIInsights(finalJson);
+
+            try {
+              const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
+              sessionStorage.setItem(cacheKey, JSON.stringify(finalJson));
+            } catch (_) {
+              // ignore
+            }
+
+            if (statusText) {
+              statusText.textContent = `Selesai — ${finalJson.article_count || 0} berita dianalisis.`;
+            }
+
+            streamState.done = true;
+            resolve();
+            return;
+          }
+
+          if (payload.type === "error") {
+            reject(new Error(payload.message || "Gagal memuat insight AI."));
+          }
+        } catch (err) {
+          reject(err);
+        }
+      };
+
+      _aiInsightStream.onerror = () => {
+        if (!streamState.done) {
+          reject(new Error("Koneksi stream terputus saat memuat insight AI."));
+        }
+      };
+    });
   } catch (err) {
-    _stopAIPolling();
     _showAIError("Gagal menghubungi server. Coba refresh halaman.");
     console.error("AI Insights error:", err);
   } finally {
-    // Reset loading state kecuali saat polling aktif
-    // (saat polling, _aiLoading sudah di-reset manual di atas)
-    if (!_aiPolling) setAILoading(false);
+    if (_aiInsightStream) {
+      _aiInsightStream.close();
+      _aiInsightStream = null;
+    }
+    setAILoading(false);
   }
 }
 
 function refreshAIInsights() {
-  _stopAIPolling();
+  if (_aiInsightStream) {
+    _aiInsightStream.close();
+    _aiInsightStream = null;
+  }
   // Hapus cache sessionStorage untuk periode yang sedang aktif,
   // agar forceRefresh benar-benar mengambil data segar dari backend.
   try {
@@ -1624,4 +1774,450 @@ function refreshAIInsights() {
     /* abaikan */
   }
   loadAIInsights({ forceRefresh: true });
+}
+
+// ── Floating AI Chat (RAG) ────────────────────────────────────────────────────
+
+let _chatOpen = false;
+let _chatLoading = false;
+let _chatSessionId = "";
+let _chatModalResolver = null;
+
+function _chatStorageKey() {
+  const username = currentUser?.username || "anon";
+  return `bps_chat_session_${username}`;
+}
+
+function initFloatingChat() {
+  const input = document.getElementById("chatInput");
+  if (!input) return;
+
+  _initChatModal();
+
+  // Shift+Enter = baris baru, Enter = kirim
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendChatMessage(e);
+    }
+  });
+}
+
+function _chatModalElements() {
+  return {
+    backdrop: document.getElementById("chatModalBackdrop"),
+    title: document.getElementById("chatModalTitle"),
+    message: document.getElementById("chatModalMessage"),
+    cancelBtn: document.getElementById("chatModalCancelBtn"),
+    confirmBtn: document.getElementById("chatModalConfirmBtn"),
+  };
+}
+
+function _initChatModal() {
+  const { backdrop, cancelBtn, confirmBtn } = _chatModalElements();
+  if (!backdrop || backdrop.dataset.init === "1") return;
+
+  // Pastikan modal tidak terbuka saat initial load.
+  backdrop.hidden = true;
+
+  const close = (result) => {
+    backdrop.hidden = true;
+    document.body.style.overflow = "";
+    const resolver = _chatModalResolver;
+    _chatModalResolver = null;
+    if (resolver) resolver(result);
+  };
+
+  cancelBtn?.addEventListener("click", () => close(false));
+  confirmBtn?.addEventListener("click", () => close(true));
+
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close(false);
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !backdrop.hidden) close(false);
+  });
+
+  backdrop.dataset.init = "1";
+}
+
+function showChatDialog({
+  title = "Konfirmasi",
+  message = "",
+  confirmText = "Lanjutkan",
+  cancelText = "Batal",
+  showCancel = true,
+  danger = false,
+} = {}) {
+  const { backdrop, title: titleEl, message: msgEl, cancelBtn, confirmBtn } = _chatModalElements();
+  if (!backdrop || !titleEl || !msgEl || !confirmBtn) {
+    return Promise.resolve(false);
+  }
+
+  titleEl.textContent = title;
+  msgEl.textContent = message;
+  confirmBtn.textContent = confirmText;
+  confirmBtn.classList.toggle("danger", !!danger);
+
+  if (cancelBtn) {
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.display = showCancel ? "" : "none";
+  }
+
+  backdrop.hidden = false;
+  document.body.style.overflow = "hidden";
+
+  return new Promise((resolve) => {
+    _chatModalResolver = resolve;
+  });
+}
+
+async function _ensureChatSession(forceNew = false) {
+  const body = { new: !!forceNew };
+  const res = await fetch("/api/ai-chat/session", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return "";
+  }
+  const json = await res.json();
+  if (json.status !== "ok" || !json.session?.id) {
+    throw new Error(json.message || "Gagal membuat session chat.");
+  }
+  _chatSessionId = String(json.session.id);
+  localStorage.setItem(_chatStorageKey(), _chatSessionId);
+  return _chatSessionId;
+}
+
+async function _loadChatHistory() {
+  if (!_chatSessionId) return;
+  const body = document.getElementById("chatBody");
+  if (!body) return;
+
+  const qs = new URLSearchParams({ session_id: _chatSessionId }).toString();
+  const res = await fetch(`/api/ai-chat/history?${qs}`);
+  if (res.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+  const json = await res.json();
+  if (json.status !== "ok") return;
+
+  body.innerHTML = "";
+  const history = json.history || [];
+  if (history.length === 0) {
+    _showChatEmptyState();
+    return;
+  }
+
+  history.forEach((item) => {
+    _appendChatMessage(item.role, item.content, item.citations_json || []);
+  });
+  _scrollChatToBottom();
+}
+
+function _showChatEmptyState() {
+  const body = document.getElementById("chatBody");
+  if (!body) return;
+  body.innerHTML = `<div class="chat-empty" id="chatEmptyState">Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban akan menyertakan sitasi berita.</div>`;
+}
+
+function _toggleChatLoading(loading) {
+  _chatLoading = loading;
+  const typing = document.getElementById("chatTyping");
+  const btn = document.getElementById("chatSendBtn");
+  const input = document.getElementById("chatInput");
+  if (typing) typing.style.display = loading ? "inline-flex" : "none";
+  if (btn) btn.disabled = loading;
+  if (input) input.disabled = loading;
+}
+
+function _scrollChatToBottom() {
+  const body = document.getElementById("chatBody");
+  if (!body) return;
+  body.scrollTop = body.scrollHeight;
+}
+
+function _buildCitationMap(citations = []) {
+  const map = {};
+  if (!Array.isArray(citations)) return map;
+  citations.forEach((c, idx) => {
+    const key = String(c?.cite_id || "").toUpperCase();
+    if (!key) return;
+    map[key] = {
+      ...c,
+      num: Number(c?.num || 0) > 0 ? Number(c.num) : idx + 1,
+    };
+  });
+  return map;
+}
+
+function _renderInlineCitationIcon(citation) {
+  const cid = escapeHtml(citation?.cite_id || "S??");
+  const url = escapeHtml(citation?.url || "#");
+  const title = escapeHtml(citation?.title || "Sumber berita");
+  const num = Number(citation?.num || 0) > 0 ? Number(citation.num) : 1;
+  return `<a class="ai-cite chat-inline-cite" href="${url}" target="_blank" rel="noopener noreferrer" title="${title}">${num}<span class="sr-only">${cid}</span></a>`;
+}
+
+function _renderChatText(text, citations = []) {
+  const citationMap = _buildCitationMap(citations);
+  const normalized = _normalizeCitationMarkers(text || "", "S");
+  let html = _markdownToHtmlSafe(normalized);
+  html = html.replace(/\[(S\d{2})\]/gi, (_, rawId) => {
+    const cid = String(rawId || "").toUpperCase();
+    const citation = citationMap[cid];
+    if (!citation) return "";
+    return _renderInlineCitationIcon(citation);
+  });
+  return `<div class="md-content">${html}</div>`;
+}
+
+function _appendChatMessage(role, content, citations = []) {
+  const body = document.getElementById("chatBody");
+  if (!body) return null;
+
+  const empty = document.getElementById("chatEmptyState");
+  if (empty) empty.remove();
+
+  const wrap = document.createElement("div");
+  wrap.className = `chat-msg ${role === "user" ? "user" : "assistant"}`;
+
+  wrap.innerHTML = `<div class="chat-bubble">${_renderChatText(content, citations)}</div>`;
+  body.appendChild(wrap);
+  _scrollChatToBottom();
+  return wrap.querySelector(".chat-bubble");
+}
+
+async function toggleChatWindow() {
+  const win = document.getElementById("chatWindow");
+  if (!win) return;
+
+  _chatOpen = !_chatOpen;
+  win.classList.toggle("open", _chatOpen);
+  if (!_chatOpen) return;
+
+  try {
+    // Resume session terakhir per user
+    const fromStorage = localStorage.getItem(_chatStorageKey());
+    if (fromStorage && /^\d+$/.test(fromStorage)) {
+      _chatSessionId = fromStorage;
+    } else {
+      await _ensureChatSession(false);
+    }
+    await _loadChatHistory();
+  } catch (err) {
+    _showChatEmptyState();
+    console.error("Gagal membuka chat:", err);
+  }
+}
+
+function closeChatWindow() {
+  const win = document.getElementById("chatWindow");
+  if (!win) return;
+  _chatOpen = false;
+  win.classList.remove("open");
+}
+
+async function clearChatConversation() {
+  if (!_chatSessionId) {
+    await _ensureChatSession(false);
+  }
+  if (!_chatSessionId) return;
+
+  const ok = await showChatDialog({
+    title: "Hapus Percakapan?",
+    message:
+      "Semua pesan dalam sesi chat ini akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.",
+    confirmText: "Ya, Hapus",
+    cancelText: "Batal",
+    showCancel: true,
+    danger: true,
+  });
+  if (!ok) return;
+
+  try {
+    const res = await fetch("/api/ai-chat/clear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ session_id: _chatSessionId }),
+    });
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    const json = await res.json();
+    if (json.status !== "ok") {
+      await showChatDialog({
+        title: "Gagal Menghapus",
+        message: json.message || "Gagal menghapus percakapan.",
+        confirmText: "Tutup",
+        showCancel: false,
+      });
+      return;
+    }
+    _showChatEmptyState();
+    await showChatDialog({
+      title: "Berhasil",
+      message: "Percakapan berhasil dibersihkan.",
+      confirmText: "Oke",
+      showCancel: false,
+    });
+  } catch (err) {
+    await showChatDialog({
+      title: "Terjadi Kendala",
+      message: "Gagal menghapus percakapan: " + err.message,
+      confirmText: "Tutup",
+      showCancel: false,
+    });
+  }
+}
+
+async function sendChatMessage(event) {
+  if (event) event.preventDefault();
+  if (_chatLoading) return;
+
+  const input = document.getElementById("chatInput");
+  if (!input) return;
+
+  const message = (input.value || "").trim();
+  if (!message) return;
+
+  if (message.length > 1200) {
+    alert("Pesan terlalu panjang. Maksimal 1200 karakter.");
+    return;
+  }
+
+  try {
+    if (!_chatSessionId) {
+      await _ensureChatSession(false);
+    }
+
+    _appendChatMessage("user", message, []);
+    input.value = "";
+    _toggleChatLoading(true);
+
+    const assistantBubble = _appendChatMessage("assistant", "", []);
+    let streamedText = "";
+    let activeCitations = [];
+
+    const res = await fetch("/api/ai-chat/stream", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        session_id: _chatSessionId,
+        message,
+      }),
+    });
+
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+
+    if (!res.ok || !res.body) {
+      let errMessage = "Terjadi kendala saat memproses chat.";
+      try {
+        const fallback = await res.json();
+        errMessage = fallback.message || errMessage;
+      } catch (_) {
+        // noop
+      }
+      if (assistantBubble) {
+        assistantBubble.innerHTML = _renderChatText(errMessage, []);
+      }
+      return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+
+      buffer += decoder.decode(value, { stream: true });
+
+      let boundary = buffer.indexOf("\n\n");
+      while (boundary !== -1) {
+        const rawEvent = buffer.slice(0, boundary).trim();
+        buffer = buffer.slice(boundary + 2);
+
+        if (rawEvent) {
+          const dataLines = rawEvent
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim());
+
+          if (dataLines.length > 0) {
+            const dataStr = dataLines.join("");
+            try {
+              const payload = JSON.parse(dataStr);
+
+              if (payload.type === "start") {
+                if (payload.session_id) {
+                  _chatSessionId = String(payload.session_id);
+                  localStorage.setItem(_chatStorageKey(), _chatSessionId);
+                }
+                if (Array.isArray(payload.sources)) {
+                  activeCitations = payload.sources;
+                }
+              } else if (payload.type === "delta") {
+                streamedText += payload.text || "";
+                if (assistantBubble) {
+                  assistantBubble.innerHTML = _renderChatText(
+                    streamedText,
+                    activeCitations,
+                  );
+                }
+                _scrollChatToBottom();
+              } else if (payload.type === "done") {
+                if (payload.session_id) {
+                  _chatSessionId = String(payload.session_id);
+                  localStorage.setItem(_chatStorageKey(), _chatSessionId);
+                }
+                if (Array.isArray(payload.citations) && payload.citations.length > 0) {
+                  activeCitations = payload.citations;
+                  if (assistantBubble) {
+                    assistantBubble.innerHTML = _renderChatText(
+                      streamedText,
+                      activeCitations,
+                    );
+                  }
+                }
+              } else if (payload.type === "error") {
+                const msg = payload.message || "Terjadi kendala saat memproses chat.";
+                if (assistantBubble) {
+                  assistantBubble.innerHTML = _renderChatText(msg, []);
+                }
+              }
+            } catch (_) {
+              // Abaikan frame SSE yang tidak valid
+            }
+          }
+        }
+
+        boundary = buffer.indexOf("\n\n");
+      }
+    }
+
+    if (!streamedText && assistantBubble) {
+      assistantBubble.innerHTML = _renderChatText(
+        "Tidak ada respons dari server AI. Silakan coba lagi.",
+        [],
+      );
+    }
+  } catch (err) {
+    _appendChatMessage("assistant", "Gagal menghubungi server AI chat. Silakan coba lagi.", []);
+    console.error("Chat error:", err);
+  } finally {
+    _toggleChatLoading(false);
+    const inputAfter = document.getElementById("chatInput");
+    if (inputAfter) inputAfter.focus();
+  }
 }

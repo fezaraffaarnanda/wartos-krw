@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="../static/css/style.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 </head>
 <body>
     <!-- Header -->
@@ -562,6 +563,75 @@
             </div>
         </section>
     </main>
+
+    <!-- Floating AI Chat Window -->
+    <button class="chat-fab" id="chatFab" type="button" onclick="toggleChatWindow()" aria-label="Buka AI Chat">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            <path d="M8 9h8"/>
+            <path d="M8 13h6"/>
+        </svg>
+        <span>AI Chat</span>
+    </button>
+
+    <section class="chat-window" id="chatWindow" aria-live="polite">
+        <header class="chat-header">
+            <div>
+                <h3>AI Chat RAG</h3>
+                <p>DeepSeek · Berbasis berita tersitasi</p>
+            </div>
+            <div class="chat-header-actions">
+                <button type="button" class="chat-icon-btn" onclick="clearChatConversation()" title="Clear percakapan">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
+                        <path d="M10 11v6"/><path d="M14 11v6"/>
+                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
+                    </svg>
+                </button>
+                <button type="button" class="chat-icon-btn" onclick="closeChatWindow()" title="Tutup chat">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="18" y1="6" x2="6" y2="18"/>
+                        <line x1="6" y1="6" x2="18" y2="18"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <div class="chat-body" id="chatBody">
+            <div class="chat-empty" id="chatEmptyState">
+                Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban akan menyertakan sitasi berita.
+            </div>
+        </div>
+
+        <div class="chat-typing" id="chatTyping" style="display:none">
+            <span></span><span></span><span></span>
+            <em>AI sedang merespons...</em>
+        </div>
+
+        <form class="chat-input-wrap" id="chatForm" onsubmit="sendChatMessage(event)">
+            <textarea
+                id="chatInput"
+                class="chat-input"
+                rows="2"
+                maxlength="1200"
+                placeholder="Contoh: bagaimana tren pengangguran 3 bulan terakhir?"
+            ></textarea>
+            <button type="submit" class="chat-send" id="chatSendBtn">Kirim</button>
+        </form>
+    </section>
+
+    <!-- Chat Confirm/Alert Modal -->
+    <div class="chat-modal-backdrop" id="chatModalBackdrop" hidden>
+        <div class="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chatModalTitle" aria-describedby="chatModalMessage">
+            <h4 class="chat-modal-title" id="chatModalTitle">Konfirmasi</h4>
+            <p class="chat-modal-message" id="chatModalMessage">Apakah Anda yakin?</p>
+            <div class="chat-modal-actions">
+                <button type="button" class="chat-modal-btn secondary" id="chatModalCancelBtn">Batal</button>
+                <button type="button" class="chat-modal-btn primary" id="chatModalConfirmBtn">Lanjutkan</button>
+            </div>
+        </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">

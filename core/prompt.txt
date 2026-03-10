@@ -31,8 +31,4 @@ P	Jasa Pendidikan
 Q	Jasa Kesehatan dan Kegiatan Sosial
 RSTU	Jasa lainnya
 KE	Kemiskinan
-PG	Pengangguran 
-
-Buatkan kolom baru di tabel berita yaitu hasil prediksi kode KBLI dengan tampilan di tabelnya adalah dengan format "Kode/Deskripsi", contoh : A1/Pertanian, Peternakan, Perburuan dan Jasa Pertanian
-
-Pastikan juga lo predict berita yang udah ada di database. 
+PG	Pengangguran
