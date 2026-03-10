@@ -24,6 +24,7 @@ from scrapers.scrape_kompas         import scrape_new_articles as scrape_kompas
 from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
 from utils import normalize_date, parse_date_to_iso
 from ai_insights import generate_insights
+from embeddings import embed_article
 
 load_dotenv()
 
@@ -459,7 +460,15 @@ def get_ai_insights():
                 "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
             })
 
-        insights = generate_insights(articles, period_label)
+        # Gunakan RAG (semantic search via pgvector) jika tersedia,
+        # dengan fallback ke articles list (keyword filter) di dalam generate_insights
+        insights = generate_insights(
+            period_label    = period_label,
+            date_from       = date_from,
+            date_to         = date_to,
+            supabase_client = supabase,
+            articles        = articles,
+        )
 
         _save_insight_to_db(period_key, period_label, insights, len(articles))
 
@@ -586,9 +595,13 @@ def _build_article_row(article: dict, source_label: str) -> dict:
 
 
 def _insert_articles(articles: list, source_key: str) -> int:
-    """Insert artikel valid ke Supabase. Return jumlah yang berhasil."""
-    source_label = SOURCE_LABELS.get(source_key, source_key)
-    inserted = 0
+    """
+    Insert artikel valid ke Supabase, lalu generate embedding untuk artikel baru.
+    Return jumlah yang berhasil diinsert.
+    """
+    source_label  = SOURCE_LABELS.get(source_key, source_key)
+    inserted      = 0
+    new_articles  = []   # kumpulkan artikel baru untuk di-embed setelah insert selesai
 
     for article in articles:
         if not _is_valid_article(article, source_key):
@@ -597,10 +610,29 @@ def _insert_articles(articles: list, source_key: str) -> int:
             row = _build_article_row(article, source_label)
             supabase.table("berita").insert(row).execute()
             inserted += 1
+            new_articles.append({"url": row["url"], "article": article})
         except Exception as exc:
             print(f"[DB ERROR] {source_key}: {article.get('url', '')} — {exc}")
 
     _scrape_progress[source_key]["inserted"] = inserted
+
+    # ── Generate embedding untuk artikel baru ────────────────────────────────
+    # Dilakukan setelah insert agar insert tidak terhambat.
+    # Jika embedding gagal, artikel tetap tersimpan (graceful degradation).
+    if new_articles:
+        embedded_count = 0
+        for item in new_articles:
+            try:
+                embedding = embed_article(item["article"])
+                if embedding:
+                    supabase.table("berita").update(
+                        {"embedding": embedding}
+                    ).eq("url", item["url"]).execute()
+                    embedded_count += 1
+            except Exception as exc:
+                print(f"[Embedding] Gagal embed artikel {item['url'][:60]}: {exc}")
+        print(f"[Embedding] {source_key}: {embedded_count}/{len(new_articles)} artikel baru di-embed.")
+
     return inserted
 
 

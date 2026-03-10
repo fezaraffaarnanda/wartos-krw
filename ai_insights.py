@@ -1,8 +1,13 @@
 """
-ai_insights.py — Modul AI Insight menggunakan DeepSeek LLM
+ai_insights.py — Modul AI Insight menggunakan DeepSeek LLM + RAG (pgvector)
 
-Menganalisis berita dari database dan menghasilkan insight
-untuk tiga kategori: PDRB, Kemiskinan, dan Pengangguran.
+Menganalisis berita dari database dan menghasilkan insight untuk tiga kategori:
+PDRB, Kemiskinan, dan Pengangguran.
+
+Alur RAG:
+  1. Semantic search via pgvector (text-embedding-3-small) per kategori
+  2. Artikel top-K paling relevan dikirim ke DeepSeek sebagai konteks
+  3. Fallback ke keyword filtering jika embedding belum tersedia
 """
 
 import json
@@ -11,19 +16,46 @@ import re
 
 from openai import OpenAI
 
+from embeddings import semantic_search_multi
+
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 _DEEPSEEK_MODEL    = "deepseek-chat"
 
-# Jumlah karakter konten per artikel yang dikirim ke LLM (hemat token)
-_MAX_CONTENT_CHARS = 500
+# Jumlah karakter konten per artikel yang dikirim ke LLM
+# Dinaikkan dari 500 → 800 karena artikel sudah di-filter by relevance
+_MAX_CONTENT_CHARS     = 800
 # Maks artikel per kategori yang dikirim ke LLM
-_MAX_ARTICLES_PER_CAT = 30
+_MAX_ARTICLES_PER_CAT  = 30
 # Maks sumber yang ditampilkan ke user per kategori
-_MAX_SOURCES_SHOWN = 6
+_MAX_SOURCES_SHOWN     = 6
+# Minimum artikel dari semantic search sebelum fallback ke keyword
+_MIN_SEMANTIC_RESULTS  = 5
 
-# Keyword per kategori — untuk pre-filter
+# ── Semantic query templates per kategori ─────────────────────────────────────
+# Query ini di-embed dan dipakai untuk vector search di pgvector.
+# Ditulis dalam Bahasa Indonesia agar cosine similarity lebih tepat.
+
+_SEMANTIC_QUERIES: dict[str, str] = {
+    "pdrb": (
+        "aktivitas ekonomi PDRB pertumbuhan sektor industri perdagangan investasi "
+        "infrastruktur proyek pertanian pariwisata manufaktur UMKM omset pendapatan "
+        "inflasi harga komoditas fiskal anggaran ekspor impor Kabupaten Tegal"
+    ),
+    "kemiskinan": (
+        "kemiskinan bantuan sosial kesejahteraan masyarakat miskin program PKH BLT "
+        "BPNT sembako stunting gizi buruk bedah rumah rumah layak huni kelompok rentan "
+        "lansia disabilitas yatim pengentasan kemiskinan data BPS Kabupaten Tegal"
+    ),
+    "pengangguran": (
+        "pengangguran ketenagakerjaan PHK pemutusan hubungan kerja lapangan kerja "
+        "buruh tenaga kerja rekrutmen job fair lowongan pelatihan kerja disnaker "
+        "TKI TKW upah minimum TPT tingkat pengangguran terbuka Kabupaten Tegal"
+    ),
+}
+
+# Keyword per kategori — untuk fallback jika semantic search gagal/kurang
 _KEYWORDS: dict[str, list[str]] = {
     "pdrb": [
         "pdrb", "produk domestik regional bruto", "ekonomi", "pertumbuhan ekonomi",
@@ -99,9 +131,8 @@ def _build_client() -> OpenAI:
 
 def _prefilter_articles(articles: list[dict], category: str) -> list[dict]:
     """
-    Filter artikel berdasarkan keyword kategori.
-    Hanya artikel yang benar-benar mengandung keyword yang dikembalikan.
-    Tidak ada fallback ke semua artikel agar sumber selalu relevan.
+    Keyword-based filter — dipakai sebagai FALLBACK jika semantic search
+    gagal atau return terlalu sedikit artikel.
     """
     keywords = _KEYWORDS.get(category, [])
     return [
@@ -113,9 +144,9 @@ def _prefilter_articles(articles: list[dict], category: str) -> list[dict]:
 
 def _get_sources(articles: list[dict], category: str) -> list[dict]:
     """Fallback: ambil sumber dari keyword match (dipakai jika AI tidak return IDs)."""
-    matched  = _prefilter_articles(articles, category)
-    sources  = []
-    seen     = set()
+    matched = _prefilter_articles(articles, category)
+    sources = []
+    seen    = set()
     for a in matched:
         title = a.get("title", "").strip()
         url   = a.get("url", "").strip()
@@ -127,35 +158,77 @@ def _get_sources(articles: list[dict], category: str) -> list[dict]:
     return sources
 
 
+def _select_articles_for_category(
+    category:          str,
+    semantic_results:  dict[str, list[dict]],
+    fallback_articles: list[dict],
+) -> list[dict]:
+    """
+    Pilih artikel untuk suatu kategori dengan prioritas:
+    1. Hasil semantic search (sudah di-rank by similarity)
+    2. Fallback keyword filter dari fallback_articles (jika semantic < _MIN_SEMANTIC_RESULTS)
+
+    Return list artikel siap dipakai, maks _MAX_ARTICLES_PER_CAT.
+    """
+    semantic_hits = semantic_results.get(category, [])
+
+    if len(semantic_hits) >= _MIN_SEMANTIC_RESULTS:
+        selected = semantic_hits[:_MAX_ARTICLES_PER_CAT]
+        print(
+            f"[AI Insights] {category}: {len(selected)} artikel dari semantic search "
+            f"(similarity tertinggi: {selected[0].get('similarity', 0):.3f})"
+            if selected else f"[AI Insights] {category}: 0 artikel."
+        )
+        return selected
+
+    # Fallback: keyword match dari artikel yang di-pass
+    print(
+        f"[AI Insights] {category}: semantic search hanya dapat {len(semantic_hits)} artikel "
+        f"(< {_MIN_SEMANTIC_RESULTS}) - fallback ke keyword filter."
+    )
+    keyword_hits = _prefilter_articles(fallback_articles, category)
+    # Gabung: semantic hits dulu, lalu keyword hits yang belum ada
+    seen_urls    = {a.get("url") for a in semantic_hits}
+    extra        = [a for a in keyword_hits if a.get("url") not in seen_urls]
+    combined     = (semantic_hits + extra)[:_MAX_ARTICLES_PER_CAT]
+    print(f"[AI Insights] {category}: fallback - total {len(combined)} artikel.")
+    return combined
+
+
 def _format_articles_for_prompt(
-    articles: list[dict], category: str, id_prefix: str = "A"
+    articles: list[dict], id_prefix: str = "A"
 ) -> tuple[str, dict[str, dict]]:
     """
     Format artikel menjadi teks ringkas dengan tag [P01], [K01], [T01] dst.
     id_prefix: "P" untuk PDRB, "K" untuk Kemiskinan, "T" untuk Pengangguran.
     Return (formatted_text, id_map) dimana id_map = {"P01": {"title": ..., "url": ...}, ...}
-    """
-    filtered = _prefilter_articles(articles, category)
-    selected = filtered[:_MAX_ARTICLES_PER_CAT]
 
-    if not selected:
+    Artikel sudah diurutkan by relevance (dari semantic search) — paling relevan di atas.
+    """
+    if not articles:
         return "(Tidak ada berita yang relevan untuk periode ini)", {}
 
     lines  = []
     id_map = {}
-    for i, a in enumerate(selected, 1):
-        tag_id  = f"{id_prefix}{i:02d}"
-        title   = a.get("title", "").strip()
-        date    = a.get("date", "").strip()
-        tags    = a.get("tags", "").strip()
-        url     = a.get("url", "").strip()
-        content = (a.get("content", "") or "").strip()
+    for i, a in enumerate(articles, 1):
+        tag_id     = f"{id_prefix}{i:02d}"
+        title      = a.get("title", "").strip()
+        date       = a.get("date", "").strip()
+        tags       = a.get("tags", "").strip()
+        url        = a.get("url", "").strip()
+        content    = (a.get("content", "") or "").strip()
+        similarity = a.get("similarity")   # ada jika dari semantic search
+
         if len(content) > _MAX_CONTENT_CHARS:
             content = content[:_MAX_CONTENT_CHARS] + "..."
 
         id_map[tag_id] = {"title": title, "url": url}
 
         parts = [f"[{tag_id}] [{date}] {title}"]
+        # Tambahkan label relevansi jika data similarity tersedia
+        if similarity is not None:
+            label = "Tinggi" if similarity >= 0.5 else ("Sedang" if similarity >= 0.3 else "Rendah")
+            parts[0] += f"  ·  Relevansi: {label} ({similarity:.2f})"
         if tags:
             parts.append(f"      Tags: {tags}")
         if content:
@@ -166,17 +239,20 @@ def _format_articles_for_prompt(
 
 
 def _build_user_prompt(
-    articles: list[dict], period_label: str
+    pdrb_articles:         list[dict],
+    kemiskinan_articles:   list[dict],
+    pengangguran_articles: list[dict],
+    period_label:          str,
 ) -> tuple[str, dict[str, dict]]:
     """
     Bangun user prompt + gabungan id_map dari semua kategori.
     Return (prompt_text, merged_id_map).
     """
-    pdrb_text,         pdrb_map         = _format_articles_for_prompt(articles, "pdrb",         "P")
-    kemiskinan_text,   kemiskinan_map   = _format_articles_for_prompt(articles, "kemiskinan",   "K")
-    pengangguran_text, pengangguran_map = _format_articles_for_prompt(articles, "pengangguran", "T")
+    pdrb_text,         pdrb_map         = _format_articles_for_prompt(pdrb_articles,         "P")
+    kemiskinan_text,   kemiskinan_map   = _format_articles_for_prompt(kemiskinan_articles,   "K")
+    pengangguran_text, pengangguran_map = _format_articles_for_prompt(pengangguran_articles, "T")
 
-    # Gabung semua id_map (ID bisa duplikat lintas kategori, OK karena value sama)
+    # Gabung semua id_map
     merged = {}
     merged.update(pdrb_map)
     merged.update(kemiskinan_map)
@@ -184,6 +260,7 @@ def _build_user_prompt(
 
     prompt = f"""Berikut adalah berita lokal dari Kabupaten Tegal pada periode {period_label}.
 Setiap berita diberi kode unik: P01, P02 (PDRB), K01, K02 (Kemiskinan), T01, T02 (Pengangguran).
+Berita sudah diurutkan berdasarkan relevansi — yang teratas paling relevan untuk kategorinya.
 Analisis dan berikan insight untuk masing-masing kategori.
 
 Kembalikan HANYA JSON valid dengan format:
@@ -280,9 +357,9 @@ def _inject_inline_links(
             counter[0] += 1
             seen[tag_id] = {**info, "num": counter[0]}
             order.append(tag_id)
-        num   = seen[tag_id]["num"]
-        url   = info.get("url", "#")
-        title = info.get("title", "artikel")
+        num        = seen[tag_id]["num"]
+        url        = info.get("url", "#")
+        title      = info.get("title", "artikel")
         safe_url   = url.replace('"', '%22')
         safe_title = title.replace('"', '&quot;').replace('<', '&lt;').replace('>', '&gt;')
         return (
@@ -291,12 +368,7 @@ def _inject_inline_links(
         )
 
     html_text = _CITE_RE.sub(_replace, text)
-    # Escape HTML biasa untuk teks non-link (cegah XSS)
-    # Karena kita sudah embed <a>, kita escape SEBELUM substitusi
-    # Pendekatan: escape dulu, lalu replace placeholder
-    # Implementasi sederhana: teks sudah di-escape di frontend — di sini return as-is
-    # (teks murni dari LLM, tidak dari user input, risiko XSS minimal)
-    sources = [seen[tid] for tid in order if tid in seen]
+    sources   = [seen[tid] for tid in order if tid in seen]
     return html_text, sources
 
 
@@ -317,21 +389,72 @@ def _resolve_sources(source_ids: list, id_map: dict[str, dict]) -> list[dict]:
     return sources
 
 
-def generate_insights(articles: list[dict], period_label: str) -> dict:
+# ── Main entry point ───────────────────────────────────────────────────────────
+
+def generate_insights(
+    period_label:      str,
+    date_from:         str | None    = None,
+    date_to:           str | None    = None,
+    supabase_client                  = None,
+    articles:          list[dict] | None = None,
+) -> dict:
     """
-    Analisis daftar berita dengan DeepSeek. Return dict:
-    {
-        "pdrb":         str,
-        "kemiskinan":   str,
-        "pengangguran": str,
-        "sources": {
-            "pdrb":         [{"title": ..., "url": ...}, ...],
-            "kemiskinan":   [...],
-            "pengangguran": [...],
-        }
-    }
+    Analisis berita dengan DeepSeek menggunakan RAG (pgvector semantic search).
+
+    Alur utama (jika date_from + date_to + supabase_client tersedia):
+      1. Semantic search per kategori via pgvector → top-30 artikel paling relevan
+      2. Format artikel → kirim ke DeepSeek dengan konteks yang sudah di-rank
+      3. Inject inline citation links ke hasil insight
+
+    Fallback (jika semantic search gagal atau embedding belum ada):
+      - Gunakan articles list (keyword-based filter)
+
+    Args:
+      period_label:    Label periode, misal "Triwulan I 2026 (Jan–Mar)"
+      date_from:       Filter tanggal dari (YYYY-MM-DD), opsional
+      date_to:         Filter tanggal sampai (YYYY-MM-DD), opsional
+      supabase_client: Instance supabase-py untuk RPC call, opsional
+      articles:        Fallback articles list (dari _fetch_period_articles), opsional
+
+    Return dict:
+      {"pdrb": str, "kemiskinan": str, "pengangguran": str,
+       "sources": {"pdrb": [...], "kemiskinan": [...], "pengangguran": [...]}}
     """
-    if not articles:
+    fallback_articles = articles or []
+    semantic_results  = {}
+
+    # ── Semantic search via pgvector ──────────────────────────────────────────
+    use_semantic = (
+        supabase_client is not None
+        and date_from is not None
+        and date_to is not None
+    )
+
+    if use_semantic:
+        print(f"[AI Insights] Menjalankan semantic search untuk periode {period_label}...")
+        try:
+            semantic_results = semantic_search_multi(
+                queries         = _SEMANTIC_QUERIES,
+                supabase_client = supabase_client,
+                date_from       = date_from,
+                date_to         = date_to,
+                top_k           = _MAX_ARTICLES_PER_CAT,
+                min_similarity  = 0.1,
+            )
+        except Exception as exc:
+            print(f"[AI Insights] Semantic search gagal: {exc} -> fallback ke keyword.")
+            semantic_results = {}
+    else:
+        print(f"[AI Insights] Semantic search tidak tersedia - fallback ke keyword filter.")
+
+    # ── Pilih artikel per kategori (semantic + fallback) ──────────────────────
+    pdrb_articles         = _select_articles_for_category("pdrb",         semantic_results, fallback_articles)
+    kemiskinan_articles   = _select_articles_for_category("kemiskinan",   semantic_results, fallback_articles)
+    pengangguran_articles = _select_articles_for_category("pengangguran", semantic_results, fallback_articles)
+
+    # Cek apakah semua kategori kosong
+    total_articles = len(pdrb_articles) + len(kemiskinan_articles) + len(pengangguran_articles)
+    if total_articles == 0:
         empty = "Tidak ada data berita untuk periode ini."
         return {
             "pdrb":         empty,
@@ -340,10 +463,20 @@ def generate_insights(articles: list[dict], period_label: str) -> dict:
             "sources":      {"pdrb": [], "kemiskinan": [], "pengangguran": []},
         }
 
-    client                = _build_client()
-    user_prompt, id_map   = _build_user_prompt(articles, period_label)
+    print(
+        f"[AI Insights] Konteks yang akan dikirim ke LLM: "
+        f"PDRB={len(pdrb_articles)}, "
+        f"Kemiskinan={len(kemiskinan_articles)}, "
+        f"Pengangguran={len(pengangguran_articles)} artikel."
+    )
 
-    print(f"[AI Insights] Mengirim {len(articles)} artikel ke DeepSeek — {period_label}...")
+    # ── Build prompt dan kirim ke DeepSeek ────────────────────────────────────
+    client                  = _build_client()
+    user_prompt, id_map     = _build_user_prompt(
+        pdrb_articles, kemiskinan_articles, pengangguran_articles, period_label
+    )
+
+    print(f"[AI Insights] Mengirim konteks ke DeepSeek — {period_label}...")
     print(f"[AI Insights] ID map: {len(id_map)} artikel ditandai.")
 
     response = client.chat.completions.create(
@@ -352,8 +485,8 @@ def generate_insights(articles: list[dict], period_label: str) -> dict:
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user",   "content": user_prompt},
         ],
-        temperature=0.5,
-        max_tokens=1500,
+        temperature=0.4,      # Sedikit lebih rendah dari sebelumnya (0.5) → lebih konsisten
+        max_tokens=2000,      # Dinaikkan dari 1500 → ruang lebih untuk insight mendalam
         response_format={"type": "json_object"},
     )
 
@@ -362,41 +495,47 @@ def generate_insights(articles: list[dict], period_label: str) -> dict:
 
     result = _extract_json(raw)
 
-    # ── Teks insight: fallback jika kosong ──────────────────────────────────
+    # ── Teks insight: fallback jika kosong ────────────────────────────────────
     for key in ("pdrb", "kemiskinan", "pengangguran"):
         if key not in result or not result[key]:
             result[key] = "Data berita periode ini belum mencukupi untuk analisis mendalam."
 
-    # ── Injeksi link inline + derivasi sumber dari marker ───────────────────
+    # ── Injeksi link inline + derivasi sumber dari marker ────────────────────
+    # Siapkan all_articles untuk fallback keyword-based sources
+    all_category_articles = {
+        "pdrb":         pdrb_articles,
+        "kemiskinan":   kemiskinan_articles,
+        "pengangguran": pengangguran_articles,
+    }
+
     sources = {}
     for cat in ("pdrb", "kemiskinan", "pengangguran"):
         insight_text = result.get(cat, "")
 
-        # Safety net: kalau insight bilang data belum cukup, sumber pasti kosong
-        if _is_insufficient(insight_text):
-            result[cat] = insight_text   # teks plain, tidak ada link
-            sources[cat] = []
-            print(f"[AI Insights] {cat}: insight menyatakan data kurang → sources kosong.")
-            continue
-
-        # Inject inline citation links + derive sources dari marker dalam teks
+        # Selalu inject inline links, bahkan jika insight bilang data kurang
+        # karena AI mungkin tetap merujuk berita dengan sitasi [P01], [K02], dll.
         html_text, inline_sources = _inject_inline_links(insight_text, id_map)
-        result[cat] = html_text  # teks insight kini berisi HTML anchor
+        result[cat] = html_text
 
         if inline_sources:
             sources[cat] = inline_sources
             print(f"[AI Insights] {cat}: {len(inline_sources)} sumber dari sitasi inline.")
-        else:
+        elif not _is_insufficient(insight_text):
+            # Hanya fallback jika insight TIDAK menyatakan data kurang
             # Fallback 1: pakai *_source_ids dari JSON AI
             ai_ids = result.get(f"{cat}_source_ids", [])
             if isinstance(ai_ids, list) and ai_ids:
-                resolved = _resolve_sources(ai_ids, id_map)
+                resolved    = _resolve_sources(ai_ids, id_map)
                 sources[cat] = resolved
-                print(f"[AI Insights] {cat}: fallback source_ids → {len(resolved)} valid.")
+                print(f"[AI Insights] {cat}: fallback source_ids - {len(resolved)} valid.")
             else:
-                # Fallback 2: keyword-based (lama)
-                sources[cat] = _get_sources(articles, cat)
+                # Fallback 2: keyword-based dari artikel kategori yang sudah dipilih
+                sources[cat] = _get_sources(all_category_articles[cat], cat)
                 print(f"[AI Insights] {cat}: fallback keyword match.")
+        else:
+            # Insight menyatakan data kurang dan tidak ada inline citations
+            sources[cat] = []
+            print(f"[AI Insights] {cat}: insight menyatakan data kurang, tidak ada sitasi.")
 
     result["sources"] = sources
     return result
