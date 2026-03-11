@@ -65,6 +65,38 @@ const KBLI_KEY_MAPPING = {
 // Regex deteksi format confidence rendah: "KODE (Tingkat Kepercayaan Model Rendah)"
 const _RE_LOW_CONF = /^(.+?)\s+\(Tingkat Kepercayaan Model Rendah\)$/;
 
+// ── Filter tag tidak informatif (mirror logic dari core/utils.py clean_tags) ──
+
+// 1. Kata lokasi — word-boundary: menangkap "berita tegal", "pemkab tegal", dll.
+const _RE_LOCATION_WORD = /\b(?:tegal|kota tegal|kabupaten tegal|slawi|jawa tengah|jateng|brebes|pemalang|pekalongan|batang|kendal|pemkab|pemkot)\b/i;
+
+// 2. Stop words — exact match (seluruh tag, lowercase)
+const _STOPWORD_EXACT = new Set([
+  "ini","itu","dan","di","ke","dari","yang","untuk",
+  "dengan","ada","bisa","juga","sudah","akan","lagi",
+  "oleh","atau","saja","pun","bila","jika","ia","si",
+  "hari","bulan","tahun","orang","pada","hal","cara",
+  "bagi","agar","saat","serta","lebih","belum","masih",
+  "kami","kamu","anda","kita","mereka","dia","nya",
+  "berita","terbaru","update",
+]);
+
+/**
+ * Kembalikan true jika tag layak ditampilkan (bukan noise).
+ * - Bukan angka atau ≤ 2 karakter
+ * - Tidak mengandung kata lokasi sebagai kata utuh (\b...\b)
+ * - Bukan stop word
+ */
+function _isCleanTag(raw) {
+  const t = raw.trim().replace(/^#/, "");
+  if (!t) return false;
+  if (t.length <= 2) return false;                 // terlalu pendek
+  if (/^\d+$/.test(t)) return false;               // murni angka
+  if (_RE_LOCATION_WORD.test(t)) return false;     // mengandung kata lokasi
+  if (_STOPWORD_EXACT.has(t.toLowerCase())) return false;  // stop word
+  return true;
+}
+
 // Map KBLI kode → CSS group class untuk badge berwarna
 const KBLI_GROUP_CLASS = {
   A1: "a",
@@ -307,6 +339,7 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
       updateSummary();
       renderTable();
       renderChart();
+      renderKbliChart();
     }
   } catch (err) {
     console.error("Gagal memuat berita:", err);
@@ -490,52 +523,37 @@ function hideProgress() {
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
 function updateSummary() {
-  document.getElementById("totalBerita").textContent = allData.length;
+  // Filter ke 30 hari terakhir untuk semua card statistik
+  const now    = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
 
-  const tagCount = {};
-  allData.forEach((item) => {
-    if (!item.tags) return;
-    item.tags.split(/\s*\|\s*|,\s*/).forEach((t) => {
-      const tag = t.trim().replace(/^#/, "");
-      if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
-    });
+  const last30 = allData.filter((item) => {
+    if (item.date_parsed) return String(item.date_parsed) >= cutoffStr;
+    // Fallback: parse dari string date Indonesia
+    const d = parseDateID(item.date);
+    return !isNaN(d) && d >= cutoff;
   });
 
-  document.getElementById("totalTags").textContent =
-    Object.keys(tagCount).length;
+  // Card 1: Total Berita (30 hari)
+  document.getElementById("totalBerita").textContent = last30.length;
 
-  const sorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
-  const topEl = document.getElementById("topTag");
-  if (sorted.length > 0) {
-    topEl.textContent = sorted[0][0];
-    topEl.classList.add("text-value");
-  } else {
-    topEl.textContent = "—";
-  }
-
-  const latestEl = document.getElementById("tanggalTerbaru");
-  latestEl.textContent =
-    allData.length > 0 && allData[0].date ? allData[0].date : "—";
-
-  // ── KBLI stats ────────────────────────────────────────────────────────────
+  // Card 2: KBLI Terbanyak (30 hari)
   const kbliCount = {};
-  allData.forEach((item) => {
+  last30.forEach((item) => {
     if (!item.kbli) return;
-    // Abaikan yang confidence rendah (Tidak Relevan)
     if (_RE_LOW_CONF.test(item.kbli)) return;
-    // Format: "KODE/Deskripsi" → ambil deskripsi saja
-    const parts = item.kbli.split("/");
-    const kode = parts[0].trim().toUpperCase();
+    const kode = item.kbli.split("/")[0].trim().toUpperCase();
     if (!kode) return;
     kbliCount[kode] = (kbliCount[kode] || 0) + 1;
   });
   const kbliSorted = Object.entries(kbliCount).sort((a, b) => b[1] - a[1]);
-  const topKbliEl = document.getElementById("topKbli");
+  const topKbliEl  = document.getElementById("topKbli");
   if (kbliSorted.length > 0) {
     const topKode = kbliSorted[0][0];
     const topDesc = KBLI_KEY_MAPPING[topKode];
-    // Tampilkan kode + nama singkat (max 18 char)
-    const label = topDesc
+    const label   = topDesc
       ? `${topKode} — ${topDesc.length > 20 ? topDesc.slice(0, 18) + "…" : topDesc}`
       : topKode;
     if (topKbliEl) {
@@ -545,6 +563,30 @@ function updateSummary() {
   } else {
     if (topKbliEl) topKbliEl.textContent = "—";
   }
+
+  // Card 3: Tag Terbanyak (30 hari)
+  const tagCount = {};
+  last30.forEach((item) => {
+    if (!item.tags) return;
+    item.tags.split(/\s*\|\s*|,\s*/).forEach((t) => {
+      if (!_isCleanTag(t)) return;
+      const tag = t.trim().replace(/^#/, "");
+      tagCount[tag] = (tagCount[tag] || 0) + 1;
+    });
+  });
+  const tagSorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+  const topEl     = document.getElementById("topTag");
+  if (tagSorted.length > 0) {
+    topEl.textContent = tagSorted[0][0];
+    topEl.classList.add("text-value");
+  } else {
+    topEl.textContent = "—";
+  }
+
+  // Card 4: Berita Terbaru (tanggal artikel terbaru dari semua data)
+  const latestEl = document.getElementById("tanggalTerbaru");
+  latestEl.textContent =
+    allData.length > 0 && allData[0].date ? allData[0].date : "—";
 }
 
 // ── Chart ─────────────────────────────────────────────────────────────────────
@@ -582,13 +624,14 @@ function renderChart() {
     return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
   });
 
-  // ── Hitung frekuensi tag ──────────────────────────────────────────────────
+  // ── Hitung frekuensi tag (skip noise) ───────────────────────────────────────
   const tagCount = {};
   monthData.forEach((item) => {
     if (!item.tags) return;
     item.tags.split(/\s*\|\s*|,\s*/).forEach((t) => {
+      if (!_isCleanTag(t)) return;
       const tag = t.trim().replace(/^#/, "").toLowerCase();
-      if (tag) tagCount[tag] = (tagCount[tag] || 0) + 1;
+      tagCount[tag] = (tagCount[tag] || 0) + 1;
     });
   });
 
@@ -689,6 +732,130 @@ function renderChart() {
             crossAlign: "far",
           },
           grid: { display: false },
+          border: { display: false },
+        },
+      },
+      layout: { padding: { right: 20, top: 4, bottom: 4 } },
+      barThickness: 15,
+      maxBarThickness: 32,
+    },
+  });
+}
+
+// ── KBLI Chart (Top 5, 30 hari terakhir) ──────────────────────────────────────
+
+let kbliChartInstance = null;
+
+function renderKbliChart() {
+  const now    = new Date();
+  const cutoff = new Date(now);
+  cutoff.setDate(cutoff.getDate() - 30);
+  const cutoffStr = cutoff.toISOString().slice(0, 10);
+
+  // Filter 30 hari terakhir
+  const last30 = allData.filter((item) => {
+    if (item.date_parsed) return String(item.date_parsed) >= cutoffStr;
+    const d = parseDateID(item.date);
+    return !isNaN(d) && d >= cutoff;
+  });
+
+  // Hitung frekuensi KBLI (skip low-confidence)
+  const kbliCount = {};
+  last30.forEach((item) => {
+    if (!item.kbli || _RE_LOW_CONF.test(item.kbli)) return;
+    const kode = item.kbli.split("/")[0].trim().toUpperCase();
+    if (!kode) return;
+    kbliCount[kode] = (kbliCount[kode] || 0) + 1;
+  });
+
+  // Top 5
+  const sorted = Object.entries(kbliCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+
+  const canvas = document.getElementById("chartKbli");
+  if (!canvas) return;
+  if (kbliChartInstance) { kbliChartInstance.destroy(); kbliChartInstance = null; }
+
+  if (sorted.length === 0) {
+    canvas.style.display = "none";
+    let empty = document.getElementById("kbliChartEmpty");
+    if (!empty) {
+      empty = document.createElement("p");
+      empty.id = "kbliChartEmpty";
+      empty.style.cssText = "text-align:center;color:#aaa;padding:32px 0;font-size:14px;";
+      canvas.parentNode.appendChild(empty);
+    }
+    empty.textContent = "Belum ada data KBLI dalam 30 hari terakhir.";
+    return;
+  }
+
+  canvas.style.display = "";
+  const emptyEl = document.getElementById("kbliChartEmpty");
+  if (emptyEl) emptyEl.remove();
+
+  // Label: "KODE — Deskripsi singkat"
+  const fullLabels    = sorted.map(([kode]) => {
+    const desc = KBLI_KEY_MAPPING[kode];
+    return desc ? `${kode} — ${desc}` : kode;
+  });
+  const MAX_LABEL     = 28;
+  const displayLabels = fullLabels.map((l) =>
+    l.length > MAX_LABEL ? l.slice(0, MAX_LABEL) + "…" : l,
+  );
+  const values = sorted.map(([, v]) => v);
+
+  // Palet oranye — konsisten dengan tema aplikasi
+  const BG_COLORS = [
+    "rgba(232,112,10,0.90)",
+    "rgba(232,112,10,0.76)",
+    "rgba(232,112,10,0.62)",
+    "rgba(232,112,10,0.50)",
+    "rgba(232,112,10,0.38)",
+  ];
+
+  kbliChartInstance = new Chart(canvas, {
+    type: "bar",
+    data: {
+      labels: displayLabels,
+      datasets: [{
+        label: "Jumlah Berita",
+        data: values,
+        backgroundColor: BG_COLORS.slice(0, sorted.length),
+        borderColor: "transparent",
+        borderWidth: 0,
+        borderRadius: 6,
+        borderSkipped: false,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      indexAxis: "y",
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            title: (items) => fullLabels[items[0].dataIndex],
+            label: (item)  => `  ${item.raw} berita`,
+          },
+          padding: 10,
+          bodyFont:  { size: 13 },
+          titleFont: { size: 13, weight: "bold" },
+        },
+      },
+      scales: {
+        x: {
+          beginAtZero: true,
+          ticks: { precision: 0, font: { size: 12 }, color: "#888" },
+          grid:  { color: "rgba(0,0,0,0.05)" },
+          border: { display: false },
+        },
+        y: {
+          ticks: {
+            font: { size: 13, weight: "600" },
+            color: "#222",
+            crossAlign: "far",
+          },
+          grid:   { display: false },
           border: { display: false },
         },
       },

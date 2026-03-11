@@ -25,6 +25,10 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.utils import clean_tags as _clean_tags
+
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
 BASE_URL       = "https://radartegal.disway.id"
@@ -228,7 +232,7 @@ def extract_article_content(soup: BeautifulSoup) -> tuple[str, str, str]:
         tag = a.get_text(strip=True).lstrip("#").strip()
         if tag:
             tag_list.append(tag)
-    tags_str = " | ".join(tag_list)
+    tags_str = _clean_tags(" | ".join(tag_list))
 
     return date_str, clean_content("\n".join(parts)), tags_str
 

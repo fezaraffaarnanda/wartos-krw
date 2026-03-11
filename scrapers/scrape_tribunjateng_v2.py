@@ -5,6 +5,9 @@ from urllib.parse import urljoin
 import pandas as pd
 import time
 import random
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.utils import clean_tags as _clean_tags
 
 TRIBUN_SOURCE    = "Tribun Jateng"
 TRIBUN_START_URL = "https://jateng.tribunnews.com/topic/berita-kabupaten-tegal"
@@ -144,7 +147,7 @@ def scrape_tribun(url):
 
         time.sleep(random.uniform(2, 4))
 
-    # ── Bersihkan tag: hapus entri yang mengandung domain tribunjateng/tribunnews
+    # ── Bersihkan tag: hapus entri domain + nama daerah + stop words
     raw_tags = [
         t.strip()
         for t in ", ".join(tags).replace(",", "|").split("|")
@@ -154,8 +157,8 @@ def scrape_tribun(url):
         r"tribunjateng|tribunnews|jateng\.tribun",
         re.IGNORECASE,
     )
-    clean_tags = [t for t in raw_tags if not _DOMAIN_TAG.search(t)]
-    tags_str = " | ".join(clean_tags)
+    filtered_tags = [t for t in raw_tags if not _DOMAIN_TAG.search(t)]
+    tags_str = _clean_tags(" | ".join(filtered_tags))
 
     return {
         "judul": judul,

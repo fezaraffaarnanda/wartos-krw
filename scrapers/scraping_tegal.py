@@ -12,10 +12,14 @@ Cara pakai standalone:
 
 import random
 import re
+import sys, os
 import time
 
 import requests
 from bs4 import BeautifulSoup
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.utils import clean_tags as _clean_tags
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
@@ -198,7 +202,7 @@ def _scrape_article(url: str) -> dict | None:
 
     # Tag
     tags_els = soup.select(".jeg_post_tags a")
-    tags     = ", ".join(t.get_text(strip=True) for t in tags_els)
+    tags     = _clean_tags(", ".join(t.get_text(strip=True) for t in tags_els))
 
     return {
         "title":   title,

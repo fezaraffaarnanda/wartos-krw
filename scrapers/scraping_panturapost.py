@@ -1,8 +1,12 @@
 import re
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import requests
 from bs4 import BeautifulSoup
 import pandas as pd
+
+from core.utils import clean_tags as _clean_tags
 
 PANTURAPOST_SOURCE = "Pantura Post"
 PANTURAPOST_BASE   = "https://www.panturapost.com"
@@ -102,7 +106,7 @@ def scrape_article(url):
         "judul": title,
         "penulis": author,
         "tanggal": date,
-        "tags": ", ".join(tags),
+        "tags": _clean_tags(", ".join(tags)),
         "isi": clean_content("\n".join(all_content)),
         "url": url
     }

@@ -4,6 +4,9 @@ from bs4 import BeautifulSoup
 import pandas as pd
 import time
 import random
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from core.utils import clean_tags as _clean_tags
 
 BASE_URL    = "https://www.kompas.com/tag/tegal"
 KOMPAS_SOURCE = "Kompas"
@@ -180,7 +183,7 @@ def scrape_article(url):
         "Penulis": author,
         "Isi": content,
         "Url": url,
-        "Tags": ", ".join(tags)
+        "Tags": _clean_tags(", ".join(tags))
     }
 
 

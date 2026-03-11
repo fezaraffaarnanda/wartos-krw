@@ -464,7 +464,7 @@ a:hover {
 
 .cards-grid {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 18px;
 }
 
@@ -537,6 +537,14 @@ a:hover {
     margin-top: 3px;
     text-transform: uppercase;
     letter-spacing: 0.04em;
+}
+
+.stat-period {
+    font-size: 0.68rem;
+    color: var(--orange-400);
+    font-weight: 600;
+    margin-top: 2px;
+    letter-spacing: 0.02em;
 }
 
 /* ============================================

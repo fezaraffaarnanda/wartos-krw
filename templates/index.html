@@ -174,9 +174,10 @@
             </div>
         </section>
 
-        <!-- Summary Cards -->
+        <!-- Summary Cards — 4 card, 30 hari terakhir -->
         <section class="summary-section" id="summarySection">
             <div class="cards-grid">
+                <!-- Card 1: Total Berita -->
                 <div class="stat-card card-animate" id="cardTotal">
                     <div class="stat-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -191,23 +192,26 @@
                     <div class="stat-content">
                         <span class="stat-value" id="totalBerita">0</span>
                         <span class="stat-label">Total Berita</span>
+                        <span class="stat-period">30 hari terakhir</span>
                     </div>
                 </div>
-                <div class="stat-card card-animate" id="cardTags">
+                <!-- Card 2: Kategori KBLI Terbanyak -->
+                <div class="stat-card card-animate card-highlight" id="cardKbli">
                     <div class="stat-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
                             stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="3" width="7" height="7" />
-                            <rect x="14" y="3" width="7" height="7" />
-                            <rect x="14" y="14" width="7" height="7" />
-                            <rect x="3" y="14" width="7" height="7" />
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/>
+                            <line x1="12" y1="17" x2="12" y2="21"/>
                         </svg>
                     </div>
                     <div class="stat-content">
-                        <span class="stat-value" id="totalTags">0</span>
-                        <span class="stat-label">Total Tag Unik</span>
+                        <span class="stat-value text-value" id="topKbli">&mdash;</span>
+                        <span class="stat-label">Kategori KBLI Terbanyak</span>
+                        <span class="stat-period">30 hari terakhir</span>
                     </div>
                 </div>
+                <!-- Card 3: Tag Terbanyak -->
                 <div class="stat-card card-animate card-highlight" id="cardTopTag">
                     <div class="stat-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -219,8 +223,10 @@
                     <div class="stat-content">
                         <span class="stat-value" id="topTag">—</span>
                         <span class="stat-label">Tag Terbanyak</span>
+                        <span class="stat-period">30 hari terakhir</span>
                     </div>
                 </div>
+                <!-- Card 4: Berita Terbaru -->
                 <div class="stat-card card-animate" id="cardTerbaru">
                     <div class="stat-icon">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
@@ -236,25 +242,23 @@
                         <span class="stat-label">Berita Terbaru</span>
                     </div>
                 </div>
-                <!-- KBLI Stat Card -->
-                <div class="stat-card card-animate card-highlight" id="cardKbli">
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                            <line x1="8" y1="21" x2="16" y2="21"/>
-                            <line x1="12" y1="17" x2="12" y2="21"/>
-                        </svg>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-value text-value" id="topKbli">&mdash;</span>
-                        <span class="stat-label">Kategori KBLI Terbanyak</span>
-                    </div>
+            </div>
+        </section>
+
+        <!-- KBLI Chart Section — Top 5 KBLI 30 hari terakhir -->
+        <section class="chart-section" id="kbliChartSection">
+            <div class="section-card">
+                <div class="section-header">
+                    <h2>Top 5 Kategori KBLI</h2>
+                    <p class="section-desc">Sektor ekonomi paling banyak diliput dalam <strong>30 hari terakhir</strong></p>
+                </div>
+                <div class="chart-container chart-container-small">
+                    <canvas id="chartKbli"></canvas>
                 </div>
             </div>
         </section>
 
-        <!-- Chart Section -->
+        <!-- Chart Section — Top 5 Tag Bulan Ini -->
         <section class="chart-section" id="chartSection">
             <div class="section-card">
                 <div class="section-header">
