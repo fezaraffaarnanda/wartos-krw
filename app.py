@@ -35,8 +35,9 @@ from core.ai_insights import (
     prepare_insight_articles,
     stream_category_tokens,
 )
-from core.embeddings import batch_embed_articles, _build_embedding_client
+from core.embeddings import batch_embed_articles, embed_article, _build_embedding_client
 from core.kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.llm_client import build_chat_client
 from core.rag_chat import (
     finalize_citations,
     generate_rag_answer,
@@ -692,7 +693,7 @@ def stream_ai_insights():
                 "cached": False,
             })
 
-            client = build_deepseek_client()
+            client, _chat_model = build_chat_client()
             categories = ("pdrb", "kemiskinan", "pengangguran")
             final_data: dict[str, str] = {}
             final_sources: dict[str, list[dict]] = {}
@@ -712,7 +713,7 @@ def stream_ai_insights():
                 yield _sse_payload({"type": "category_start", "category": cat, "source_map": source_map})
 
                 chunks: list[str] = []
-                for delta in stream_category_tokens(client=client, user_prompt=ctx["prompt"]):
+                for delta in stream_category_tokens(client=client, model=_chat_model, user_prompt=ctx["prompt"]):
                     chunks.append(delta)
                     yield _sse_payload({"type": "delta", "category": cat, "text": delta})
 
@@ -1250,47 +1251,48 @@ def _build_article_row(article: dict, source_label: str) -> dict:
 
 def _insert_articles(articles: list, source_key: str) -> int:
     """
-    Insert artikel valid ke Supabase, lalu generate embedding untuk artikel baru.
+    Insert artikel valid ke Supabase BESERTA embedding-nya.
+    Embedding di-generate SEBELUM insert sehingga langsung tersimpan di row —
+    tidak perlu UPDATE terpisah yang rawan gagal di Vercel serverless.
     Return jumlah yang berhasil diinsert.
     """
-    source_label  = SOURCE_LABELS.get(source_key, source_key)
-    inserted      = 0
-    new_articles  = []   # kumpulkan row yang berhasil diinsert untuk di-embed setelah insert selesai
+    source_label   = SOURCE_LABELS.get(source_key, source_key)
+    inserted       = 0
+    embedded_count = 0
+
+    # Buat embedding client sekali untuk seluruh batch agar efisien
+    embed_client = None
+    try:
+        embed_client = _build_embedding_client()
+    except Exception as exc:
+        print(f"[Embedding] {source_key}: Gagal inisialisasi client — {exc}")
+        # Lanjutkan tanpa embedding (graceful degradation)
 
     for article in articles:
         if not _is_valid_article(article, source_key):
             continue
         try:
             row = _build_article_row(article, source_label)
+
+            # ── Generate embedding SEBELUM insert ────────────────────────
+            # row sudah mengandung title, tags, content, kbli, date, date_parsed
+            # sehingga _prepare_text() di embed_article() mendapat konteks lengkap.
+            if embed_client is not None:
+                try:
+                    embedding = embed_article(row, client=embed_client)
+                    if embedding:
+                        row["embedding"] = embedding
+                        embedded_count += 1
+                except Exception as emb_exc:
+                    print(f"[Embedding] {source_key}: Gagal embed '{row.get('url', '')}' — {emb_exc}")
+
             supabase.table("berita").insert(row).execute()
             inserted += 1
-            # Simpan `row` (bukan `article` raw) agar embedding sudah berisi kbli + date_parsed
-            new_articles.append({"url": row["url"], "row": row})
         except Exception as exc:
             print(f"[DB ERROR] {source_key}: {article.get('url', '')} — {exc}")
 
     _scrape_progress[source_key]["inserted"] = inserted
-
-    # ── Generate embedding untuk artikel baru (batch) ────────────────────────
-    # Dilakukan setelah insert agar insert tidak terhambat.
-    # Menggunakan batch_embed_articles agar lebih efisien (satu API call per batch).
-    # row sudah mengandung title, tags, content, kbli, date, date_parsed.
-    # Jika embedding gagal, artikel tetap tersimpan (graceful degradation) —
-    # _run_embedding_backfill() akan menangani sisa yang belum ter-embed saat startup/post-scrape.
-    if new_articles:
-        embedded_count = 0
-        try:
-            rows_to_embed = [item["row"] for item in new_articles]
-            embeddings    = batch_embed_articles(rows_to_embed)
-            for item, embedding in zip(new_articles, embeddings):
-                if embedding:
-                    supabase.table("berita").update(
-                        {"embedding": embedding}
-                    ).eq("url", item["url"]).execute()
-                    embedded_count += 1
-        except Exception as exc:
-            print(f"[Embedding] {source_key}: Gagal batch embed — {exc}")
-        print(f"[Embedding] {source_key}: {embedded_count}/{len(new_articles)} artikel baru di-embed.")
+    print(f"[Embedding] {source_key}: {embedded_count}/{inserted} artikel baru di-embed saat insert.")
 
     return inserted
 
@@ -1575,14 +1577,20 @@ def _scrape_sync(max_articles: int) -> dict:
     print(f"[SCRAPE-SYNC] Selesai. Total {total_inserted} berita baru disimpan.")
     _log_scrape_run(total_inserted)
 
-    # Backfill KBLI setelah scraping sync — dijalankan di thread agar tidak
-    # menambah waktu respons cron (Vercel mungkin sudah dekat timeout).
+    # Backfill KBLI setelah scraping sync — dijalankan SYNCHRONOUS agar selesai
+    # sebelum Vercel serverless terminate (daemon thread dibunuh oleh Vercel).
     if _kbli_predictor is not None:
-        threading.Thread(
-            target=_run_kbli_backfill,
-            daemon=True,
-            name="kbli-backfill-post-scrape-sync",
-        ).start()
+        try:
+            _run_kbli_backfill()
+        except Exception as exc:
+            print(f"[SCRAPE-SYNC] KBLI backfill error: {exc}")
+
+    # Backfill embedding untuk artikel yang mungkin gagal embed saat insert
+    # (misalnya rate-limit API). Dijalankan SYNCHRONOUS agar pasti selesai.
+    try:
+        _run_embedding_backfill()
+    except Exception as exc:
+        print(f"[SCRAPE-SYNC] Embedding backfill error: {exc}")
 
     return {
         "status":         "ok",

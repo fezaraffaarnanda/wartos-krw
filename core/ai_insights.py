@@ -1,12 +1,16 @@
 """
-ai_insights.py — Modul AI Insight menggunakan DeepSeek LLM + RAG (pgvector)
+ai_insights.py — Modul AI Insight menggunakan LLM + RAG (pgvector)
 
 Menganalisis berita dari database dan menghasilkan insight untuk tiga kategori:
 PDRB, Kemiskinan, dan Pengangguran.
 
+Provider LLM (prioritas):
+  1. Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY) — lebih cepat, hemat quota
+  2. DeepSeek Chat (DEEPSEEK_API_KEY) — fallback
+
 Alur RAG:
   1. Semantic search via pgvector (text-embedding-3-small) per kategori
-  2. Artikel top-K paling relevan dikirim ke DeepSeek sebagai konteks
+  2. Artikel top-K paling relevan dikirim ke LLM sebagai konteks
   3. Fallback ke keyword filtering jika embedding belum tersedia
 """
 
@@ -17,9 +21,11 @@ import re
 from openai import OpenAI
 
 from core.embeddings import semantic_search_multi
+from core.llm_client import build_chat_client
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
+# DeepSeek konstanta dipertahankan untuk referensi internal (fallback provider)
 _DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 _DEEPSEEK_MODEL    = "deepseek-chat"
 
@@ -137,16 +143,20 @@ Analisis dinamika pasar kerja di Kabupaten Tegal:
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
-def _build_client() -> OpenAI:
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        raise ValueError("DEEPSEEK_API_KEY tidak ditemukan di environment variables.")
-    return OpenAI(api_key=api_key, base_url=_DEEPSEEK_BASE_URL)
+def _build_client() -> tuple[OpenAI, str]:
+    """Wrapper internal — pakai build_chat_client() dari llm_client."""
+    return build_chat_client()
 
 
 def build_deepseek_client() -> OpenAI:
-    """Public wrapper untuk dipakai endpoint streaming di app.py."""
-    return _build_client()
+    """
+    Public wrapper untuk dipakai endpoint streaming di app.py.
+    Nama dipertahankan untuk kompatibilitas — sekarang mengembalikan
+    Gemini client (atau DeepSeek jika Gemini tidak tersedia).
+    Catatan: gunakan build_chat_client() untuk mendapatkan (client, model).
+    """
+    client, _model = build_chat_client()
+    return client
 
 
 def _prefilter_articles(articles: list[dict], category: str) -> list[dict]:
@@ -331,13 +341,14 @@ Konteks berita {label}:
 def stream_category_tokens(
     *,
     client: OpenAI,
+    model: str,
     user_prompt: str,
     temperature: float = 0.35,
     max_tokens: int = 420,
 ):
-    """Yield token delta dari DeepSeek chat streaming untuk satu kategori."""
+    """Yield token delta dari LLM chat streaming untuk satu kategori insight."""
     stream = client.chat.completions.create(
-        model=_DEEPSEEK_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
@@ -672,26 +683,42 @@ def generate_insights(
         f"Pengangguran={len(pengangguran_articles)} artikel."
     )
 
-    # ── Build prompt dan kirim ke DeepSeek ────────────────────────────────────
-    client                  = _build_client()
-    user_prompt, id_map     = _build_user_prompt(
+    # ── Build prompt dan kirim ke LLM ─────────────────────────────────────────
+    client, model               = build_chat_client()
+    user_prompt, id_map         = _build_user_prompt(
         pdrb_articles, kemiskinan_articles, pengangguran_articles, period_label
     )
 
-    print(f"[AI Insights] Mengirim konteks ke DeepSeek — {period_label}...")
+    print(f"[AI Insights] Mengirim konteks ke LLM ({model}) — {period_label}...")
     print(f"[AI Insights] ID map: {len(id_map)} artikel ditandai.")
 
-    response = client.chat.completions.create(
-        model=_DEEPSEEK_MODEL,
-        messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
-            {"role": "user",   "content": user_prompt},
-        ],
-        temperature=0.4,      # Sedikit lebih rendah dari sebelumnya (0.5) → lebih konsisten
-        max_tokens=1000,      # Cukup untuk 3-5 kalimat × 3 kategori (~600-900 token aktual)
-        response_format={"type": "json_object"},
-        timeout=300,          # Timeout diperpanjang agar proses analisis mendalam tidak terpotong
-    )
+    # Gemini mendukung response_format json_object via OpenAI-compatible endpoint.
+    # Jika gagal (provider tidak mendukung), tangkap dan parse manual via _extract_json.
+    try:
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user",   "content": user_prompt},
+            ],
+            temperature=0.4,
+            max_tokens=1000,
+            response_format={"type": "json_object"},
+            timeout=300,
+        )
+    except Exception as exc:
+        # Beberapa provider tidak mendukung response_format — retry tanpa parameter ini
+        print(f"[AI Insights] response_format tidak didukung ({exc}) — retry tanpa JSON mode.")
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user",   "content": user_prompt},
+            ],
+            temperature=0.4,
+            max_tokens=1000,
+            timeout=300,
+        )
 
     raw = response.choices[0].message.content or ""
     print(f"[AI Insights] Respons diterima ({len(raw)} karakter).")

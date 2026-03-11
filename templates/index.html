@@ -1,648 +1,1188 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
-
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Dashboard Berita Lokal — BPS Kab. Tegal</title>
-    <meta name="description"
-        content="Dashboard scraping berita lokal 3 sumber. Badan Pusat Statistik Kabupaten Tegal.">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="icon" href="../static/favicon.png">
+    <meta
+      name="description"
+      content="Dashboard scraping berita lokal 3 sumber. Badan Pusat Statistik Kabupaten Tegal."
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="icon" href="../static/favicon.png" />
     <link
-        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
-        rel="stylesheet">
-    <link rel="stylesheet" href="../static/css/style.css">
+      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="../static/css/style.css" />
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-</head>
-<body>
+  </head>
+  <body>
     <!-- Header -->
     <header class="header" id="header">
-        <div class="header-inner">
-            <div class="header-brand">
-                <div class="header-logo">
-                    <img src="../static/bps.svg" alt="BPS Logo" height="40">
-                </div>
-                <div class="header-text">
-                    <h1>Dashboard Fenomena Ekonomi</h1>
-                    <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
-                </div>
-            </div>
-            <div class="header-actions">
-                <span class="header-timestamp" id="headerTimestamp">—</span>
-                <div class="header-user-info">
-                    <span class="header-user" id="headerUser"></span>
-                    <a href="/logout" class="btn-logout">Keluar</a>
-                </div>
-            </div>
+      <div class="header-inner">
+        <div class="header-brand">
+          <div class="header-logo">
+            <img src="../static/bps.svg" alt="BPS Logo" height="40" />
+          </div>
+          <div class="header-text">
+            <h1>Dashboard Fenomena Ekonomi</h1>
+            <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
+          </div>
         </div>
+        <div class="header-actions">
+          <span class="header-timestamp" id="headerTimestamp">—</span>
+          <div class="header-user-info">
+            <span class="header-user" id="headerUser"></span>
+            <a href="/logout" class="btn-logout">Keluar</a>
+          </div>
+        </div>
+      </div>
     </header>
 
     <main class="main">
-        <!-- Info Bar: last scrape & berita baru (visible untuk semua user) -->
-        <section class="scrape-info-bar" id="scrapeInfoBar">
-            <div class="last-scrape-badge" id="lastScrapeBadgeUser">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
+      <!-- Info Bar: last scrape & berita baru (visible untuk semua user) -->
+      <section class="scrape-info-bar" id="scrapeInfoBar">
+        <div class="last-scrape-badge" id="lastScrapeBadgeUser">
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          <span>Terakhir scraping: </span>
+          <strong id="lastScrapeTimeUser">memuat...</strong>
+        </div>
+        <div
+          class="last-scrape-badge"
+          id="newArticlesBadgeUser"
+          style="display: none"
+        >
+          <svg
+            width="13"
+            height="13"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+          </svg>
+          <span id="newArticlesTextUser">—</span>
+        </div>
+      </section>
+
+      <!-- Scrape Section (admin only) -->
+      <section class="scrape-section" id="scrapeSection">
+        <div class="scrape-card">
+          <div class="scrape-info">
+            <h2>Mulai Scraping Berita</h2>
+            <p>
+              Scrape berita lokal dari 4 sumber sekaligus: Radar Tegal, Pantura
+              Post, Tribun Jateng, dan Kompas. Scraping berhenti otomatis jika
+              menemukan berita yang sudah ada di database.
+            </p>
+            <p>
+              Sistem otomatis scraping setiap jam. Tidak perlu melakukan
+              scraping manual.
+            </p>
+            <div class="last-scrape-badge" id="lastScrapeBadge">
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span>Terakhir scraping: </span>
+              <strong id="lastScrapeTime">memuat...</strong>
+            </div>
+            <div
+              class="last-scrape-badge"
+              id="newArticlesBadge"
+              style="display: none"
+            >
+              <svg
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+              </svg>
+              <span id="newArticlesText">—</span>
+            </div>
+          </div>
+          <div class="scrape-controls">
+            <div class="scrape-input-group">
+              <label for="maxArticles">Maks. Berita</label>
+              <input
+                type="number"
+                id="maxArticles"
+                min="1"
+                max="999"
+                value="150"
+                placeholder="150"
+                class="scrape-input"
+              />
+            </div>
+            <button class="btn-scrape" id="btnScrape" onclick="scrapeBerita()">
+              <span class="btn-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 12a9 9 0 11-6.22-8.56" />
+                  <path d="M21 3v6h-6" />
                 </svg>
-                <span>Terakhir scraping: </span>
-                <strong id="lastScrapeTimeUser">memuat...</strong>
+              </span>
+              <span class="btn-text">Scrape Berita</span>
+              <span class="btn-loader" id="btnLoader"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Progress bars (hidden until scraping starts) -->
+        <div class="progress-section" id="scrapeProgress" style="display: none">
+          <div class="progress-header">
+            <span class="progress-title">Progress Scraping</span>
+            <span class="progress-subtitle" id="progressSubtitle"
+              >Menyiapkan...</span
+            >
+          </div>
+
+          <!-- Radar Tegal -->
+          <div class="progress-row">
+            <div class="progress-label">
+              <span class="progress-source">Radar Tegal</span>
+              <span class="progress-status" id="status-radartegal"
+                >Menunggu...</span
+              >
             </div>
-            <div class="last-scrape-badge" id="newArticlesBadgeUser" style="display:none">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                id="bar-radartegal"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span class="progress-count" id="count-radartegal">0</span>
+          </div>
+
+          <!-- Pantura Post -->
+          <div class="progress-row">
+            <div class="progress-label">
+              <span class="progress-source">Pantura Post</span>
+              <span class="progress-status" id="status-panturapost"
+                >Menunggu...</span
+              >
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                id="bar-panturapost"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span class="progress-count" id="count-panturapost">0</span>
+          </div>
+
+          <!-- Tribun Jateng -->
+          <div class="progress-row">
+            <div class="progress-label">
+              <span class="progress-source">Tribun Jateng</span>
+              <span class="progress-status" id="status-tribunjateng"
+                >Menunggu...</span
+              >
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                id="bar-tribunjateng"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span class="progress-count" id="count-tribunjateng">0</span>
+          </div>
+          <div class="progress-row">
+            <div class="progress-label">
+              <span class="progress-source">Kompas</span>
+              <span class="progress-status" id="status-kompas"
+                >Menunggu...</span
+              >
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                id="bar-kompas"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span class="progress-count" id="count-kompas">0</span>
+          </div>
+
+          <!-- Setda Tegal -->
+          <div class="progress-row">
+            <div class="progress-label">
+              <span class="progress-source">Setda Tegal</span>
+              <span class="progress-status" id="status-setdategal"
+                >Menunggu...</span
+              >
+            </div>
+            <div class="progress-bar-track">
+              <div
+                class="progress-bar-fill"
+                id="bar-setdategal"
+                style="width: 0%"
+              ></div>
+            </div>
+            <span class="progress-count" id="count-setdategal">0</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Summary Cards — 4 card, 30 hari terakhir -->
+      <section class="summary-section" id="summarySection">
+        <div class="cards-grid">
+          <!-- Card 1: Total Berita -->
+          <div class="stat-card card-animate" id="cardTotal">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path
+                  d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+                <polyline points="10 9 9 9 8 9" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value" id="totalBerita">0</span>
+              <span class="stat-label">Total Berita</span>
+              <span class="stat-period">30 hari terakhir</span>
+            </div>
+          </div>
+          <!-- Card 2: Kategori KBLI Terbanyak -->
+          <div class="stat-card card-animate card-highlight" id="cardKbli">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                <line x1="8" y1="21" x2="16" y2="21" />
+                <line x1="12" y1="17" x2="12" y2="21" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value text-value" id="topKbli">&mdash;</span>
+              <span class="stat-label">Kategori KBLI Terbanyak</span>
+              <span class="stat-period">30 hari terakhir</span>
+            </div>
+          </div>
+          <!-- Card 3: Tag Terbanyak -->
+          <div class="stat-card card-animate card-highlight" id="cardTopTag">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <polygon
+                  points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"
+                />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value" id="topTag">—</span>
+              <span class="stat-label">Tag Terbanyak</span>
+              <span class="stat-period">30 hari terakhir</span>
+            </div>
+          </div>
+          <!-- Card 4: Berita Terbaru -->
+          <div class="stat-card card-animate" id="cardTerbaru">
+            <div class="stat-icon">
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                <line x1="16" y1="2" x2="16" y2="6" />
+                <line x1="8" y1="2" x2="8" y2="6" />
+                <line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+            </div>
+            <div class="stat-content">
+              <span class="stat-value text-value" id="tanggalTerbaru">—</span>
+              <span class="stat-label">Berita Terbaru</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- KBLI Chart Section — Top 5 KBLI 30 hari terakhir -->
+      <section class="chart-section" id="kbliChartSection">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>Top 5 Kategori KBLI</h2>
+            <p class="section-desc">
+              Sektor ekonomi paling banyak diliput dalam
+              <strong>30 hari terakhir</strong>
+            </p>
+          </div>
+          <div class="chart-container chart-container-small">
+            <canvas id="chartKbli"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- Chart Section — Top 5 Tag Bulan Ini -->
+      <section class="chart-section" id="chartSection">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>Top 5 Tag Berita Bulan Ini</h2>
+            <p class="section-desc">
+              Tag paling sering muncul bulan
+              <span id="chartMonthLabel"></span> dari semua sumber berita
+            </p>
+          </div>
+          <div class="chart-container">
+            <canvas id="chartTags"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- AI Insight Section -->
+      <section class="ai-insight-section" id="aiInsightSection">
+        <div class="ai-insight-header">
+          <div>
+            <h2 class="ai-insight-title">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M12 2a10 10 0 1 0 10 10H12V2z" />
+                <path d="M12 2a10 10 0 0 1 10 10" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Insight Berita Generated by AI
+            </h2>
+            <p class="ai-insight-subtitle">
+              Analisis otomatis berita
+              <span id="aiQuarterLabel">triwulan ini</span> untuk tiga indikator
+              utama BPS
+            </p>
+          </div>
+          <div class="ai-insight-actions">
+            <!-- Badge jumlah berita -->
+            <span
+              class="ai-article-count"
+              id="aiArticleCount"
+              style="display: none"
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+              >
+                <path
+                  d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                />
+                <polyline points="14 2 14 8 20 8" />
+              </svg>
+              <span id="aiArticleCountText">—</span>
+            </span>
+
+            <!-- Dropdown periode (custom) -->
+            <div class="ai-period-dropdown" id="aiPeriodDropdown">
+              <button
+                class="ai-period-btn"
+                id="aiPeriodBtn"
+                onclick="togglePeriodDropdown()"
+                type="button"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <span id="newArticlesTextUser">—</span>
-            </div>
-        </section>
-
-        <!-- Scrape Section (admin only) -->
-        <section class="scrape-section" id="scrapeSection">
-            <div class="scrape-card">
-                <div class="scrape-info">
-                    <h2>Mulai Scraping Berita</h2>
-                    <p>Scrape berita lokal dari 4 sumber sekaligus: Radar Tegal, Pantura Post, Tribun Jateng, dan Kompas.
-                        Scraping berhenti otomatis jika menemukan berita yang sudah ada di database.</p>
-                    <p>Sistem otomatis scraping setiap jam. Tidak perlu melakukan scraping manual.</p>
-                    <div class="last-scrape-badge" id="lastScrapeBadge">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="10" />
-                            <polyline points="12 6 12 12 16 14" />
-                        </svg>
-                        <span>Terakhir scraping: </span>
-                        <strong id="lastScrapeTime">memuat...</strong>
-                    </div>
-                    <div class="last-scrape-badge" id="newArticlesBadge" style="display:none">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
-                        </svg>
-                        <span id="newArticlesText">—</span>
-                    </div>
-                </div>
-                <div class="scrape-controls">
-                    <div class="scrape-input-group">
-                        <label for="maxArticles">Maks. Berita</label>
-                        <input type="number" id="maxArticles" min="1" max="999" value="150" placeholder="150"
-                            class="scrape-input">
-                    </div>
-                    <button class="btn-scrape" id="btnScrape" onclick="scrapeBerita()">
-                        <span class="btn-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 12a9 9 0 11-6.22-8.56" />
-                                <path d="M21 3v6h-6" />
-                            </svg>
-                        </span>
-                        <span class="btn-text">Scrape Berita</span>
-                        <span class="btn-loader" id="btnLoader"></span>
-                    </button>
-                </div>
-            </div>
-
-            <!-- Progress bars (hidden until scraping starts) -->
-            <div class="progress-section" id="scrapeProgress" style="display:none">
-                <div class="progress-header">
-                    <span class="progress-title">Progress Scraping</span>
-                    <span class="progress-subtitle" id="progressSubtitle">Menyiapkan...</span>
-                </div>
-
-                <!-- Radar Tegal -->
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-source">Radar Tegal</span>
-                        <span class="progress-status" id="status-radartegal">Menunggu...</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="bar-radartegal" style="width:0%"></div>
-                    </div>
-                    <span class="progress-count" id="count-radartegal">0</span>
-                </div>
-
-                <!-- Pantura Post -->
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-source">Pantura Post</span>
-                        <span class="progress-status" id="status-panturapost">Menunggu...</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="bar-panturapost" style="width:0%"></div>
-                    </div>
-                    <span class="progress-count" id="count-panturapost">0</span>
-                </div>
-
-                <!-- Tribun Jateng -->
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-source">Tribun Jateng</span>
-                        <span class="progress-status" id="status-tribunjateng">Menunggu...</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="bar-tribunjateng" style="width:0%"></div>
-                    </div>
-                    <span class="progress-count" id="count-tribunjateng">0</span>
-                </div>
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-source">Kompas</span>
-                        <span class="progress-status" id="status-kompas">Menunggu...</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="bar-kompas" style="width:0%"></div>
-                    </div>
-                    <span class="progress-count" id="count-kompas">0</span>
-                </div>
-
-                <!-- Setda Tegal -->
-                <div class="progress-row">
-                    <div class="progress-label">
-                        <span class="progress-source">Setda Tegal</span>
-                        <span class="progress-status" id="status-setdategal">Menunggu...</span>
-                    </div>
-                    <div class="progress-bar-track">
-                        <div class="progress-bar-fill" id="bar-setdategal" style="width:0%"></div>
-                    </div>
-                    <span class="progress-count" id="count-setdategal">0</span>
-                </div>
-            </div>
-        </section>
-
-        <!-- Summary Cards — 4 card, 30 hari terakhir -->
-        <section class="summary-section" id="summarySection">
-            <div class="cards-grid">
-                <!-- Card 1: Total Berita -->
-                <div class="stat-card card-animate" id="cardTotal">
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                            <polyline points="14 2 14 8 20 8" />
-                            <line x1="16" y1="13" x2="8" y2="13" />
-                            <line x1="16" y1="17" x2="8" y2="17" />
-                            <polyline points="10 9 9 9 8 9" />
-                        </svg>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-value" id="totalBerita">0</span>
-                        <span class="stat-label">Total Berita</span>
-                        <span class="stat-period">30 hari terakhir</span>
-                    </div>
-                </div>
-                <!-- Card 2: Kategori KBLI Terbanyak -->
-                <div class="stat-card card-animate card-highlight" id="cardKbli">
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                            <line x1="8" y1="21" x2="16" y2="21"/>
-                            <line x1="12" y1="17" x2="12" y2="21"/>
-                        </svg>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-value text-value" id="topKbli">&mdash;</span>
-                        <span class="stat-label">Kategori KBLI Terbanyak</span>
-                        <span class="stat-period">30 hari terakhir</span>
-                    </div>
-                </div>
-                <!-- Card 3: Tag Terbanyak -->
-                <div class="stat-card card-animate card-highlight" id="cardTopTag">
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <polygon
-                                points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-                        </svg>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-value" id="topTag">—</span>
-                        <span class="stat-label">Tag Terbanyak</span>
-                        <span class="stat-period">30 hari terakhir</span>
-                    </div>
-                </div>
-                <!-- Card 4: Berita Terbaru -->
-                <div class="stat-card card-animate" id="cardTerbaru">
-                    <div class="stat-icon">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                            <line x1="16" y1="2" x2="16" y2="6" />
-                            <line x1="8" y1="2" x2="8" y2="6" />
-                            <line x1="3" y1="10" x2="21" y2="10" />
-                        </svg>
-                    </div>
-                    <div class="stat-content">
-                        <span class="stat-value text-value" id="tanggalTerbaru">—</span>
-                        <span class="stat-label">Berita Terbaru</span>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- KBLI Chart Section — Top 5 KBLI 30 hari terakhir -->
-        <section class="chart-section" id="kbliChartSection">
-            <div class="section-card">
-                <div class="section-header">
-                    <h2>Top 5 Kategori KBLI</h2>
-                    <p class="section-desc">Sektor ekonomi paling banyak diliput dalam <strong>30 hari terakhir</strong></p>
-                </div>
-                <div class="chart-container chart-container-small">
-                    <canvas id="chartKbli"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- Chart Section — Top 5 Tag Bulan Ini -->
-        <section class="chart-section" id="chartSection">
-            <div class="section-card">
-                <div class="section-header">
-                    <h2>Top 5 Tag Berita Bulan Ini</h2>
-                    <p class="section-desc">Tag paling sering muncul bulan <span id="chartMonthLabel"></span> dari semua sumber berita</p>
-                </div>
-                <div class="chart-container">
-                    <canvas id="chartTags"></canvas>
-                </div>
-            </div>
-        </section>
-
-        <!-- AI Insight Section -->
-        <section class="ai-insight-section" id="aiInsightSection">
-            <div class="ai-insight-header">
-                <div>
-                    <h2 class="ai-insight-title">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M12 2a10 10 0 1 0 10 10H12V2z"/>
-                            <path d="M12 2a10 10 0 0 1 10 10"/>
-                            <circle cx="12" cy="12" r="3"/>
-                        </svg>
-                        Insight AI — DeepSeek
-                    </h2>
-                    <p class="ai-insight-subtitle">
-                        Analisis otomatis berita <span id="aiQuarterLabel">triwulan ini</span> untuk tiga indikator utama BPS
-                    </p>
-                </div>
-                <div class="ai-insight-actions">
-                    <!-- Badge jumlah berita -->
-                    <span class="ai-article-count" id="aiArticleCount" style="display:none">
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        <span id="aiArticleCountText">—</span>
-                    </span>
-
-                    <!-- Dropdown periode (custom) -->
-                    <div class="ai-period-dropdown" id="aiPeriodDropdown">
-                        <button class="ai-period-btn" id="aiPeriodBtn" onclick="togglePeriodDropdown()" type="button">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                <line x1="16" y1="2" x2="16" y2="6"/>
-                                <line x1="8" y1="2" x2="8" y2="6"/>
-                                <line x1="3" y1="10" x2="21" y2="10"/>
-                            </svg>
-                            <span id="aiPeriodLabel">Triwulan I (Jan–Mar)</span>
-                            <svg class="ai-period-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                        <div class="ai-period-menu" id="aiPeriodMenu" style="display:none">
-                            <div class="ai-period-group-label">Triwulanan</div>
-                            <button class="ai-period-option active" data-value="q1" onclick="selectPeriod('q1','Triwulan I (Jan–Mar)')">Triwulan I <span>Jan–Mar</span></button>
-                            <button class="ai-period-option" data-value="q2" onclick="selectPeriod('q2','Triwulan II (Apr–Jun)')">Triwulan II <span>Apr–Jun</span></button>
-                            <button class="ai-period-option" data-value="q3" onclick="selectPeriod('q3','Triwulan III (Jul–Sep)')">Triwulan III <span>Jul–Sep</span></button>
-                            <button class="ai-period-option" data-value="q4" onclick="selectPeriod('q4','Triwulan IV (Okt–Des)')">Triwulan IV <span>Okt–Des</span></button>
-                            <div class="ai-period-group-label">Semesteran</div>
-                            <button class="ai-period-option" data-value="s1" onclick="selectPeriod('s1','Semester I (Jan–Jun)')">Semester I <span>Jan–Jun</span></button>
-                            <button class="ai-period-option" data-value="s2" onclick="selectPeriod('s2','Semester II (Jul–Des)')">Semester II <span>Jul–Des</span></button>
-                            <div class="ai-period-group-label">Tahunan</div>
-                            <button class="ai-period-option" data-value="yearly" onclick="selectPeriod('yearly','Tahunan (Jan–Des)')">Tahunan <span>Jan–Des</span></button>
-                        </div>
-                    </div>
-
-                    <!-- Dropdown tahun (custom, sama seperti period) -->
-                    <div class="ai-period-dropdown" id="aiYearDropdown">
-                        <button class="ai-period-btn" id="aiYearBtn" onclick="toggleYearDropdown()" type="button">
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
-                                <line x1="16" y1="2" x2="16" y2="6"/>
-                                <line x1="8" y1="2" x2="8" y2="6"/>
-                                <line x1="3" y1="10" x2="21" y2="10"/>
-                            </svg>
-                            <span id="aiYearLabel">...</span>
-                            <svg class="ai-period-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                <polyline points="6 9 12 15 18 9"/>
-                            </svg>
-                        </button>
-                        <div class="ai-period-menu" id="aiYearMenu" style="display:none; min-width:90px;">
-                            <!-- opsi tahun diisi oleh JS -->
-                        </div>
-                    </div>
-
-                    <!-- Tombol Refresh -->
-                    <button class="btn-refresh-ai" id="btnRefreshAI" onclick="refreshAIInsights()" title="Regenerasi insight AI">
-                        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                            stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" id="refreshIcon">
-                            <path d="M21 12a9 9 0 11-6.22-8.56"/>
-                            <path d="M21 3v6h-6"/>
-                        </svg>
-                        <span id="btnRefreshText">Refresh</span>
-                    </button>
-                </div>
+                <span id="aiPeriodLabel">Triwulan I (Jan–Mar)</span>
+                <svg
+                  class="ai-period-chevron"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div
+                class="ai-period-menu"
+                id="aiPeriodMenu"
+                style="display: none"
+              >
+                <div class="ai-period-group-label">Triwulanan</div>
+                <button
+                  class="ai-period-option active"
+                  data-value="q1"
+                  onclick="selectPeriod('q1', 'Triwulan I (Jan–Mar)')"
+                >
+                  Triwulan I <span>Jan–Mar</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="q2"
+                  onclick="selectPeriod('q2', 'Triwulan II (Apr–Jun)')"
+                >
+                  Triwulan II <span>Apr–Jun</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="q3"
+                  onclick="selectPeriod('q3', 'Triwulan III (Jul–Sep)')"
+                >
+                  Triwulan III <span>Jul–Sep</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="q4"
+                  onclick="selectPeriod('q4', 'Triwulan IV (Okt–Des)')"
+                >
+                  Triwulan IV <span>Okt–Des</span>
+                </button>
+                <div class="ai-period-group-label">Semesteran</div>
+                <button
+                  class="ai-period-option"
+                  data-value="s1"
+                  onclick="selectPeriod('s1', 'Semester I (Jan–Jun)')"
+                >
+                  Semester I <span>Jan–Jun</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="s2"
+                  onclick="selectPeriod('s2', 'Semester II (Jul–Des)')"
+                >
+                  Semester II <span>Jul–Des</span>
+                </button>
+                <div class="ai-period-group-label">Tahunan</div>
+                <button
+                  class="ai-period-option"
+                  data-value="yearly"
+                  onclick="selectPeriod('yearly', 'Tahunan (Jan–Des)')"
+                >
+                  Tahunan <span>Jan–Des</span>
+                </button>
+              </div>
             </div>
 
-            <!-- Loading status text -->
-            <div class="ai-loading-status" id="aiLoadingStatus" style="display:none">
-                <div class="ai-loading-dot"></div>
-                <span id="aiLoadingText">Memuat insight...</span>
+            <!-- Dropdown tahun (custom, sama seperti period) -->
+            <div class="ai-period-dropdown" id="aiYearDropdown">
+              <button
+                class="ai-period-btn"
+                id="aiYearBtn"
+                onclick="toggleYearDropdown()"
+                type="button"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <span id="aiYearLabel">...</span>
+                <svg
+                  class="ai-period-chevron"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div
+                class="ai-period-menu"
+                id="aiYearMenu"
+                style="display: none; min-width: 90px"
+              >
+                <!-- opsi tahun diisi oleh JS -->
+              </div>
             </div>
 
-            <div class="ai-insight-grid" id="aiInsightGrid">
-                <!-- PDRB Card -->
-                <div class="ai-card ai-card-pdrb" id="aiCardPdrb">
-                    <div class="ai-card-header">
-                        <div class="ai-card-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <line x1="12" y1="2" x2="12" y2="22"/>
-                                <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="ai-card-label">Indikator Ekonomi</div>
-                            <div class="ai-card-title">PDRB</div>
-                            <div class="ai-card-sub">Klasifikasi Lapangan Usaha</div>
-                        </div>
-                    </div>
-                    <div class="ai-card-body" id="aiBodyPdrb">
-                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
-                    </div>
-                    <div class="ai-sources-wrap" id="aiSourcesPdrb" style="display:none">
-                        <button class="ai-sources-toggle" onclick="toggleSources('Pdrb')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                            <span id="aiSourcesLabelPdrb">Sumber Berita (0)</span>
-                        </button>
-                        <ul class="ai-sources-list" id="aiSourcesListPdrb" style="display:none"></ul>
-                    </div>
-                </div>
+            <!-- Tombol Refresh -->
+            <button
+              class="btn-refresh-ai"
+              id="btnRefreshAI"
+              onclick="refreshAIInsights()"
+              title="Regenerasi insight AI"
+            >
+              <svg
+                width="15"
+                height="15"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                id="refreshIcon"
+              >
+                <path d="M21 12a9 9 0 11-6.22-8.56" />
+                <path d="M21 3v6h-6" />
+              </svg>
+              <span id="btnRefreshText">Refresh</span>
+            </button>
+          </div>
+        </div>
 
-                <!-- Kemiskinan Card -->
-                <div class="ai-card ai-card-kemiskinan" id="aiCardKemiskinan">
-                    <div class="ai-card-header">
-                        <div class="ai-card-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/>
-                                <circle cx="9" cy="7" r="4"/>
-                                <path d="M23 21v-2a4 4 0 00-3-3.87"/>
-                                <path d="M16 3.13a4 4 0 010 7.75"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="ai-card-label">Indikator Sosial</div>
-                            <div class="ai-card-title">Kemiskinan</div>
-                            <div class="ai-card-sub">Tingkat &amp; Penyebab</div>
-                        </div>
-                    </div>
-                    <div class="ai-card-body" id="aiBodyKemiskinan">
-                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
-                    </div>
-                    <div class="ai-sources-wrap" id="aiSourcesKemiskinan" style="display:none">
-                        <button class="ai-sources-toggle" onclick="toggleSources('Kemiskinan')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                            <span id="aiSourcesLabelKemiskinan">Sumber Berita (0)</span>
-                        </button>
-                        <ul class="ai-sources-list" id="aiSourcesListKemiskinan" style="display:none"></ul>
-                    </div>
-                </div>
+        <!-- Loading status text -->
+        <div
+          class="ai-loading-status"
+          id="aiLoadingStatus"
+          style="display: none"
+        >
+          <div class="ai-loading-dot"></div>
+          <span id="aiLoadingText">Memuat insight...</span>
+        </div>
 
-                <!-- Pengangguran Card -->
-                <div class="ai-card ai-card-pengangguran" id="aiCardPengangguran">
-                    <div class="ai-card-header">
-                        <div class="ai-card-icon">
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="2" y="7" width="20" height="14" rx="2" ry="2"/>
-                                <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
-                            </svg>
-                        </div>
-                        <div>
-                            <div class="ai-card-label">Indikator Ketenagakerjaan</div>
-                            <div class="ai-card-title">Pengangguran</div>
-                            <div class="ai-card-sub">Tingkat &amp; Fenomena</div>
-                        </div>
-                    </div>
-                    <div class="ai-card-body" id="aiBodyPengangguran">
-                        <div class="ai-skeleton"><div class="ai-skeleton-line"></div><div class="ai-skeleton-line w80"></div><div class="ai-skeleton-line w90"></div><div class="ai-skeleton-line w70"></div></div>
-                    </div>
-                    <div class="ai-sources-wrap" id="aiSourcesPengangguran" style="display:none">
-                        <button class="ai-sources-toggle" onclick="toggleSources('Pengangguran')">
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"/></svg>
-                            <span id="aiSourcesLabelPengangguran">Sumber Berita (0)</span>
-                        </button>
-                        <ul class="ai-sources-list" id="aiSourcesListPengangguran" style="display:none"></ul>
-                    </div>
-                </div>
+        <div class="ai-insight-grid" id="aiInsightGrid">
+          <!-- PDRB Card -->
+          <div class="ai-card ai-card-pdrb" id="aiCardPdrb">
+            <div class="ai-card-header">
+              <div class="ai-card-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <line x1="12" y1="2" x2="12" y2="22" />
+                  <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
+                </svg>
+              </div>
+              <div>
+                <div class="ai-card-label">Indikator Ekonomi</div>
+                <div class="ai-card-title">PDRB</div>
+                <div class="ai-card-sub">Klasifikasi Lapangan Usaha</div>
+              </div>
             </div>
-        </section>
-
-        <!-- Table Section -->
-        <section class="table-section" id="tableSection">
-            <div class="section-card">
-                <div class="section-header">
-                    <h2>Tabel Hasil Scraping</h2>
-                    <div class="table-controls">
-                        <div class="search-wrapper">
-                            <svg class="search-icon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <circle cx="11" cy="11" r="8" />
-                                <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                            </svg>
-                            <input type="text" id="searchInput" class="search-input"
-                                placeholder="Cari judul berita atau tags..." oninput="debounceFilters()">
-                        </div>
-                        <!-- Date Range Filter -->
-                        <div class="date-filter-group">
-                            <svg class="date-filter-icon" width="15" height="15" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
-                                <line x1="16" y1="2" x2="16" y2="6" />
-                                <line x1="8" y1="2" x2="8" y2="6" />
-                                <line x1="3" y1="10" x2="21" y2="10" />
-                            </svg>
-                            <div class="date-inputs">
-                                <div class="date-input-wrap">
-                                    <label for="dateFrom">Dari</label>
-                                    <input type="date" id="dateFrom" class="date-input" onchange="applyFilters()">
-                                </div>
-                                <span class="date-separator">—</span>
-                                <div class="date-input-wrap">
-                                    <label for="dateTo">Sampai</label>
-                                    <input type="date" id="dateTo" class="date-input" onchange="applyFilters()">
-                                </div>
-                            </div>
-                            <button class="btn-reset-date hidden" id="btnResetDate" onclick="resetDateFilter()" title="Reset filter tanggal">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <line x1="18" y1="6" x2="6" y2="18" />
-                                    <line x1="6" y1="6" x2="18" y2="18" />
-                                </svg>
-                            </button>
-                        </div>
-                        <!-- KBLI Filter Dropdown -->
-                        <div class="kbli-filter-wrapper" id="kbliFilterWrapper">
-                            <button class="kbli-filter-btn" id="kbliFilterBtn" onclick="toggleKbliFilter()" type="button">
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
-                                    <line x1="8" y1="21" x2="16" y2="21"/>
-                                    <line x1="12" y1="17" x2="12" y2="21"/>
-                                </svg>
-                                <span id="kbliFilterDot" class="kbli-filter-dot" style="display:none"></span>
-                                <span id="kbliFilterLabel">Filter KBLI</span>
-                                <svg class="kbli-filter-chevron" width="13" height="13" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                                    <polyline points="6 9 12 15 18 9"/>
-                                </svg>
-                            </button>
-                            <div class="kbli-filter-menu" id="kbliFilterMenu"></div>
-                        </div>
-                        <button class="btn-download" id="btnDownload" onclick="downloadExcel()">
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor"
-                                stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
-                                <polyline points="7 10 12 15 17 10" />
-                                <line x1="12" y1="15" x2="12" y2="3" />
-                            </svg>
-                            <span>Download Excel</span>
-                        </button>
-                    </div>
-                </div>
-                <div class="table-responsive">
-                    <table class="data-table" id="dataTable">
-                        <thead>
-                            <tr>
-                                <th class="th-no">No</th>
-                                <th class="th-sortable" onclick="sortTable('title')">
-                                    Judul Berita
-                                    <span class="sort-icon" id="sort-title">↕</span>
-                                </th>
-                                <th class="th-source">Sumber Berita</th>
-                                <th class="th-sortable th-date" onclick="sortTable('date')">
-                                    Tanggal
-                                    <span class="sort-icon" id="sort-date">↓</span>
-                                </th>
-                                <th class="th-sortable th-tags" onclick="sortTable('tags')">
-                                    Tags
-                                    <span class="sort-icon" id="sort-tags">↕</span>
-                                </th>
-                                <th class="th-kbli">KBLI</th>
-                                <th class="th-link">Link Berita</th>
-                            </tr>
-                        </thead>
-                        <tbody id="tableBody">
-                            <tr class="empty-row">
-                                <td colspan="7">
-                                    <div class="empty-state">
-                                        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc"
-                                            stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
-                                            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-                                            <polyline points="14 2 14 8 20 8" />
-                                        </svg>
-                                        <p>Belum ada data. Klik <strong>"Scrape Berita"</strong> untuk memulai.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-                <div class="pagination" id="pagination"></div>
+            <div class="ai-card-body" id="aiBodyPdrb">
+              <div class="ai-skeleton">
+                <div class="ai-skeleton-line"></div>
+                <div class="ai-skeleton-line w80"></div>
+                <div class="ai-skeleton-line w90"></div>
+                <div class="ai-skeleton-line w70"></div>
+              </div>
             </div>
-        </section>
+            <div
+              class="ai-sources-wrap"
+              id="aiSourcesPdrb"
+              style="display: none"
+            >
+              <button class="ai-sources-toggle" onclick="toggleSources('Pdrb')">
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span id="aiSourcesLabelPdrb">Sumber Berita (0)</span>
+              </button>
+              <ul
+                class="ai-sources-list"
+                id="aiSourcesListPdrb"
+                style="display: none"
+              ></ul>
+            </div>
+          </div>
+
+          <!-- Kemiskinan Card -->
+          <div class="ai-card ai-card-kemiskinan" id="aiCardKemiskinan">
+            <div class="ai-card-header">
+              <div class="ai-card-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 00-3-3.87" />
+                  <path d="M16 3.13a4 4 0 010 7.75" />
+                </svg>
+              </div>
+              <div>
+                <div class="ai-card-label">Indikator Sosial</div>
+                <div class="ai-card-title">Kemiskinan</div>
+                <div class="ai-card-sub">Tingkat &amp; Penyebab</div>
+              </div>
+            </div>
+            <div class="ai-card-body" id="aiBodyKemiskinan">
+              <div class="ai-skeleton">
+                <div class="ai-skeleton-line"></div>
+                <div class="ai-skeleton-line w80"></div>
+                <div class="ai-skeleton-line w90"></div>
+                <div class="ai-skeleton-line w70"></div>
+              </div>
+            </div>
+            <div
+              class="ai-sources-wrap"
+              id="aiSourcesKemiskinan"
+              style="display: none"
+            >
+              <button
+                class="ai-sources-toggle"
+                onclick="toggleSources('Kemiskinan')"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span id="aiSourcesLabelKemiskinan">Sumber Berita (0)</span>
+              </button>
+              <ul
+                class="ai-sources-list"
+                id="aiSourcesListKemiskinan"
+                style="display: none"
+              ></ul>
+            </div>
+          </div>
+
+          <!-- Pengangguran Card -->
+          <div class="ai-card ai-card-pengangguran" id="aiCardPengangguran">
+            <div class="ai-card-header">
+              <div class="ai-card-icon">
+                <svg
+                  width="20"
+                  height="20"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="2" y="7" width="20" height="14" rx="2" ry="2" />
+                  <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16" />
+                </svg>
+              </div>
+              <div>
+                <div class="ai-card-label">Indikator Ketenagakerjaan</div>
+                <div class="ai-card-title">Pengangguran</div>
+                <div class="ai-card-sub">Tingkat &amp; Fenomena</div>
+              </div>
+            </div>
+            <div class="ai-card-body" id="aiBodyPengangguran">
+              <div class="ai-skeleton">
+                <div class="ai-skeleton-line"></div>
+                <div class="ai-skeleton-line w80"></div>
+                <div class="ai-skeleton-line w90"></div>
+                <div class="ai-skeleton-line w70"></div>
+              </div>
+            </div>
+            <div
+              class="ai-sources-wrap"
+              id="aiSourcesPengangguran"
+              style="display: none"
+            >
+              <button
+                class="ai-sources-toggle"
+                onclick="toggleSources('Pengangguran')"
+              >
+                <svg
+                  width="12"
+                  height="12"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+                <span id="aiSourcesLabelPengangguran">Sumber Berita (0)</span>
+              </button>
+              <ul
+                class="ai-sources-list"
+                id="aiSourcesListPengangguran"
+                style="display: none"
+              ></ul>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Table Section -->
+      <section class="table-section" id="tableSection">
+        <div class="section-card">
+          <div class="section-header">
+            <h2>Tabel Hasil Scraping</h2>
+            <div class="table-controls">
+              <div class="search-wrapper">
+                <svg
+                  class="search-icon"
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  id="searchInput"
+                  class="search-input"
+                  placeholder="Cari judul berita atau tags..."
+                  oninput="debounceFilters()"
+                />
+              </div>
+              <!-- Date Range Filter -->
+              <div class="date-filter-group">
+                <svg
+                  class="date-filter-icon"
+                  width="15"
+                  height="15"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <rect x="3" y="4" width="18" height="18" rx="2" ry="2" />
+                  <line x1="16" y1="2" x2="16" y2="6" />
+                  <line x1="8" y1="2" x2="8" y2="6" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                </svg>
+                <div class="date-inputs">
+                  <div class="date-input-wrap">
+                    <label for="dateFrom">Dari</label>
+                    <input
+                      type="date"
+                      id="dateFrom"
+                      class="date-input"
+                      onchange="applyFilters()"
+                    />
+                  </div>
+                  <span class="date-separator">—</span>
+                  <div class="date-input-wrap">
+                    <label for="dateTo">Sampai</label>
+                    <input
+                      type="date"
+                      id="dateTo"
+                      class="date-input"
+                      onchange="applyFilters()"
+                    />
+                  </div>
+                </div>
+                <button
+                  class="btn-reset-date hidden"
+                  id="btnResetDate"
+                  onclick="resetDateFilter()"
+                  title="Reset filter tanggal"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <!-- KBLI Filter Dropdown -->
+              <div class="kbli-filter-wrapper" id="kbliFilterWrapper">
+                <button
+                  class="kbli-filter-btn"
+                  id="kbliFilterBtn"
+                  onclick="toggleKbliFilter()"
+                  type="button"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+                    <line x1="8" y1="21" x2="16" y2="21" />
+                    <line x1="12" y1="17" x2="12" y2="21" />
+                  </svg>
+                  <span
+                    id="kbliFilterDot"
+                    class="kbli-filter-dot"
+                    style="display: none"
+                  ></span>
+                  <span id="kbliFilterLabel">Filter KBLI</span>
+                  <svg
+                    class="kbli-filter-chevron"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                <div class="kbli-filter-menu" id="kbliFilterMenu"></div>
+              </div>
+              <button
+                class="btn-download"
+                id="btnDownload"
+                onclick="downloadExcel()"
+              >
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                  <polyline points="7 10 12 15 17 10" />
+                  <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <span>Download Excel</span>
+              </button>
+            </div>
+          </div>
+          <div class="table-responsive">
+            <table class="data-table" id="dataTable">
+              <thead>
+                <tr>
+                  <th class="th-no">No</th>
+                  <th class="th-sortable" onclick="sortTable('title')">
+                    Judul Berita
+                    <span class="sort-icon" id="sort-title">↕</span>
+                  </th>
+                  <th class="th-source">Sumber Berita</th>
+                  <th class="th-sortable th-date" onclick="sortTable('date')">
+                    Tanggal
+                    <span class="sort-icon" id="sort-date">↓</span>
+                  </th>
+                  <th class="th-sortable th-tags" onclick="sortTable('tags')">
+                    Tags
+                    <span class="sort-icon" id="sort-tags">↕</span>
+                  </th>
+                  <th class="th-kbli">KBLI</th>
+                  <th class="th-link">Link Berita</th>
+                </tr>
+              </thead>
+              <tbody id="tableBody">
+                <tr class="empty-row">
+                  <td colspan="7">
+                    <div class="empty-state">
+                      <svg
+                        width="48"
+                        height="48"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="#ccc"
+                        stroke-width="1.5"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                      >
+                        <path
+                          d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"
+                        />
+                        <polyline points="14 2 14 8 20 8" />
+                      </svg>
+                      <p>
+                        Belum ada data. Klik
+                        <strong>"Scrape Berita"</strong> untuk memulai.
+                      </p>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="pagination" id="pagination"></div>
+        </div>
+      </section>
     </main>
 
     <!-- Floating AI Chat Window -->
-    <button class="chat-fab" id="chatFab" type="button" onclick="toggleChatWindow()" aria-label="Buka AI Chat">
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            <path d="M8 9h8"/>
-            <path d="M8 13h6"/>
-        </svg>
-        <span>AI Chat</span>
+    <button
+      class="chat-fab"
+      id="chatFab"
+      type="button"
+      onclick="toggleChatWindow()"
+      aria-label="Buka AI Chat"
+    >
+      <svg
+        width="22"
+        height="22"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path
+          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
+        />
+        <path d="M8 9h8" />
+        <path d="M8 13h6" />
+      </svg>
+      <span>AI Chat</span>
     </button>
 
     <section class="chat-window" id="chatWindow" aria-live="polite">
-        <header class="chat-header">
-            <div>
-                <h3>AI Chat RAG</h3>
-                <p>DeepSeek · Berbasis berita tersitasi</p>
-            </div>
-            <div class="chat-header-actions">
-                <button type="button" class="chat-icon-btn" onclick="clearChatConversation()" title="Clear percakapan">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"/>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>
-                        <path d="M10 11v6"/><path d="M14 11v6"/>
-                        <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>
-                    </svg>
-                </button>
-                <button type="button" class="chat-icon-btn" onclick="closeChatWindow()" title="Tutup chat">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
-                        <line x1="18" y1="6" x2="6" y2="18"/>
-                        <line x1="6" y1="6" x2="18" y2="18"/>
-                    </svg>
-                </button>
-            </div>
-        </header>
-
-        <div class="chat-body" id="chatBody">
-            <div class="chat-empty" id="chatEmptyState">
-                Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban akan menyertakan sitasi berita.
-            </div>
+      <header class="chat-header">
+        <div>
+          <h3>AI Chat</h3>
+          <p>Berbasis berita tersitasi</p>
         </div>
-
-        <div class="chat-typing" id="chatTyping" style="display:none">
-            <span></span><span></span><span></span>
-            <em>AI sedang merespons...</em>
+        <div class="chat-header-actions">
+          <button
+            type="button"
+            class="chat-icon-btn"
+            onclick="clearChatConversation()"
+            title="Clear percakapan"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="3 6 5 6 21 6" />
+              <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6" />
+              <path d="M10 11v6" />
+              <path d="M14 11v6" />
+              <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="chat-icon-btn"
+            onclick="closeChatWindow()"
+            title="Tutup chat"
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2.3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
         </div>
+      </header>
 
-        <form class="chat-input-wrap" id="chatForm" onsubmit="sendChatMessage(event)">
-            <textarea
-                id="chatInput"
-                class="chat-input"
-                rows="2"
-                maxlength="1200"
-                placeholder="Contoh: bagaimana tren pengangguran 3 bulan terakhir?"
-            ></textarea>
-            <button type="submit" class="chat-send" id="chatSendBtn">Kirim</button>
-        </form>
+      <div class="chat-body" id="chatBody">
+        <div class="chat-empty" id="chatEmptyState">
+          Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban
+          akan menyertakan sitasi berita.
+        </div>
+      </div>
+
+      <div class="chat-typing" id="chatTyping" style="display: none">
+        <span></span><span></span><span></span>
+        <em>AI sedang merespons...</em>
+      </div>
+
+      <form
+        class="chat-input-wrap"
+        id="chatForm"
+        onsubmit="sendChatMessage(event)"
+      >
+        <textarea
+          id="chatInput"
+          class="chat-input"
+          rows="2"
+          maxlength="1200"
+          placeholder="Contoh: bagaimana tren pengangguran 3 bulan terakhir?"
+        ></textarea>
+        <button type="submit" class="chat-send" id="chatSendBtn">Kirim</button>
+      </form>
     </section>
 
     <!-- Chat Confirm/Alert Modal -->
     <div class="chat-modal-backdrop" id="chatModalBackdrop" hidden>
-        <div class="chat-modal" role="dialog" aria-modal="true" aria-labelledby="chatModalTitle" aria-describedby="chatModalMessage">
-            <h4 class="chat-modal-title" id="chatModalTitle">Konfirmasi</h4>
-            <p class="chat-modal-message" id="chatModalMessage">Apakah Anda yakin?</p>
-            <div class="chat-modal-actions">
-                <button type="button" class="chat-modal-btn secondary" id="chatModalCancelBtn">Batal</button>
-                <button type="button" class="chat-modal-btn primary" id="chatModalConfirmBtn">Lanjutkan</button>
-            </div>
+      <div
+        class="chat-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="chatModalTitle"
+        aria-describedby="chatModalMessage"
+      >
+        <h4 class="chat-modal-title" id="chatModalTitle">Konfirmasi</h4>
+        <p class="chat-modal-message" id="chatModalMessage">
+          Apakah Anda yakin?
+        </p>
+        <div class="chat-modal-actions">
+          <button
+            type="button"
+            class="chat-modal-btn secondary"
+            id="chatModalCancelBtn"
+          >
+            Batal
+          </button>
+          <button
+            type="button"
+            class="chat-modal-btn primary"
+            id="chatModalConfirmBtn"
+          >
+            Lanjutkan
+          </button>
         </div>
+      </div>
     </div>
 
     <!-- Footer -->
     <footer class="footer">
-        <p>© 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi — Kabupaten Tegal.</p>
+      <p>
+        © 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi
+        — Kabupaten Tegal.
+      </p>
     </footer>
 
     <script src="../static/js/script.js"></script>
-</body>
-
+  </body>
 </html>

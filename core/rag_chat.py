@@ -1,10 +1,14 @@
 """
-rag_chat.py — Pipeline RAG Chat (DeepSeek + pgvector) untuk dashboard berita.
+rag_chat.py — Pipeline RAG Chat (LLM + pgvector) untuk dashboard berita.
 
 Fokus:
 - Jawaban grounded ke konteks berita.
 - Sitasi inline memakai marker [Sxx].
 - Aman dari prompt injection dasar.
+
+Provider LLM (prioritas):
+  1. Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)
+  2. DeepSeek Chat (DEEPSEEK_API_KEY) — fallback
 """
 
 import os
@@ -14,10 +18,7 @@ from time import perf_counter
 from openai import OpenAI
 
 from core.embeddings import semantic_search
-
-
-_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-_DEEPSEEK_MODEL = "deepseek-chat"
+from core.llm_client import build_chat_client
 
 _MAX_QUERY_CHARS = 1200
 _MAX_DOC_SNIPPET_CHARS = 700
@@ -54,11 +55,9 @@ Aturan sitasi inline:
 """
 
 
-def _build_client() -> OpenAI:
-    api_key = os.getenv("DEEPSEEK_API_KEY", "")
-    if not api_key:
-        raise ValueError("DEEPSEEK_API_KEY tidak ditemukan di environment variables.")
-    return OpenAI(api_key=api_key, base_url=_DEEPSEEK_BASE_URL)
+def _build_client() -> tuple[OpenAI, str]:
+    """Wrapper internal — pakai build_chat_client() dari llm_client."""
+    return build_chat_client()
 
 
 def sanitize_query(text: str) -> str:
@@ -339,10 +338,12 @@ def prepare_rag_chat_context(
 
 
 def stream_deepseek_answer(user_prompt: str):
-    """Yield token (delta content) dari DeepSeek streaming response."""
-    client = _build_client()
+    """Yield token (delta content) dari LLM streaming response.
+    Nama fungsi dipertahankan untuk kompatibilitas — provider otomatis Gemini/DeepSeek.
+    """
+    client, model = build_chat_client()
     stream = client.chat.completions.create(
-        model=_DEEPSEEK_MODEL,
+        model=model,
         messages=[
             {"role": "system", "content": _SYSTEM_PROMPT},
             {"role": "user", "content": user_prompt},
