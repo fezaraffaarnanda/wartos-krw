@@ -10,7 +10,11 @@ Fitur :
 5. Login admin dan user
 
 To be developed (7 Maret 2026):
-1. Pemodelan klasifikasi lapangan usaha KBLI 2020
-2. Pembentukan dataset untuk modelling klasifikasi lapangan usaha
-3. Integrasi auto-scrape + prediksi klasifikasi lapangan usaha
-4. Insight AI untuk menangkap fonemena (masih dipertimbangkan karena masalah biaya)
+1. Pemodelan klasifikasi lapangan usaha KBLI 2020 (done)
+2. Pembentukan dataset untuk modelling klasifikasi lapangan usaha (done)
+3. Integrasi auto-scrape + prediksi klasifikasi lapangan usaha (done)
+4. Insight AI untuk menangkap fonemena (masih dipertimbangkan karena masalah biaya) (done)
+5. Pemberian aktivitas utama
+
+Additional Feature : 
+1. AI Chat 
