@@ -2090,7 +2090,17 @@ async function _loadChatHistory() {
 function _showChatEmptyState() {
   const body = document.getElementById("chatBody");
   if (!body) return;
-  body.innerHTML = `<div class="chat-empty" id="chatEmptyState">Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban akan menyertakan sitasi berita.</div>`;
+  body.innerHTML = `
+    <div class="chat-msg assistant" id="chatEmptyState">
+      <div class="chat-bubble">
+        Halo! Saya siap membantu Anda menganalisis berita terkait kondisi ekonomi,
+        kemiskinan, dan pengangguran di Kabupaten Tegal.<br><br>
+        Silakan ajukan pertanyaan, misalnya:<br>
+        &bull; Apa penyebab kenaikan kemiskinan bulan lalu?<br>
+        &bull; Bagaimana tren PDRB sektor industri saat ini?<br>
+        &bull; Sektor KBLI apa yang paling terdampak PHK?
+      </div>
+    </div>`;
 }
 
 function _toggleChatLoading(loading) {

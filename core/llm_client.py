@@ -57,7 +57,7 @@ def build_chat_client() -> tuple[OpenAI, str]:
 
     deepseek_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
     if deepseek_key:
-        print(f"[LLM] GEMINI_API_KEY tidak tersedia — fallback ke DeepSeek ({_DEEPSEEK_MODEL})")
+        print(f"[LLM] GEMINI_API_KEY tidak tersedia - fallback ke DeepSeek ({_DEEPSEEK_MODEL})")
         return (
             OpenAI(api_key=deepseek_key, base_url=_DEEPSEEK_BASE_URL),
             _DEEPSEEK_MODEL,

@@ -1089,7 +1089,10 @@ def api_ai_chat_stream():
 
             llm_start = perf_counter()
             chunks: list[str] = []
-            for delta in stream_deepseek_answer(prepared["user_prompt"]):
+            for delta in stream_deepseek_answer(
+                prepared["user_prompt"],
+                history=prepared.get("history", []),
+            ):
                 chunks.append(delta)
                 yield _sse_payload({"type": "delta", "text": delta})
 
@@ -1375,7 +1378,7 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
     return total_updated
 
 
-def _run_embedding_backfill(batch_size: int = 50) -> int:
+def _run_embedding_backfill(batch_size: int = 20) -> int:
     """
     Backfill embedding untuk semua artikel yang embedding IS NULL.
 
@@ -1383,10 +1386,13 @@ def _run_embedding_backfill(batch_size: int = 50) -> int:
     - Saat startup Flask, menangani artikel lama yang belum ter-embed.
     - Setelah setiap sesi scraping, menangani artikel baru yang gagal embed di post-insert.
 
-    Menggunakan batch_embed_articles (multi-input per API call) agar efisien.
-    Row sudah berisi kbli + date_parsed sehingga embedding mengandung konteks lengkap.
+    batch_size=20 → ~14.000 token/request, aman di bawah rate limit Gemini free tier.
+    Delay 30 detik antar batch agar tidak melebihi 30k TPM.
     Return jumlah artikel yang berhasil di-embed.
     """
+    import time as _time
+
+    _BACKFILL_SLEEP = 30   # detik antar batch — rate limit Gemini free tier
     try:
         embed_client = _build_embedding_client()
     except ValueError as exc:
@@ -1441,6 +1447,9 @@ def _run_embedding_backfill(batch_size: int = 50) -> int:
         if embedded_this_batch == 0:
             print(f"[Embedding Backfill] Batch {iteration} tidak ada yang berhasil — menghentikan loop.")
             break
+
+        # Delay antar batch agar tidak melebihi rate limit Gemini free tier (30k TPM)
+        _time.sleep(_BACKFILL_SLEEP)
 
     print(f"[Embedding Backfill] Selesai. {total_embedded} artikel di-embed dalam {iteration} batch.")
     return total_embedded

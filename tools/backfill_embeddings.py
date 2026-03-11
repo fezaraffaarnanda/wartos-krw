@@ -7,10 +7,20 @@ Mode default (tanpa flag):
 
 Mode force (--force):
     Memproses SEMUA artikel — embedding di-overwrite.
-    Gunakan setelah perubahan format embedding (misalnya penambahan KBLI + tanggal).
+    Gunakan setelah ganti model embedding (mis. OpenAI → Gemini).
     python tools/backfill_embeddings.py --force
 
-Aman untuk di-restart pada mode default: hanya memproses artikel yang belum ter-embed.
+=== RATE LIMIT Gemini Embedding API (Free Tier) ===
+    RPM : 100 request per menit
+    TPM : 30.000 token per menit
+    RPD : 1.000 request per hari
+
+  Estimasi token per artikel : ~700 token (title + tags + KBLI + 2000 char konten)
+  Batch size 25 artikel       : 25 × 700 = ~17.500 token per request
+  Delay 65 detik antar batch  : 17.500 / 65s × 60 ≈ 16.000 TPM  ← aman di bawah 30k
+  ~800 artikel                : 32 batch × 65s ≈ 35 menit total
+
+Aman untuk di-restart: mode default hanya memproses artikel yang belum ter-embed.
 """
 
 import argparse
@@ -29,8 +39,11 @@ from core.embeddings import batch_embed_articles, _build_embedding_client
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-_BATCH_SIZE    = 50    # Jumlah artikel per batch API call
-_SLEEP_BETWEEN = 0.5   # Jeda antar batch (detik)
+# 25 artikel × ~700 token = ~17.500 token per request — aman di bawah 30k TPM/menit
+_BATCH_SIZE    = 25
+
+# 65 detik antar batch → 0.9 RPM (aman << 100 RPM), ~16k TPM (aman << 30k TPM)
+_SLEEP_BETWEEN = 65
 
 # Kolom yang di-select — mencakup semua field yang dipakai _prepare_text()
 _SELECT_COLS = "id, title, tags, content, kbli, date, date_parsed"
@@ -64,6 +77,15 @@ def main(force: bool = False):
     if total == 0:
         print("[Backfill] Tidak ada artikel yang perlu diproses.")
         return
+
+    # Estimasi durasi berdasarkan rate limit
+    n_batches = (total + _BATCH_SIZE - 1) // _BATCH_SIZE
+    est_minutes = (n_batches * _SLEEP_BETWEEN) / 60
+    print(f"[Backfill] Batch size : {_BATCH_SIZE} artikel/batch")
+    print(f"[Backfill] Delay      : {_SLEEP_BETWEEN}s antar batch (rate limit Gemini free tier)")
+    print(f"[Backfill] Estimasi   : {n_batches} batch x {_SLEEP_BETWEEN}s ~= {est_minutes:.0f} menit")
+    print("[Backfill] Mulai proses...")
+    print()
 
     # ── Init Gemini embedding client sekali ────────────────────────────────────
     embed_client = _build_embedding_client()
@@ -101,7 +123,8 @@ def main(force: bool = False):
             break
 
         ids = [a["id"] for a in articles]
-        print(f"[Backfill] Memproses {len(articles)} artikel (ID {ids[0]}–{ids[-1]})...")
+        batch_num = (processed // _BATCH_SIZE) + 1
+        print(f"[Backfill] Batch {batch_num}/{n_batches}: {len(articles)} artikel (ID {ids[0]}-{ids[-1]})...")
 
         # Generate embedding untuk semua artikel dalam batch ini
         # _prepare_text() sudah menyertakan kbli + date_parsed dari row DB
@@ -111,7 +134,7 @@ def main(force: bool = False):
         batch_ok = 0
         for article, embedding in zip(articles, embeddings):
             if embedding is None:
-                print(f"[Backfill] SKIP: Gagal embed artikel ID={article['id']} — lewati.")
+                print(f"[Backfill] SKIP: Gagal embed artikel ID={article['id']} - lewati.")
                 failed += 1
                 continue
 
@@ -126,14 +149,18 @@ def main(force: bool = False):
                 failed += 1
 
         elapsed = time.time() - start_time
+        remaining = max(0, (n_batches - batch_num) * _SLEEP_BETWEEN)
         print(
-            f"[Backfill] Progress: {processed}/{total} selesai"
+            f"[Backfill] Progress : {processed}/{total} berhasil"
             f" | Gagal: {failed}"
-            f" | Waktu: {elapsed:.1f}s"
+            f" | Waktu: {elapsed:.0f}s"
+            f" | Estimasi sisa: {remaining:.0f}s"
         )
 
-        # Jeda antar batch
-        time.sleep(_SLEEP_BETWEEN)
+        # Jeda antar batch — menghormati rate limit Gemini free tier
+        if articles:   # hanya sleep jika ada artikel yang diproses
+            print(f"[Backfill] Menunggu {_SLEEP_BETWEEN}s (rate limit)...")
+            time.sleep(_SLEEP_BETWEEN)
 
         if force:
             offset += _BATCH_SIZE

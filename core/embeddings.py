@@ -174,9 +174,9 @@ def batch_embed_texts(texts: list[str], client: OpenAI | None = None) -> list[li
                         results[original_idx] = emb
 
             end_idx = start + len(batch)
-            print(f"[Embedding] Batch {start + 1}–{end_idx}/{total} selesai.")
+            print(f"[Embedding] Batch {start + 1}-{end_idx}/{total} selesai.")
         except Exception as exc:
-            print(f"[Embedding] Gagal batch {start}–{start + len(batch)}: {exc}")
+            print(f"[Embedding] Gagal batch {start}-{start + len(batch)}: {exc}")
 
         if start + _BATCH_SIZE < total:
             time.sleep(_BATCH_SLEEP)
