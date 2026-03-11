@@ -2137,7 +2137,13 @@ async function sendChatMessage(event) {
     const decoder = new TextDecoder();
     let buffer = "";
 
-    while (true) {
+    // Label "outer" dipakai agar inner-loop bisa langsung membreak outer-loop
+    // ketika event "done" atau "error" diterima.
+    // Ini penting untuk Vercel serverless: koneksi HTTP tidak selalu ditutup
+    // setelah generator Flask selesai, sehingga reader.read() bisa hang selamanya
+    // meski semua data sudah diterima. Dengan break berbasis event aplikasi (bukan
+    // bergantung pada penutupan stream), UI selalu kembali normal setelah respons.
+    outer: while (true) {
       const { value, done } = await reader.read();
       if (done) break;
 
@@ -2190,11 +2196,18 @@ async function sendChatMessage(event) {
                     );
                   }
                 }
+                // Keluar dari loop segera setelah event "done" — jangan tunggu
+                // stream ditutup dari sisi server (tidak reliable di Vercel serverless)
+                reader.cancel().catch(() => {});
+                break outer;
               } else if (payload.type === "error") {
                 const msg = payload.message || "Terjadi kendala saat memproses chat.";
                 if (assistantBubble) {
                   assistantBubble.innerHTML = _renderChatText(msg, []);
                 }
+                // Sama seperti "done" — keluar segera
+                reader.cancel().catch(() => {});
+                break outer;
               }
             } catch (_) {
               // Abaikan frame SSE yang tidak valid
