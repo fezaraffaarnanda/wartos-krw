@@ -1,5 +1,3 @@
-oke, sekarang integrasikan modul @predictor_kbli.py dengan @app.py , jadi untuk setiap content berita yang, prediksi ke dalam kelompok KBLI dan juga beserta key mappingnya untuk setiap kode usahanya.
-
 A1	Pertanian, Peternakan, Perburuan dan Jasa Pertanian
 A2	Kehutanan dan Penebangan Kayu
 A3	Perikanan

@@ -1,12 +1,19 @@
 """
-tools/backfill_embeddings.py — Backfill embedding untuk semua artikel existing
+tools/backfill_embeddings.py — Backfill / regenerasi embedding untuk artikel existing
 
-Jalankan sekali untuk meng-embed 719 artikel yang sudah ada di database:
+Mode default (tanpa flag):
+    Hanya memproses artikel yang embedding IS NULL.
     python tools/backfill_embeddings.py
 
-Aman untuk di-restart: hanya memproses artikel yang embedding IS NULL.
+Mode force (--force):
+    Memproses SEMUA artikel — embedding di-overwrite.
+    Gunakan setelah perubahan format embedding (misalnya penambahan KBLI + tanggal).
+    python tools/backfill_embeddings.py --force
+
+Aman untuk di-restart pada mode default: hanya memproses artikel yang belum ter-embed.
 """
 
+import argparse
 import os
 import sys
 import time
@@ -22,11 +29,14 @@ from core.embeddings import batch_embed_articles, _build_embedding_client
 
 # ── Config ─────────────────────────────────────────────────────────────────────
 
-_BATCH_SIZE = 50          # Jumlah artikel per batch API call
-_SLEEP_BETWEEN = 0.5      # Jeda antar batch (detik)
+_BATCH_SIZE    = 50    # Jumlah artikel per batch API call
+_SLEEP_BETWEEN = 0.5   # Jeda antar batch (detik)
+
+# Kolom yang di-select — mencakup semua field yang dipakai _prepare_text()
+_SELECT_COLS = "id, title, tags, content, kbli, date, date_parsed"
 
 
-def main():
+def main(force: bool = False):
     # ── Init Supabase ──────────────────────────────────────────────────────────
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_KEY", "")
@@ -36,18 +46,23 @@ def main():
 
     supabase = create_client(url, key)
 
-    # ── Hitung artikel yang belum di-embed ────────────────────────────────────
-    result_total = (
-        supabase.table("berita")
-        .select("id", count="exact")
-        .is_("embedding", "null")
-        .execute()
-    )
-    total_null = result_total.count or 0
-    print(f"[Backfill] Ditemukan {total_null} artikel belum memiliki embedding.")
+    # ── Hitung artikel yang akan diproses ─────────────────────────────────────
+    if force:
+        result_total = supabase.table("berita").select("id", count="exact").execute()
+        total = result_total.count or 0
+        print(f"[Backfill] Mode FORCE: akan meregenerasi embedding untuk SEMUA {total} artikel.")
+    else:
+        result_total = (
+            supabase.table("berita")
+            .select("id", count="exact")
+            .is_("embedding", "null")
+            .execute()
+        )
+        total = result_total.count or 0
+        print(f"[Backfill] Ditemukan {total} artikel belum memiliki embedding.")
 
-    if total_null == 0:
-        print("[Backfill] Semua artikel sudah di-embed. Tidak ada yang perlu diproses.")
+    if total == 0:
+        print("[Backfill] Tidak ada artikel yang perlu diproses.")
         return
 
     # ── Init OpenAI client sekali ──────────────────────────────────────────────
@@ -57,19 +72,31 @@ def main():
     failed     = 0
     start_time = time.time()
 
-    # ── Proses dalam batch (offset pagination) ────────────────────────────────
+    # ── Proses dalam batch ────────────────────────────────────────────────────
+    # Mode default: filter embedding IS NULL, offset tidak bergerak karena row yang
+    #               sudah di-update keluar dari result set query berikutnya.
+    # Mode force:   range-based offset karena tidak ada filter — semua row ikut diproses.
     offset = 0
     while True:
-        # Ambil batch artikel yang belum di-embed
-        rows = (
-            supabase.table("berita")
-            .select("id, title, tags, content")
-            .is_("embedding", "null")
-            .order("id")
-            .limit(_BATCH_SIZE)
-            .execute()
-        )
-        articles = rows.data or []
+        if force:
+            rows_result = (
+                supabase.table("berita")
+                .select(_SELECT_COLS)
+                .order("id")
+                .range(offset, offset + _BATCH_SIZE - 1)
+                .execute()
+            )
+        else:
+            rows_result = (
+                supabase.table("berita")
+                .select(_SELECT_COLS)
+                .is_("embedding", "null")
+                .order("id")
+                .limit(_BATCH_SIZE)
+                .execute()
+            )
+
+        articles = rows_result.data or []
         if not articles:
             break
 
@@ -77,12 +104,14 @@ def main():
         print(f"[Backfill] Memproses {len(articles)} artikel (ID {ids[0]}–{ids[-1]})...")
 
         # Generate embedding untuk semua artikel dalam batch ini
+        # _prepare_text() sudah menyertakan kbli + date_parsed dari row DB
         embeddings = batch_embed_articles(articles, client=embed_client)
 
         # Update ke Supabase satu per satu (update by ID)
+        batch_ok = 0
         for article, embedding in zip(articles, embeddings):
             if embedding is None:
-                print(f"[Backfill] SKIP: Gagal embed artikel ID={article['id']} - lewati.")
+                print(f"[Backfill] SKIP: Gagal embed artikel ID={article['id']} — lewati.")
                 failed += 1
                 continue
 
@@ -91,13 +120,14 @@ def main():
                     {"embedding": embedding}
                 ).eq("id", article["id"]).execute()
                 processed += 1
+                batch_ok  += 1
             except Exception as exc:
-                print(f"[Backfill] ⚠ Gagal update DB artikel ID={article['id']}: {exc}")
+                print(f"[Backfill] Gagal update DB artikel ID={article['id']}: {exc}")
                 failed += 1
 
         elapsed = time.time() - start_time
         print(
-            f"[Backfill] Progress: {processed}/{total_null} selesai"
+            f"[Backfill] Progress: {processed}/{total} selesai"
             f" | Gagal: {failed}"
             f" | Waktu: {elapsed:.1f}s"
         )
@@ -105,16 +135,20 @@ def main():
         # Jeda antar batch
         time.sleep(_SLEEP_BETWEEN)
 
-        # Safety: kalau semua batch gagal (loop infinite prevention)
-        if not any(e is not None for e in embeddings):
-            print("[Backfill] ERROR: Semua embedding gagal. Hentikan proses.")
-            break
+        if force:
+            offset += _BATCH_SIZE
+        else:
+            # Safety: kalau semua batch gagal (loop infinite prevention)
+            if batch_ok == 0:
+                print("[Backfill] ERROR: Semua embedding gagal. Hentikan proses.")
+                break
 
     # ── Summary ────────────────────────────────────────────────────────────────
     elapsed_total = time.time() - start_time
     print()
     print("=" * 60)
-    print(f"[Backfill] SELESAI")
+    print("[Backfill] SELESAI")
+    print(f"  Mode              : {'FORCE (semua artikel)' if force else 'DEFAULT (embedding NULL)'}")
     print(f"  Berhasil di-embed : {processed} artikel")
     print(f"  Gagal             : {failed} artikel")
     print(f"  Total waktu       : {elapsed_total:.1f} detik")
@@ -125,4 +159,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Backfill / regenerasi vector embedding untuk artikel berita."
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Regenerasi ulang embedding untuk SEMUA artikel (bukan hanya yang NULL).",
+    )
+    args = parser.parse_args()
+    main(force=args.force)

@@ -35,7 +35,7 @@ from core.ai_insights import (
     prepare_insight_articles,
     stream_category_tokens,
 )
-from core.embeddings import embed_article
+from core.embeddings import batch_embed_articles, _build_embedding_client
 from core.kbli_utils import load_kbli_predictor, predict_kbli_label
 from core.rag_chat import (
     finalize_citations,
@@ -1255,7 +1255,7 @@ def _insert_articles(articles: list, source_key: str) -> int:
     """
     source_label  = SOURCE_LABELS.get(source_key, source_key)
     inserted      = 0
-    new_articles  = []   # kumpulkan artikel baru untuk di-embed setelah insert selesai
+    new_articles  = []   # kumpulkan row yang berhasil diinsert untuk di-embed setelah insert selesai
 
     for article in articles:
         if not _is_valid_article(article, source_key):
@@ -1264,27 +1264,32 @@ def _insert_articles(articles: list, source_key: str) -> int:
             row = _build_article_row(article, source_label)
             supabase.table("berita").insert(row).execute()
             inserted += 1
-            new_articles.append({"url": row["url"], "article": article})
+            # Simpan `row` (bukan `article` raw) agar embedding sudah berisi kbli + date_parsed
+            new_articles.append({"url": row["url"], "row": row})
         except Exception as exc:
             print(f"[DB ERROR] {source_key}: {article.get('url', '')} — {exc}")
 
     _scrape_progress[source_key]["inserted"] = inserted
 
-    # ── Generate embedding untuk artikel baru ────────────────────────────────
+    # ── Generate embedding untuk artikel baru (batch) ────────────────────────
     # Dilakukan setelah insert agar insert tidak terhambat.
-    # Jika embedding gagal, artikel tetap tersimpan (graceful degradation).
+    # Menggunakan batch_embed_articles agar lebih efisien (satu API call per batch).
+    # row sudah mengandung title, tags, content, kbli, date, date_parsed.
+    # Jika embedding gagal, artikel tetap tersimpan (graceful degradation) —
+    # _run_embedding_backfill() akan menangani sisa yang belum ter-embed saat startup/post-scrape.
     if new_articles:
         embedded_count = 0
-        for item in new_articles:
-            try:
-                embedding = embed_article(item["article"])
+        try:
+            rows_to_embed = [item["row"] for item in new_articles]
+            embeddings    = batch_embed_articles(rows_to_embed)
+            for item, embedding in zip(new_articles, embeddings):
                 if embedding:
                     supabase.table("berita").update(
                         {"embedding": embedding}
                     ).eq("url", item["url"]).execute()
                     embedded_count += 1
-            except Exception as exc:
-                print(f"[Embedding] Gagal embed artikel {item['url'][:60]}: {exc}")
+        except Exception as exc:
+            print(f"[Embedding] {source_key}: Gagal batch embed — {exc}")
         print(f"[Embedding] {source_key}: {embedded_count}/{len(new_articles)} artikel baru di-embed.")
 
     return inserted
@@ -1368,6 +1373,77 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
     return total_updated
 
 
+def _run_embedding_backfill(batch_size: int = 50) -> int:
+    """
+    Backfill embedding untuk semua artikel yang embedding IS NULL.
+
+    Dipanggil otomatis:
+    - Saat startup Flask, menangani artikel lama yang belum ter-embed.
+    - Setelah setiap sesi scraping, menangani artikel baru yang gagal embed di post-insert.
+
+    Menggunakan batch_embed_articles (multi-input per API call) agar efisien.
+    Row sudah berisi kbli + date_parsed sehingga embedding mengandung konteks lengkap.
+    Return jumlah artikel yang berhasil di-embed.
+    """
+    try:
+        embed_client = _build_embedding_client()
+    except ValueError as exc:
+        print(f"[Embedding Backfill] Tidak dapat inisialisasi client: {exc}")
+        return 0
+
+    total_embedded = 0
+    MAX_BATCHES    = 200   # batas keamanan agar tidak loop selamanya
+    iteration      = 0
+
+    print("[Embedding Backfill] Mulai memproses artikel tanpa embedding...")
+
+    while iteration < MAX_BATCHES:
+        iteration += 1
+
+        try:
+            result = (
+                supabase.table("berita")
+                .select("id, title, tags, content, kbli, date, date_parsed")
+                .is_("embedding", "null")
+                .order("id")
+                .limit(batch_size)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[Embedding Backfill] Gagal query DB (batch {iteration}): {exc}")
+            break
+
+        rows = result.data or []
+        if not rows:
+            break   # tidak ada lagi artikel tanpa embedding
+
+        ids = [r["id"] for r in rows]
+        print(f"[Embedding Backfill] Batch {iteration}: {len(rows)} artikel (ID {ids[0]}–{ids[-1]})...")
+
+        embeddings = batch_embed_articles(rows, client=embed_client)
+
+        embedded_this_batch = 0
+        for row, embedding in zip(rows, embeddings):
+            if embedding is None:
+                continue
+            try:
+                supabase.table("berita").update(
+                    {"embedding": embedding}
+                ).eq("id", row["id"]).execute()
+                embedded_this_batch += 1
+                total_embedded      += 1
+            except Exception as exc:
+                print(f"[Embedding Backfill] Gagal update id={row['id']}: {exc}")
+
+        # Anti-infinite-loop: hentikan jika satu batch penuh tidak ada yang berhasil
+        if embedded_this_batch == 0:
+            print(f"[Embedding Backfill] Batch {iteration} tidak ada yang berhasil — menghentikan loop.")
+            break
+
+    print(f"[Embedding Backfill] Selesai. {total_embedded} artikel di-embed dalam {iteration} batch.")
+    return total_embedded
+
+
 def _log_scrape_run(total_inserted: int):
     """Insert satu baris ke scrape_log. Gagal diam-diam agar tidak mengganggu flow."""
     try:
@@ -1448,6 +1524,15 @@ def _scrape_worker(max_articles: int):
                 daemon=True,
                 name="kbli-backfill-post-scrape",
             ).start()
+
+        # Jalankan backfill embedding setelah scraping selesai.
+        # Menangani artikel baru yang gagal di-embed saat post-insert
+        # (misalnya karena rate-limit API atau transient error).
+        threading.Thread(
+            target=_run_embedding_backfill,
+            daemon=True,
+            name="embedding-backfill-post-scrape",
+        ).start()
 
     except Exception as exc:
         _scrape_overall["error"] = str(exc)
@@ -1607,6 +1692,15 @@ if _kbli_predictor is not None:
         daemon=True,
         name="kbli-backfill-startup",
     ).start()
+
+# Jalankan backfill embedding saat startup — mengisi artikel yang embedding IS NULL.
+# Menangani artikel lama yang belum ter-embed maupun artikel baru yang gagal embed
+# saat post-insert (misalnya karena transient API error).
+threading.Thread(
+    target=_run_embedding_backfill,
+    daemon=True,
+    name="embedding-backfill-startup",
+).start()
 
 if __name__ == "__main__":
     print("=" * 50)

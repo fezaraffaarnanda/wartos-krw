@@ -2,7 +2,13 @@
 embeddings.py — Modul Vector Embedding untuk RAG
 
 Mengelola pembuatan embedding artikel menggunakan OpenAI text-embedding-3-small
-via OpenRouter API, dan semantic search via Supabase pgvector (RPC match_articles).
+langsung via OpenAI API (OPEN_AI_KEY), dan semantic search via Supabase pgvector
+(RPC match_articles).
+
+Catatan arsitektur:
+- Embedding  → OpenAI API langsung (modul ini)
+- AI Insights → DeepSeek (core/ai_insights.py)
+- RAG Chat   → DeepSeek (core/rag_chat.py)
 """
 
 import os
@@ -13,14 +19,13 @@ from openai import OpenAI
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
-_OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
-_EMBEDDING_MODEL     = "openai/text-embedding-3-small"
+_EMBEDDING_MODEL     = "text-embedding-3-small"
 _EMBEDDING_DIMS      = 1536
 
 # Panjang konten artikel yang dipakai untuk embedding (lebih panjang = representasi lebih kaya)
 _EMBED_CONTENT_CHARS = 2000
 
-# Batch size untuk API call (OpenRouter support multi-input)
+# Batch size untuk API call
 _BATCH_SIZE = 100
 
 # Jeda antar batch (detik)
@@ -30,38 +35,48 @@ _BATCH_SLEEP = 0.3
 # ── Client builder ─────────────────────────────────────────────────────────────
 
 def _build_embedding_client() -> OpenAI:
-    """Buat OpenAI client untuk embedding via OpenRouter menggunakan OPENROUTER_API_KEY."""
-    api_key = os.getenv("OPENROUTER_API_KEY", "")
+    """Buat OpenAI client langsung ke api.openai.com menggunakan OPEN_AI_KEY."""
+    api_key = os.getenv("OPEN_AI_KEY", "")
     if not api_key:
-        raise ValueError("OPENROUTER_API_KEY tidak ditemukan di environment variables.")
-    return OpenAI(
-        api_key  = api_key,
-        base_url = _OPENROUTER_BASE_URL,
-    )
+        raise ValueError("OPEN_AI_KEY tidak ditemukan di environment variables.")
+    return OpenAI(api_key=api_key)   # base_url default: https://api.openai.com/v1
 
 
 # ── Teks preparation ───────────────────────────────────────────────────────────
 
 def _prepare_text(article: dict) -> str:
     """
-    Gabungkan judul, tags, dan konten artikel menjadi satu teks untuk di-embed.
+    Gabungkan tanggal, KBLI, judul, tags, dan konten artikel menjadi satu teks untuk di-embed.
     Format terstruktur membantu model memahami konteks setiap field.
+
+    Field yang digunakan (jika tersedia):
+    - date_parsed : tanggal ISO (YYYY-MM-DD), lebih bersih untuk sorting/filter semantik
+    - date        : fallback jika date_parsed kosong
+    - kbli        : kategori sektor KBLI, memperkaya konteks tematik embedding
+    - title       : judul berita
+    - tags        : topik/tag artikel
+    - content     : isi artikel (dibatasi _EMBED_CONTENT_CHARS karakter pertama)
     """
-    title   = (article.get("title",   "") or "").strip()
-    tags    = (article.get("tags",    "") or "").strip()
-    content = (article.get("content", "") or "").strip()
+    title       = (article.get("title",       "") or "").strip()
+    tags        = (article.get("tags",        "") or "").strip()
+    content     = (article.get("content",     "") or "").strip()
+    kbli        = (article.get("kbli",        "") or "").strip()
+    date_parsed = (article.get("date_parsed", "") or "").strip()
+    date_raw    = (article.get("date",        "") or "").strip()
+
+    # Pilih format tanggal: date_parsed (ISO YYYY-MM-DD) lebih bersih; fallback ke date raw
+    tanggal = date_parsed or date_raw
 
     # Potong konten agar tidak melebihi batas token (bukan flat cut — ambil awal)
     if len(content) > _EMBED_CONTENT_CHARS:
         content = content[:_EMBED_CONTENT_CHARS]
 
     parts = []
-    if title:
-        parts.append(f"Judul: {title}")
-    if tags:
-        parts.append(f"Topik: {tags}")
-    if content:
-        parts.append(f"Konten: {content}")
+    if tanggal:  parts.append(f"Tanggal: {tanggal}")
+    if kbli:     parts.append(f"Kategori KBLI: {kbli}")
+    if title:    parts.append(f"Judul: {title}")
+    if tags:     parts.append(f"Topik: {tags}")
+    if content:  parts.append(f"Konten: {content}")
 
     return "\n".join(parts)
 
