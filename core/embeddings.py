@@ -1,14 +1,14 @@
 """
 embeddings.py — Modul Vector Embedding untuk RAG
 
-Mengelola pembuatan embedding artikel menggunakan OpenAI text-embedding-3-small
-langsung via OpenAI API (OPEN_AI_KEY), dan semantic search via Supabase pgvector
-(RPC match_articles).
+Mengelola pembuatan embedding artikel menggunakan Google gemini-embedding-001
+via Gemini OpenAI-compatible endpoint (GEMINI_API_KEY), dan semantic search
+via Supabase pgvector (RPC match_articles).
 
 Catatan arsitektur:
-- Embedding  → OpenAI API langsung (modul ini)
-- AI Insights → DeepSeek (core/ai_insights.py)
-- RAG Chat   → DeepSeek (core/rag_chat.py)
+- Embedding  → Google Gemini API (modul ini, GEMINI_API_KEY)
+- AI Insights → Gemini / DeepSeek fallback (core/ai_insights.py)
+- RAG Chat   → Gemini / DeepSeek fallback (core/rag_chat.py)
 """
 
 import os
@@ -19,8 +19,11 @@ from openai import OpenAI
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
-_EMBEDDING_MODEL     = "text-embedding-3-small"
-_EMBEDDING_DIMS      = 1536
+_EMBEDDING_MODEL     = "gemini-embedding-001"
+_EMBEDDING_DIMS      = 1536   # Gemini mendukung 3072/1536/768 — pakai 1536 agar kompatibel dgn skema DB
+
+# Gemini OpenAI-compatible endpoint untuk embeddings
+_GEMINI_EMBED_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
 # Panjang konten artikel yang dipakai untuk embedding (lebih panjang = representasi lebih kaya)
 _EMBED_CONTENT_CHARS = 2000
@@ -35,11 +38,11 @@ _BATCH_SLEEP = 0.3
 # ── Client builder ─────────────────────────────────────────────────────────────
 
 def _build_embedding_client() -> OpenAI:
-    """Buat OpenAI client langsung ke api.openai.com menggunakan OPEN_AI_KEY."""
-    api_key = os.getenv("OPEN_AI_KEY", "")
+    """Buat client ke Google Gemini embedding API menggunakan GEMINI_API_KEY."""
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
-        raise ValueError("OPEN_AI_KEY tidak ditemukan di environment variables.")
-    return OpenAI(api_key=api_key)   # base_url default: https://api.openai.com/v1
+        raise ValueError("GEMINI_API_KEY tidak ditemukan di environment variables.")
+    return OpenAI(api_key=api_key, base_url=_GEMINI_EMBED_BASE_URL)
 
 
 # ── Teks preparation ───────────────────────────────────────────────────────────
@@ -96,6 +99,7 @@ def generate_embedding(text: str, client: OpenAI | None = None) -> list[float] |
         response = _client.embeddings.create(
             model=_EMBEDDING_MODEL,
             input=text,
+            dimensions=_EMBEDDING_DIMS,
             encoding_format="float",
         )
         data = getattr(response, "data", None)
@@ -129,7 +133,7 @@ def embed_article(article: dict, client: OpenAI | None = None) -> list[float] | 
 def batch_embed_texts(texts: list[str], client: OpenAI | None = None) -> list[list[float] | None]:
     """
     Generate embedding untuk banyak teks secara batch.
-    OpenAI mendukung multi-input dalam satu API call (lebih efisien).
+    Gemini mendukung multi-input dalam satu API call (lebih efisien).
     Return list dengan panjang sama dengan input — None untuk yang gagal.
     """
     if not texts:
@@ -154,6 +158,7 @@ def batch_embed_texts(texts: list[str], client: OpenAI | None = None) -> list[li
             response = _client.embeddings.create(
                 model=_EMBEDDING_MODEL,
                 input=list(texts_valid),
+                dimensions=_EMBEDDING_DIMS,
                 encoding_format="float",
             )
             data = getattr(response, "data", None)

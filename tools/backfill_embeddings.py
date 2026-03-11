@@ -65,7 +65,7 @@ def main(force: bool = False):
         print("[Backfill] Tidak ada artikel yang perlu diproses.")
         return
 
-    # ── Init OpenAI client sekali ──────────────────────────────────────────────
+    # ── Init Gemini embedding client sekali ────────────────────────────────────
     embed_client = _build_embedding_client()
 
     processed  = 0

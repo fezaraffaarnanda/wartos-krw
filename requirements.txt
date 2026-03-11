@@ -4,12 +4,11 @@ flask-bcrypt
 flask-limiter
 python-dotenv
 supabase
-playwright
 requests
 beautifulsoup4
 pandas
-openpyxl
 openai
 numpy
 joblib
 scikit-learn
+openpyxl
