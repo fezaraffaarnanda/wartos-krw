@@ -63,6 +63,37 @@ function _isKbliIrrelevant(kbli) {
   return k === "—" || k.toLowerCase().startsWith("tidak relevan");
 }
 
+// ── Aktivitas Ekonomi: Mapping nomor → deskripsi (sinkron dengan AKTIVITAS_LABELS di core/aktivitas_utils.py) ──
+const AKTIVITAS_LABELS = {
+  1:  "Kondisi perekonomian di kabupaten/kota secara umum",
+  2:  "Aktivitas panen hasil tanaman pangan (padi, jagung, palawija)",
+  3:  "Aktivitas panen hasil tanaman lainnya (perkebunan, hortikultura)",
+  4:  "Aktivitas rumah potong hewan (RPH)",
+  5:  "Aktivitas penangkapan/budidaya ikan laut dan darat",
+  6:  "Aktivitas pertambangan non migas (batubara, bijih logam, dll)",
+  7:  "Aktivitas penggalian (pasir, kerikil)",
+  8:  "Aktivitas produksi CPO",
+  9:  "Aktivitas industri makanan dan minuman selain CPO",
+  10: "Aktivitas penjualan/penyaluran migas (BBM & LPG)",
+  11: "Aktivitas penjualan dan reparasi mobil dan sepeda motor",
+  12: "Aktivitas pengiriman barang/ekspedisi",
+  13: "Aktivitas/keramaian di terminal bis/travel/pool",
+  14: "Aktivitas usaha perhotelan",
+  15: "Jumlah pengunjung rumah sakit, klinik, dan laboratorium kesehatan",
+  16: "Aktivitas/transaksi jual beli di pasar tradisional",
+  17: "Aktivitas/transaksi jual beli di mall/pusat perbelanjaan modern terbesar",
+  18: "Banyaknya penyewaan ruang untuk berjualan di mall/supermarket (tenant)",
+  19: "Aktivitas/keramaian pengunjung restoran dan rumah makan",
+  20: "Jumlah pengunjung tempat wisata komersial",
+  21: "Aktivitas penyaluran dana bantuan penanggulangan bencana oleh LNPRT",
+  22: "Aktivitas partai politik (kampanye, kongres, musda, dll)",
+  23: "Aktivitas perayaan kegiatan keagamaan",
+  24: "Aktivitas pembangunan/renovasi besar-besaran rumah/tempat tinggal",
+  25: "Aktivitas pembangunan gedung dan infrastruktur (jalan, jembatan, dll)",
+  26: "Aktivitas pemberian bansos dari pemerintah",
+  27: "Aktivitas bongkar muat di pelabuhan/bandara/stasiun",
+};
+
 // ── Filter tag tidak informatif (mirror logic dari core/utils.py clean_tags) ──
 
 // 1. Kata lokasi — word-boundary: menangkap "berita tegal", "pemkab tegal", dll.
@@ -279,18 +310,32 @@ async function loadUserInfo() {
     }
     const json = await res.json();
     if (json.status === "ok") {
+      if (json.must_change_password) {
+        window.location.href = "/change-password";
+        return;
+      }
+
       currentUser = json;
       const userEl = document.getElementById("headerUser");
       if (userEl) userEl.textContent = json.username;
+      const adminUsersLink = document.getElementById("adminUsersLink");
+      const guideUserCard = document.getElementById("guideUserCard");
+      const guideAdminCard = document.getElementById("guideAdminCard");
 
       // Admin: sembunyikan info bar (sudah ada di scrape card)
       // Non-admin: sembunyikan scrape section
       if (json.role === "admin") {
         const infoBar = document.getElementById("scrapeInfoBar");
         if (infoBar) infoBar.style.display = "none";
+        if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
+        if (guideAdminCard) guideAdminCard.style.display = "flex";
+        if (guideUserCard) guideUserCard.style.display = "none";
       } else {
         const scrapeSection = document.getElementById("scrapeSection");
         if (scrapeSection) scrapeSection.style.display = "none";
+        if (adminUsersLink) adminUsersLink.style.display = "none";
+        if (guideUserCard) guideUserCard.style.display = "flex";
+        if (guideAdminCard) guideAdminCard.style.display = "none";
       }
     }
   } catch (e) {
@@ -326,13 +371,20 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
     if (json.status === "ok") {
       allData = json.data || [];
       // Terapkan KBLI filter (client-side) jika aktif
-      filteredData = _selectedKbli
-        ? allData.filter((item) => {
-            if (_isKbliIrrelevant(item.kbli)) return false;
-            const kode = item.kbli.split("/")[0].trim().toUpperCase();
-            return kode === _selectedKbli;
-          })
-        : [...allData];
+      filteredData = allData.filter((item) => {
+        if (_selectedKbli) {
+          if (_isKbliIrrelevant(item.kbli)) return false;
+          const kode = item.kbli.split("/")[0].trim().toUpperCase();
+          if (kode !== _selectedKbli) return false;
+        }
+        if (_selectedAktivitas) {
+          const a = item.aktivitas_ekonomi || "";
+          if (!a || a === "—") return false;
+          const num = a.split("/")[0].trim();
+          if (num !== _selectedAktivitas) return false;
+        }
+        return true;
+      });
       currentPage = 1;
       updateSummary();
       renderTable();
@@ -895,7 +947,7 @@ function renderTable() {
         .join(" ");
       const source = escapeHtml(item.source || "—");
       const date = escapeHtml(item.date || "—");
-      const kbli = renderKbliCell(item.kbli || "");
+      const kbli = renderKbliCell(item.kbli || "", item.aktivitas_ekonomi || "");
       const internalLink = item.id ? `/berita/${item.id}` : "#";
       const externalLink = escapeHtml(item.url || "#");
       return `
@@ -1008,38 +1060,58 @@ function _kbliGroupClass(kode) {
  * - "Tidak Relevan"   → badge abu-abu
  * - "—"              → dash (artikel tanpa konten)
  */
-function renderKbliCell(kbliStr) {
-  if (!kbliStr || !kbliStr.trim()) return "—";
-
-  // "Tidak Relevan" atau "—"
-  if (_isKbliIrrelevant(kbliStr)) {
+function renderKbliCell(kbliStr, aktivitasStr) {
+  // Render badge KBLI
+  let kbliHtml;
+  if (!kbliStr || !kbliStr.trim()) {
+    kbliHtml = "—";
+  } else if (_isKbliIrrelevant(kbliStr)) {
     const label = kbliStr.trim() === "—" ? "—" : "Tidak Relevan";
-    return `<span class="kbli-tidak-relevan">${label}</span>`;
+    kbliHtml = `<span class="kbli-tidak-relevan">${label}</span>`;
+  } else {
+    const slashIdx = kbliStr.indexOf("/");
+    if (slashIdx !== -1) {
+      const kode = kbliStr.slice(0, slashIdx).trim().toUpperCase();
+      const desc = kbliStr.slice(slashIdx + 1).trim();
+      const groupCls = _kbliGroupClass(kode);
+      kbliHtml = (
+        `<span class="kbli-badge ${groupCls}">` +
+        `<span class="kbli-badge-letter">${escapeHtml(kode)}</span>` +
+        `<span class="kbli-badge-text">${escapeHtml(desc)}</span>` +
+        `</span>`
+      );
+    } else {
+      const kode = kbliStr.trim().toUpperCase();
+      const groupCls = _kbliGroupClass(kode);
+      kbliHtml = (
+        `<span class="kbli-badge ${groupCls}">` +
+        `<span class="kbli-badge-letter">${escapeHtml(kode)}</span>` +
+        `<span class="kbli-badge-text">${escapeHtml(kode)}</span>` +
+        `</span>`
+      );
+    }
   }
 
-  // Normal: badge berwarna
-  const slashIdx = kbliStr.indexOf("/");
-  if (slashIdx !== -1) {
-    const kode = kbliStr.slice(0, slashIdx).trim().toUpperCase();
-    const desc = kbliStr.slice(slashIdx + 1).trim();
-    const groupCls = _kbliGroupClass(kode);
-    return (
-      `<span class="kbli-badge ${groupCls}">` +
-      `<span class="kbli-badge-letter">${escapeHtml(kode)}</span>` +
-      `<span class="kbli-badge-text">${escapeHtml(desc)}</span>` +
-      `</span>`
-    );
+  // Render badge Aktivitas Ekonomi (nomor lingkaran + label penuh, mirip KBLI badge)
+  let aktivitasHtml = "";
+  if (aktivitasStr && aktivitasStr.trim() && aktivitasStr.trim() !== "—") {
+    const slashIdx = aktivitasStr.indexOf("/");
+    const numStr   = slashIdx !== -1 ? aktivitasStr.slice(0, slashIdx).trim() : "";
+    const fullLabel = slashIdx !== -1
+      ? aktivitasStr.slice(slashIdx + 1).trim()
+      : aktivitasStr.trim();
+    if (fullLabel) {
+      const numDisplay = numStr || "·";
+      aktivitasHtml = (
+        `<span class="aktivitas-badge">` +
+        `<span class="aktivitas-badge-num">${escapeHtml(numDisplay)}</span>` +
+        `<span class="aktivitas-badge-text">${escapeHtml(fullLabel)}</span>` +
+        `</span>`
+      );
+    }
   }
 
-  // Fallback: hanya kode tanpa deskripsi
-  const kode = kbliStr.trim().toUpperCase();
-  const groupCls = _kbliGroupClass(kode);
-  return (
-    `<span class="kbli-badge ${groupCls}">` +
-    `<span class="kbli-badge-letter">${escapeHtml(kode)}</span>` +
-    `<span class="kbli-badge-text">${escapeHtml(kode)}</span>` +
-    `</span>`
-  );
+  return kbliHtml + aktivitasHtml;
 }
 
 // Elemen tooltip floating (satu, di-append ke body saat pertama dipakai)
@@ -1158,6 +1230,7 @@ function goPage(p) {
 // ── KBLI Filter ────────────────────────────────────────────────────────────────
 
 let _selectedKbli = ""; // kode KBLI terpilih (kosong = semua)
+let _selectedAktivitas = ""; // nomor aktivitas terpilih sebagai string (kosong = semua)
 
 /**
  * Isi dropdown filter KBLI dari data yang ada.
@@ -1268,6 +1341,109 @@ document.addEventListener("click", (e) => {
     const btn = document.getElementById("kbliFilterBtn");
     if (menu) menu.classList.remove("open");
     if (btn) btn.classList.remove("open");
+  }
+});
+
+// ── Aktivitas Ekonomi Filter ──────────────────────────────────────────────────
+
+/**
+ * Isi dropdown filter Aktivitas Ekonomi dari data yang ada.
+ * Dipanggil saat dropdown dibuka.
+ */
+function populateAktivitasFilter() {
+  const menu = document.getElementById("aktivitasFilterMenu");
+  if (!menu) return;
+
+  // Kumpulkan nomor aktivitas unik (bukan "—" / kosong)
+  const numSet = new Set();
+  allData.forEach((item) => {
+    const a = item.aktivitas_ekonomi || "";
+    if (!a || a === "—") return;
+    const num = a.split("/")[0].trim();
+    if (num && !isNaN(Number(num))) numSet.add(num);
+  });
+
+  if (numSet.size === 0) {
+    menu.innerHTML = `<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">Belum ada data aktivitas</div>`;
+    return;
+  }
+
+  // Urutkan secara numerik
+  const numArr = [...numSet].sort((a, b) => Number(a) - Number(b));
+
+  let html = `<button class="kbli-filter-clear" onclick="clearAktivitasFilter()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Tampilkan Semua
+    </button>
+    <div class="kbli-filter-sep"></div>`;
+
+  numArr.forEach((num) => {
+    const desc = AKTIVITAS_LABELS[Number(num)] || `Aktivitas ${num}`;
+    const selectedCls = _selectedAktivitas === num ? " selected" : "";
+    html += `<button class="kbli-filter-option${selectedCls}" onclick="selectAktivitasFilter('${num}')">
+            <span class="aktivitas-filter-num">${escapeHtml(num)}</span>
+            <span>${escapeHtml(desc)}</span>
+        </button>`;
+  });
+
+  menu.innerHTML = html;
+}
+
+function toggleAktivitasDropdown() {
+  const menu = document.getElementById("aktivitasFilterMenu");
+  const btn  = document.getElementById("aktivitasFilterBtn");
+  if (!menu || !btn) return;
+  const isOpen = menu.classList.contains("open");
+  if (isOpen) {
+    menu.classList.remove("open");
+    btn.classList.remove("open");
+  } else {
+    populateAktivitasFilter();
+    menu.classList.add("open");
+    btn.classList.add("open");
+  }
+}
+
+function selectAktivitasFilter(num) {
+  _selectedAktivitas = num;
+  const btn   = document.getElementById("aktivitasFilterBtn");
+  const dot   = document.getElementById("aktivitasFilterDot");
+  const label = document.getElementById("aktivitasFilterLabel");
+  if (label) label.textContent = `Aktivitas ${num}`;
+  if (dot)   dot.style.display = "";
+  if (btn)   btn.classList.add("active");
+  const menu = document.getElementById("aktivitasFilterMenu");
+  if (menu) {
+    menu.classList.remove("open");
+    btn?.classList.remove("open");
+  }
+  applyFilters();
+}
+
+function clearAktivitasFilter() {
+  _selectedAktivitas = "";
+  const btn   = document.getElementById("aktivitasFilterBtn");
+  const dot   = document.getElementById("aktivitasFilterDot");
+  const label = document.getElementById("aktivitasFilterLabel");
+  if (label) label.textContent = "Filter Aktivitas";
+  if (dot)   dot.style.display = "none";
+  if (btn)   btn.classList.remove("active");
+  const menu = document.getElementById("aktivitasFilterMenu");
+  if (menu) {
+    menu.classList.remove("open");
+    btn?.classList.remove("open");
+  }
+  applyFilters();
+}
+
+// Tutup menu Aktivitas jika klik di luar
+document.addEventListener("click", (e) => {
+  const wrapper = document.getElementById("aktivitasFilterWrapper");
+  if (wrapper && !wrapper.contains(e.target)) {
+    const menu = document.getElementById("aktivitasFilterMenu");
+    const btn  = document.getElementById("aktivitasFilterBtn");
+    if (menu) menu.classList.remove("open");
+    if (btn)  btn.classList.remove("open");
   }
 });
 
@@ -1410,6 +1586,7 @@ async function downloadExcel() {
     URL: item.url || "",
     Tags: item.tags || "",
     KBLI: item.kbli || "",
+    "Aktivitas Ekonomi": item.aktivitas_ekonomi || "",
     Konten: item.content || "",
   }));
 
@@ -1418,13 +1595,14 @@ async function downloadExcel() {
   XLSX.utils.book_append_sheet(wb, ws, "Berita");
 
   ws["!cols"] = [
-    { wch: 5 }, // No
+    { wch: 5 },  // No
     { wch: 50 }, // Judul
     { wch: 15 }, // Sumber
     { wch: 25 }, // Tanggal
     { wch: 40 }, // URL
     { wch: 30 }, // Tags
     { wch: 48 }, // KBLI
+    { wch: 55 }, // Aktivitas Ekonomi
     { wch: 80 }, // Konten
   ];
 

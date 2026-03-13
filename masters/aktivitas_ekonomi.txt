@@ -1,0 +1,27 @@
+Kondisi perekonomian di kabupaten/kota secara umum
+Aktivitas panen hasil tanaman pangan (padi, jagung, palawija)
+Aktivitas panen hasil tanaman lainnya (perkebunan, hortikultura)
+Aktivitas rumah potong hewan (RPH)
+Aktivitas penangkapan/budidaya ikan laut dan darat
+Aktivitas pertambangan non migas (batubara, bijih logam, dll)
+Aktivitas penggalian (pasir, kerikil)
+Aktivitas produksi CPO
+Aktivitas industri makanan dan minuman selain CPO
+Aktivitas penjualan/penyaluran migas (BBM & LPG)
+Aktivitas penjualan dan reparasi mobil dan sepeda motor
+Aktivitas pengiriman barang/ekspedisi
+Aktivitas/keramaian di terminal bis/travel/pool
+Aktivitas usaha perhotelan
+Jumlah pengunjung rumah sakit, klinik, dan laboratorium kesehatan
+Aktivitas/transaksi jual beli di pasar tradisional
+Aktivitas/transaksi jual beli di mall/pusat perbelanjaan modern terbesar
+Banyaknya penyewaan ruang untuk berjualan di mall/supermarket (tenant)
+Aktivitas/keramaian pengunjung restoran dan rumah makan
+Jumlah pengunjung tempat wisata komersial
+Aktivitas penyaluran dana bantuan penanggulangan bencana oleh LNPRT
+Aktivitas partai politik (kampanye, kongres, musda, dll)
+Aktivitas perayaan kegiatan keagamaan
+Aktivitas pembangunan/renovasi besar-besaran rumah/tempat tinggal
+Aktivitas pembangunan gedung dan infrastruktur (jalan, jembatan, dll)
+Aktivitas pemberian bansos dari pemerintah
+Aktivitas bongkar muat di pelabuhan/bandara/stasiun

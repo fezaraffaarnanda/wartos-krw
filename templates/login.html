@@ -74,6 +74,10 @@
                     <span class="btn-text">Masuk</span>
                     <span class="btn-loader" id="loginLoader"></span>
                 </button>
+
+                <div style="text-align:center; margin-top:12px;">
+                    <a href="/reset-password" style="font-size:0.8rem; color: var(--accent); text-decoration:none; font-weight:600;">Lupa password? Reset via kode autentikasi admin</a>
+                </div>
             </form>
         </div>
 
@@ -109,7 +113,11 @@
                 const json = await res.json();
 
                 if (res.ok && json.status === "ok") {
-                    window.location.href = "/";
+                    if (json.must_change_password) {
+                        window.location.href = "/change-password";
+                    } else {
+                        window.location.href = "/";
+                    }
                 } else if (res.status === 429) {
                     showError("Terlalu banyak percobaan login. Coba lagi dalam beberapa menit.");
                 } else {
@@ -158,7 +166,9 @@
                 const res = await fetch("/api/me");
                 if (res.ok) {
                     const json = await res.json();
-                    if (json.status === "ok") window.location.href = "/";
+                    if (json.status === "ok") {
+                        window.location.href = json.must_change_password ? "/change-password" : "/";
+                    }
                 }
             } catch (_) { /* not logged in */ }
         });

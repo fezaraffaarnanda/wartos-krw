@@ -1,8 +1,11 @@
 import os
 import json
+import hashlib
 import secrets
+import string
 import threading
 from datetime import datetime, timedelta, timezone
+from functools import wraps
 from time import perf_counter
 
 from dotenv import load_dotenv
@@ -39,6 +42,7 @@ from core.ai_insights import (
 )
 from core.embeddings import batch_embed_articles, embed_article, _build_embedding_client
 from core.kbli_utils import load_kbli_llm_classifier, predict_kbli_label
+from core.aktivitas_utils import predict_aktivitas_label, AKTIVITAS_LABELS
 from core.llm_client import build_chat_client
 from core.rag_chat import (
     extract_followup_questions,
@@ -94,8 +98,8 @@ SOURCE_LABELS = {
     "setdategal":   "Setda Tegal",
 }
 
-BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, kbli, source, created_at"
-BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, kbli, source, content"
+BERITA_LIST_COLUMNS  = "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, created_at"
+BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, content"
 
 WIB = timezone(timedelta(hours=7))
 
@@ -125,10 +129,11 @@ _kbli_predictor = load_kbli_llm_classifier(
 # ── User model ─────────────────────────────────────────────────────────────────
 
 class User(UserMixin):
-    def __init__(self, user_id: str, username: str, role: str):
-        self.id       = user_id
-        self.username = username
-        self.role     = role
+    def __init__(self, user_id: str, username: str, role: str, must_change_password: bool = False):
+        self.id                   = user_id
+        self.username             = username
+        self.role                 = role
+        self.must_change_password = must_change_password
 
 
 @login_manager.user_loader
@@ -136,17 +141,115 @@ def load_user(user_id: str) -> User | None:
     try:
         result = (
             supabase.table("users")
-            .select("id, username, role")
+            .select("id, username, role, must_change_password")
             .eq("id", user_id)
             .single()
             .execute()
         )
         if result.data:
             d = result.data
-            return User(str(d["id"]), d["username"], d["role"])
+            return User(
+                str(d["id"]),
+                d["username"],
+                d["role"],
+                bool(d.get("must_change_password", False)),
+            )
     except Exception:
         pass
     return None
+
+
+# ── Auth helpers ───────────────────────────────────────────────────────────────
+
+_USERNAME_ALLOWED = frozenset(string.ascii_letters + string.digits + "_-")
+
+
+def admin_required(f):
+    """Decorator: memastikan user terautentikasi dan ber-role admin."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not current_user.is_authenticated:
+            if request.path.startswith("/api/"):
+                return jsonify({"status": "error", "message": "Sesi habis. Silakan login kembali."}), 401
+            return redirect(url_for("serve_login"))
+        if current_user.role != "admin":
+            if request.path.startswith("/api/"):
+                return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin."}), 403
+            return redirect(url_for("dashboard"))
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _generate_temp_password(length: int = 14) -> str:
+    """
+    Generate password sementara yang kuat:
+    - Minimal 1 huruf besar, 1 huruf kecil, 1 angka, 1 simbol
+    - Total <length> karakter, dipilih secara kriptografis acak
+    """
+    upper   = string.ascii_uppercase
+    lower   = string.ascii_lowercase
+    digits  = string.digits
+    symbols = "!@#$%^&*"
+    # Pastikan minimal 1 dari setiap kategori
+    must_have = [
+        secrets.choice(upper),
+        secrets.choice(lower),
+        secrets.choice(digits),
+        secrets.choice(symbols),
+    ]
+    pool = upper + lower + digits + symbols
+    rest = [secrets.choice(pool) for _ in range(length - len(must_have))]
+    combined = must_have + rest
+    # Acak urutan agar pola tidak terlihat
+    secrets.SystemRandom().shuffle(combined)
+    return "".join(combined)
+
+
+def _generate_auth_code() -> tuple[str, str]:
+    """
+    Generate kode autentikasi 8 karakter (UPPERCASE + digit).
+    Return: (kode_plain, sha256_hash)
+    Kode plain hanya ditampilkan sekali ke admin, tidak disimpan di DB.
+    """
+    alphabet  = string.ascii_uppercase + string.digits
+    code_plain = "".join(secrets.choice(alphabet) for _ in range(8))
+    code_hash  = hashlib.sha256(code_plain.encode("utf-8")).hexdigest()
+    return code_plain, code_hash
+
+
+@app.before_request
+def enforce_must_change_password():
+    """
+    Jika user ditandai must_change_password=True, blok akses ke halaman/API lain
+    sampai password diganti.
+    """
+    if not current_user.is_authenticated:
+        return None
+
+    if not getattr(current_user, "must_change_password", False):
+        return None
+
+    allowed_paths = {
+        "/change-password",
+        "/api/auth/change-password",
+        "/api/me",
+        "/logout",
+    }
+
+    # Izinkan static assets untuk render halaman ganti password
+    if request.path.startswith("/static/"):
+        return None
+
+    if request.path in allowed_paths:
+        return None
+
+    if request.path.startswith("/api/"):
+        return jsonify({
+            "status": "error",
+            "message": "Anda wajib mengganti password sebelum mengakses fitur lain.",
+        }), 403
+
+    return redirect(url_for("serve_change_password"))
 
 
 # ── Serve static pages ─────────────────────────────────────────────────────────
@@ -159,8 +262,13 @@ def serve_login():
 
 
 @app.route("/")
-@login_required
 def index():
+    return redirect(url_for("dashboard"))
+
+
+@app.route("/dashboard")
+@login_required
+def dashboard():
     return send_from_directory("templates", "index.html")
 
 
@@ -168,6 +276,23 @@ def index():
 @login_required
 def berita_detail(berita_id):
     return send_from_directory("templates", "berita.html")
+
+
+@app.route("/admin/users")
+@admin_required
+def serve_admin_users():
+    return send_from_directory("templates", "admin_users.html")
+
+
+@app.route("/change-password")
+@login_required
+def serve_change_password():
+    return send_from_directory("templates", "change_password.html")
+
+
+@app.route("/reset-password")
+def serve_reset_password():
+    return send_from_directory("templates", "reset_password.html")
 
 
 @app.route("/static/css/<path:filename>")
@@ -192,7 +317,7 @@ def serve_logo():
 def api_login():
     data = request.get_json(silent=True) or {}
 
-    username = str(data.get("username", "")).strip()[:100]
+    username = str(data.get("username", "")).strip().lower()[:100]
     password = str(data.get("password", "")).strip()[:200]
 
     if not username or not password:
@@ -201,7 +326,7 @@ def api_login():
     try:
         result = (
             supabase.table("users")
-            .select("id, username, password_hash, role")
+            .select("id, username, password_hash, role, must_change_password")
             .eq("username", username)
             .single()
             .execute()
@@ -214,10 +339,16 @@ def api_login():
     if not user_data or not bcrypt.check_password_hash(user_data["password_hash"], password):
         return jsonify({"status": "error", "message": "Username atau password salah."}), 401
 
-    user = User(str(user_data["id"]), user_data["username"], user_data["role"])
+    must_change = bool(user_data.get("must_change_password", False))
+    user = User(str(user_data["id"]), user_data["username"], user_data["role"], must_change)
     login_user(user, remember=False)
 
-    return jsonify({"status": "ok", "username": user.username, "role": user.role})
+    return jsonify({
+        "status":               "ok",
+        "username":             user.username,
+        "role":                 user.role,
+        "must_change_password": must_change,
+    })
 
 
 @app.route("/logout")
@@ -231,9 +362,10 @@ def logout():
 @login_required
 def api_me():
     return jsonify({
-        "status":   "ok",
-        "username": current_user.username,
-        "role":     current_user.role,
+        "status":               "ok",
+        "username":             current_user.username,
+        "role":                 current_user.role,
+        "must_change_password": current_user.must_change_password,
     })
 
 
@@ -1279,6 +1411,17 @@ def _is_valid_article(article: dict | None, source_key: str) -> bool:
     return True
 
 
+def _is_kbli_irrelevant(kbli: str | None) -> bool:
+    """Return True jika nilai KBLI menandakan artikel tidak relevan secara ekonomi.
+
+    Artikel dengan KBLI "Tidak Relevan" atau "—" tidak memerlukan klasifikasi
+    Aktivitas Ekonomi lebih lanjut.
+    """
+    if not kbli:
+        return True
+    return kbli.strip() in ("Tidak Relevan", "—")
+
+
 def _build_article_row(article: dict, source_label: str) -> dict:
     """Rakit dict row siap insert ke tabel berita."""
     normalized_date = normalize_date(article["date"])
@@ -1287,15 +1430,25 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         _kbli_predictor,
         title=article.get("title"),
     )
+    # Klasifikasi Aktivitas Ekonomi hanya untuk artikel yang relevan secara KBLI
+    aktivitas = None
+    if not _is_kbli_irrelevant(kbli) and _kbli_llm_client is not None:
+        aktivitas = predict_aktivitas_label(
+            article.get("content"),
+            article.get("title"),
+            _kbli_llm_client,
+            _kbli_llm_model,
+        )
     return {
-        "title":       article["title"],
-        "date":        normalized_date,
-        "date_parsed": parse_date_to_iso(normalized_date),
-        "url":         article["url"],
-        "content":     article["content"],
-        "tags":        article["tags"].lower() if article.get("tags") else article.get("tags"),
-        "kbli":        kbli,
-        "source":      article.get("source") or source_label,
+        "title":             article["title"],
+        "date":              normalized_date,
+        "date_parsed":       parse_date_to_iso(normalized_date),
+        "url":               article["url"],
+        "content":           article["content"],
+        "tags":              article["tags"].lower() if article.get("tags") else article.get("tags"),
+        "kbli":              kbli,
+        "aktivitas_ekonomi": aktivitas,
+        "source":            article.get("source") or source_label,
     }
 
 
@@ -1421,6 +1574,85 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
             break
 
     print(f"[KBLI Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
+    return total_updated
+
+
+def _run_aktivitas_backfill(batch_size: int = 50) -> int:
+    """
+    Prediksi Aktivitas Ekonomi untuk semua berita yang:
+      - aktivitas_ekonomi IS NULL
+      - kbli IS NOT NULL (sudah punya label KBLI)
+
+    Penanganan artikel yang tidak dapat diprediksi:
+      - KBLI "Tidak Relevan" / "—"  → set aktivitas_ekonomi = "—" (tidak relevan, skip permanen)
+      - Prediksi return None + content/title keduanya kosong → set "—"
+      - Prediksi return None + masih ada konten → skip (coba lagi di run berikutnya)
+
+    Return jumlah artikel yang berhasil diupdate.
+    """
+    if _kbli_llm_client is None:
+        print("[Aktivitas Backfill] LLM client tidak tersedia, backfill dilewati.")
+        return 0
+
+    total_updated = 0
+    MAX_BATCHES   = 100
+    iteration     = 0
+
+    print("[Aktivitas Backfill] Mulai memproses artikel tanpa Aktivitas Ekonomi...")
+
+    while iteration < MAX_BATCHES:
+        iteration += 1
+
+        try:
+            result = (
+                supabase.table("berita")
+                .select("id, title, content, kbli")
+                .is_("aktivitas_ekonomi", "null")
+                .not_.is_("kbli", "null")
+                .limit(batch_size)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[Aktivitas Backfill] Gagal query DB (batch {iteration}): {exc}")
+            break
+
+        rows = result.data or []
+        if not rows:
+            break
+
+        updated_this_batch = 0
+
+        for row in rows:
+            kbli    = row.get("kbli") or ""
+            content = (row.get("content") or "").strip()
+            title   = (row.get("title")   or "").strip()
+
+            # Artikel KBLI tidak relevan → tandai "—" agar tidak di-query ulang
+            if _is_kbli_irrelevant(kbli):
+                label = "—"
+            elif not content and not title:
+                # Tidak ada teks sama sekali
+                label = "—"
+            else:
+                label = predict_aktivitas_label(
+                    content, title, _kbli_llm_client, _kbli_llm_model,
+                )
+                if label is None:
+                    # Prediksi gagal sementara — skip, coba lagi di run berikutnya
+                    continue
+
+            try:
+                supabase.table("berita").update({"aktivitas_ekonomi": label}).eq("id", row["id"]).execute()
+                updated_this_batch += 1
+                total_updated += 1
+            except Exception as exc:
+                print(f"[Aktivitas Backfill] Gagal update id={row['id']}: {exc}")
+
+        if updated_this_batch == 0:
+            print(f"[Aktivitas Backfill] Batch {iteration} tidak ada update — menghentikan loop.")
+            break
+
+    print(f"[Aktivitas Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
     return total_updated
 
 
@@ -1591,6 +1823,15 @@ def _scrape_worker(max_articles: int):
             name="embedding-backfill-post-scrape",
         ).start()
 
+        # Jalankan backfill Aktivitas Ekonomi setelah scraping selesai.
+        # Menangani artikel baru yang mungkin masuk dengan aktivitas_ekonomi = NULL.
+        if _kbli_llm_client is not None:
+            threading.Thread(
+                target=_run_aktivitas_backfill,
+                daemon=True,
+                name="aktivitas-backfill-post-scrape",
+            ).start()
+
     except Exception as exc:
         _scrape_overall["error"] = str(exc)
         print(f"[SCRAPE ERROR] {exc}")
@@ -1646,6 +1887,13 @@ def _scrape_sync(max_articles: int) -> dict:
         _run_embedding_backfill()
     except Exception as exc:
         print(f"[SCRAPE-SYNC] Embedding backfill error: {exc}")
+
+    # Backfill Aktivitas Ekonomi setelah scraping sync — dijalankan SYNCHRONOUS.
+    if _kbli_llm_client is not None:
+        try:
+            _run_aktivitas_backfill()
+        except Exception as exc:
+            print(f"[SCRAPE-SYNC] Aktivitas backfill error: {exc}")
 
     return {
         "status":         "ok",
@@ -1725,6 +1973,345 @@ def api_backfill_kbli():
     return jsonify({"status": "started", "message": "Backfill KBLI dimulai di background."})
 
 
+# ── API: manajemen user (admin only) ───────────────────────────────────────────
+
+@app.route("/api/admin/users", methods=["GET"])
+@admin_required
+def api_list_users():
+    """
+    Kembalikan daftar semua user beserta info kode reset aktif.
+    Admin only.
+    """
+    try:
+        users_res = (
+            supabase.table("users")
+            .select("id, username, role, must_change_password, created_at")
+            .order("created_at", desc=False)
+            .execute()
+        )
+        users = users_res.data or []
+
+        # Ambil kode aktif (belum dipakai, belum expire) per user
+        now_iso = datetime.now(timezone.utc).isoformat()
+        codes_res = (
+            supabase.table("password_reset_codes")
+            .select("user_id, expires_at")
+            .is_("used_at", "null")
+            .gt("expires_at", now_iso)
+            .execute()
+        )
+        active_code_users = {row["user_id"] for row in (codes_res.data or [])}
+
+        for u in users:
+            u["has_active_code"] = u["id"] in active_code_users
+
+        return jsonify({"status": "ok", "data": users})
+    except Exception as exc:
+        print(f"[ADMIN] Gagal ambil daftar user: {exc}")
+        return jsonify({"status": "error", "message": "Gagal mengambil data pengguna."}), 500
+
+
+@app.route("/api/admin/users", methods=["POST"])
+@admin_required
+def api_create_user():
+    """
+    Buat user baru dengan username yang ditentukan admin.
+    Password di-generate otomatis dan dikembalikan sekali ke admin.
+    User wajib ganti password saat pertama login.
+    """
+    body = request.get_json(silent=True) or {}
+    username = str(body.get("username", "")).strip().lower()[:50]
+
+    # Validasi username: 3–50 karakter, hanya huruf/angka/underscore/dash
+    if len(username) < 3:
+        return jsonify({"status": "error", "message": "Username minimal 3 karakter."}), 400
+    if not all(c in _USERNAME_ALLOWED for c in username):
+        return jsonify({"status": "error", "message": "Username hanya boleh mengandung huruf, angka, underscore (_), atau dash (-)."}), 400
+
+    # Cek duplikat username (case-insensitive)
+    try:
+        existing = (
+            supabase.table("users")
+            .select("id")
+            .eq("username", username)
+            .execute()
+        )
+        if existing.data:
+            return jsonify({"status": "error", "message": "Username sudah digunakan."}), 409
+    except Exception as exc:
+        print(f"[ADMIN] Gagal cek duplikat username: {exc}")
+        return jsonify({"status": "error", "message": "Gagal memvalidasi username."}), 500
+
+    # Generate password sementara
+    temp_password = _generate_temp_password()
+    pw_hash = bcrypt.generate_password_hash(temp_password, rounds=12).decode("utf-8")
+
+    try:
+        result = (
+            supabase.table("users")
+            .insert({
+                "username":             username,
+                "password_hash":        pw_hash,
+                "role":                 "user",
+                "must_change_password": True,
+            })
+            .execute()
+        )
+        new_user = result.data[0] if result.data else {}
+    except Exception as exc:
+        print(f"[ADMIN] Gagal buat user: {exc}")
+        return jsonify({"status": "error", "message": "Gagal membuat pengguna."}), 500
+
+    print(f"[ADMIN] User baru dibuat: {username} (oleh {current_user.username})")
+    return jsonify({
+        "status":             "ok",
+        "user": {
+            "id":                   new_user.get("id"),
+            "username":             username,
+            "role":                 "user",
+            "must_change_password": True,
+            "created_at":           new_user.get("created_at"),
+        },
+        "generated_password": temp_password,   # Ditampilkan sekali, tidak disimpan plaintext
+    }), 201
+
+
+@app.route("/api/admin/users/<int:user_id>", methods=["DELETE"])
+@admin_required
+def api_delete_user(user_id: int):
+    """
+    Hapus user berdasarkan ID.
+    Admin tidak dapat menghapus dirinya sendiri.
+    """
+    if str(user_id) == str(current_user.id):
+        return jsonify({"status": "error", "message": "Tidak dapat menghapus akun sendiri."}), 400
+
+    try:
+        # Verifikasi user ada dulu
+        check = (
+            supabase.table("users")
+            .select("id, username")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if not check.data:
+            return jsonify({"status": "error", "message": "Pengguna tidak ditemukan."}), 404
+
+        target_username = check.data["username"]
+
+        # Hapus kode reset milik user ini dulu (CASCADE harusnya sudah tangani, ini eksplisit)
+        supabase.table("password_reset_codes").delete().eq("user_id", user_id).execute()
+
+        # Hapus user
+        supabase.table("users").delete().eq("id", user_id).execute()
+
+        print(f"[ADMIN] User dihapus: {target_username} (oleh {current_user.username})")
+        return jsonify({"status": "ok", "message": f"Pengguna '{target_username}' berhasil dihapus."})
+    except Exception as exc:
+        print(f"[ADMIN] Gagal hapus user {user_id}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal menghapus pengguna."}), 500
+
+
+@app.route("/api/admin/users/<int:user_id>/auth-code", methods=["POST"])
+@admin_required
+def api_generate_auth_code(user_id: int):
+    """
+    Generate kode autentikasi 8 karakter untuk reset password.
+    Kode lama dihapus, kode baru berlaku 1 jam.
+    Kode plain hanya ditampilkan sekali ke admin.
+    """
+    try:
+        # Verifikasi user ada
+        check = (
+            supabase.table("users")
+            .select("id, username")
+            .eq("id", user_id)
+            .single()
+            .execute()
+        )
+        if not check.data:
+            return jsonify({"status": "error", "message": "Pengguna tidak ditemukan."}), 404
+
+        target_username = check.data["username"]
+    except Exception as exc:
+        print(f"[ADMIN] Gagal verifikasi user {user_id}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal memvalidasi pengguna."}), 500
+
+    # Hapus kode lama user ini
+    try:
+        supabase.table("password_reset_codes").delete().eq("user_id", user_id).execute()
+    except Exception as exc:
+        print(f"[ADMIN] Gagal hapus kode lama user {user_id}: {exc}")
+
+    # Generate kode baru
+    code_plain, code_hash = _generate_auth_code()
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+
+    try:
+        supabase.table("password_reset_codes").insert({
+            "user_id":    user_id,
+            "code_hash":  code_hash,
+            "expires_at": expires_at.isoformat(),
+        }).execute()
+    except Exception as exc:
+        print(f"[ADMIN] Gagal simpan kode reset user {user_id}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal menyimpan kode autentikasi."}), 500
+
+    print(f"[ADMIN] Kode reset dibuat untuk user: {target_username} (oleh {current_user.username})")
+    return jsonify({
+        "status":     "ok",
+        "username":   target_username,
+        "code":       code_plain,        # Ditampilkan sekali ke admin
+        "expires_at": expires_at.strftime("%d %b %Y, %H:%M WIB"),
+    })
+
+
+# ── API: auth (ganti/reset password) ──────────────────────────────────────────
+
+@app.route("/api/auth/change-password", methods=["POST"])
+@login_required
+def api_change_password():
+    """
+    Ganti password oleh user yang sedang login.
+    Digunakan untuk:
+    - Wajib ganti password saat pertama login (must_change_password = True)
+    - Ganti password sukarela (kapan saja selama sudah login)
+    Password baru tidak boleh sama dengan password lama.
+    """
+    body         = request.get_json(silent=True) or {}
+    new_password = str(body.get("new_password", "")).strip()
+
+    if len(new_password) < 8:
+        return jsonify({"status": "error", "message": "Password baru minimal 8 karakter."}), 400
+    if len(new_password) > 200:
+        return jsonify({"status": "error", "message": "Password terlalu panjang."}), 400
+
+    # Ambil password hash lama untuk cek kesamaan
+    try:
+        user_res = (
+            supabase.table("users")
+            .select("password_hash")
+            .eq("id", current_user.id)
+            .single()
+            .execute()
+        )
+        if not user_res.data:
+            return jsonify({"status": "error", "message": "Sesi tidak valid."}), 401
+        old_hash = user_res.data["password_hash"]
+    except Exception as exc:
+        print(f"[AUTH] Gagal ambil hash lama user {current_user.id}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal memvalidasi password."}), 500
+
+    # Tolak jika password baru sama dengan yang lama
+    if bcrypt.check_password_hash(old_hash, new_password):
+        return jsonify({"status": "error", "message": "Password baru tidak boleh sama dengan password lama."}), 400
+
+    # Hash password baru dan update DB
+    new_hash = bcrypt.generate_password_hash(new_password, rounds=12).decode("utf-8")
+    try:
+        supabase.table("users").update({
+            "password_hash":        new_hash,
+            "must_change_password": False,
+        }).eq("id", current_user.id).execute()
+    except Exception as exc:
+        print(f"[AUTH] Gagal update password user {current_user.id}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal menyimpan password baru."}), 500
+
+    # Update objek user di session
+    current_user.must_change_password = False
+    print(f"[AUTH] Password diubah oleh user: {current_user.username}")
+    return jsonify({"status": "ok", "message": "Password berhasil diubah."})
+
+
+@app.route("/api/auth/reset-password", methods=["POST"])
+@limiter.limit("5 per 15 minutes")
+def api_reset_password():
+    """
+    Reset password menggunakan kode autentikasi dari admin.
+    Endpoint publik (tidak perlu login), dilindungi rate limiter.
+    Flow: username + kode 8 karakter → validasi → update password.
+    """
+    body         = request.get_json(silent=True) or {}
+    username     = str(body.get("username",     "")).strip().lower()[:100]
+    code_input   = str(body.get("code",         "")).strip().upper()[:8]
+    new_password = str(body.get("new_password", "")).strip()
+
+    if not username or not code_input or not new_password:
+        return jsonify({"status": "error", "message": "Username, kode autentikasi, dan password baru wajib diisi."}), 400
+
+    if len(new_password) < 8:
+        return jsonify({"status": "error", "message": "Password baru minimal 8 karakter."}), 400
+    if len(new_password) > 200:
+        return jsonify({"status": "error", "message": "Password terlalu panjang."}), 400
+
+    # Ambil user
+    try:
+        user_res = (
+            supabase.table("users")
+            .select("id, username")
+            .eq("username", username)
+            .single()
+            .execute()
+        )
+        user_data = user_res.data
+    except Exception:
+        user_data = None
+
+    # Pesan generik — tidak membocorkan apakah username ada atau kode salah
+    _INVALID_MSG = "Username atau kode autentikasi tidak valid, atau kode sudah kedaluwarsa."
+
+    if not user_data:
+        return jsonify({"status": "error", "message": _INVALID_MSG}), 401
+
+    user_id = user_data["id"]
+
+    # Hash kode input dan cari di DB (belum terpakai, belum expire)
+    code_hash  = hashlib.sha256(code_input.encode("utf-8")).hexdigest()
+    now_iso    = datetime.now(timezone.utc).isoformat()
+
+    try:
+        code_res = (
+            supabase.table("password_reset_codes")
+            .select("id, expires_at")
+            .eq("user_id",   user_id)
+            .eq("code_hash", code_hash)
+            .is_("used_at",  "null")
+            .gt("expires_at", now_iso)
+            .limit(1)
+            .execute()
+        )
+        code_row = code_res.data[0] if code_res.data else None
+    except Exception as exc:
+        print(f"[AUTH] Gagal validasi kode reset untuk user {username}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal memvalidasi kode autentikasi."}), 500
+
+    if not code_row:
+        return jsonify({"status": "error", "message": _INVALID_MSG}), 401
+
+    # Tandai kode sebagai terpakai
+    try:
+        supabase.table("password_reset_codes").update({
+            "used_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", code_row["id"]).execute()
+    except Exception as exc:
+        print(f"[AUTH] Gagal tandai kode reset terpakai (id={code_row['id']}): {exc}")
+
+    # Update password
+    new_hash = bcrypt.generate_password_hash(new_password, rounds=12).decode("utf-8")
+    try:
+        supabase.table("users").update({
+            "password_hash":        new_hash,
+            "must_change_password": False,
+        }).eq("id", user_id).execute()
+    except Exception as exc:
+        print(f"[AUTH] Gagal update password via kode reset untuk user {username}: {exc}")
+        return jsonify({"status": "error", "message": "Gagal menyimpan password baru."}), 500
+
+    print(f"[AUTH] Password direset via kode autentikasi: {username}")
+    return jsonify({"status": "ok", "message": "Password berhasil direset. Silakan login dengan password baru."})
+
+
 # ── Error handlers ─────────────────────────────────────────────────────────────
 
 @app.errorhandler(401)
@@ -1764,6 +2351,15 @@ threading.Thread(
     daemon=True,
     name="embedding-backfill-startup",
 ).start()
+
+# Jalankan backfill Aktivitas Ekonomi saat startup — mengisi artikel yang
+# aktivitas_ekonomi IS NULL tetapi sudah memiliki KBLI.
+if _kbli_llm_client is not None:
+    threading.Thread(
+        target=_run_aktivitas_backfill,
+        daemon=True,
+        name="aktivitas-backfill-startup",
+    ).start()
 
 if __name__ == "__main__":
     print("=" * 50)
