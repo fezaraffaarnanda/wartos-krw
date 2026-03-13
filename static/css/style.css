@@ -2603,8 +2603,8 @@ a:hover {
     position: fixed;
     right: 20px;
     bottom: 84px;
-    width: min(420px, calc(100vw - 28px));
-    height: min(620px, calc(100vh - 120px));
+    width: min(480px, calc(100vw - 28px));
+    height: min(640px, calc(100vh - 120px));
     z-index: 300;
     background: var(--white);
     border: 1px solid var(--gray-200);
@@ -2684,11 +2684,30 @@ a:hover {
 
 .chat-msg {
     display: flex;
+    align-items: flex-start;
+    gap: 8px;
     margin-bottom: 10px;
+}
+
+/* Assistant messages wrap agar follow-up bisa turun ke baris baru */
+.chat-msg.assistant {
+    flex-wrap: wrap;
 }
 
 .chat-msg.user {
     justify-content: flex-end;
+}
+
+/* Avatar logo chatbot — hanya muncul di pesan assistant */
+.chat-avatar {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+    margin-top: 2px;
+    /* Sedikit shadow agar terlihat di background terang */
+    box-shadow: 0 1px 3px rgba(0,0,0,.15);
 }
 
 .chat-bubble {
@@ -2712,6 +2731,47 @@ a:hover {
     color: var(--text-primary);
     border: 1px solid var(--gray-200);
     border-bottom-left-radius: 4px;
+}
+
+/* ── Follow-up question chips ──────────────────────────────────────────────── */
+
+.chat-followups {
+    /* Ambil lebar penuh agar turun ke baris baru di bawah avatar+bubble */
+    width: 100%;
+    flex: 0 0 100%;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    /* Indent sejajar dengan bubble: lebar avatar (28px) + gap (8px) */
+    padding-left: 36px;
+    margin-top: 4px;
+    margin-bottom: 4px;
+}
+
+.chat-followup-btn {
+    background: none;
+    border: 1.5px solid var(--accent);
+    color: var(--accent);
+    border-radius: 20px;
+    padding: 5px 13px;
+    font-size: 0.76rem;
+    font-weight: 500;
+    cursor: pointer;
+    line-height: 1.4;
+    text-align: left;
+    transition: background 0.15s ease, color 0.15s ease, transform 0.1s ease;
+    font-family: var(--font-family);
+    max-width: 100%;
+}
+
+.chat-followup-btn:hover {
+    background: var(--accent);
+    color: var(--white);
+    transform: translateY(-1px);
+}
+
+.chat-followup-btn:active {
+    transform: translateY(0);
 }
 
 .md-content {

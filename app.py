@@ -41,6 +41,7 @@ from core.embeddings import batch_embed_articles, embed_article, _build_embeddin
 from core.kbli_utils import load_kbli_llm_classifier, predict_kbli_label
 from core.llm_client import build_chat_client
 from core.rag_chat import (
+    extract_followup_questions,
     finalize_citations,
     generate_rag_answer,
     normalize_citation_markers,
@@ -1134,11 +1135,16 @@ def api_ai_chat_stream():
                 yield _sse_payload({"type": "delta", "text": delta})
 
             llm_ms = (perf_counter() - llm_start) * 1000
-            answer_raw = "".join(chunks).strip()
+            answer_raw  = "".join(chunks).strip()
             answer_norm = normalize_citation_markers(answer_raw)
-            answer = sanitize_answer_citation_tokens(answer_norm, cite_map)
+            answer_full = sanitize_answer_citation_tokens(answer_norm, cite_map)
+            if not answer_full:
+                answer_full = "Terjadi kendala saat memproses chat AI. Silakan coba beberapa saat lagi."
+
+            # Pisahkan konten jawaban dari blok pertanyaan lanjutan
+            answer, follow_ups = extract_followup_questions(answer_full)
             if not answer:
-                answer = "Terjadi kendala saat memproses chat AI. Silakan coba beberapa saat lagi."
+                answer = answer_full  # fallback jika strip terlalu agresif
 
             citations_raw = finalize_citations(answer, cite_map)
             source_items = _serialize_cite_map(cite_map)
@@ -1159,6 +1165,7 @@ def api_ai_chat_stream():
                 "type": "done",
                 "session_id": session_id,
                 "citations": citations,
+                "follow_ups": follow_ups,
                 "used_docs": used_docs,
                 "latency": {
                     "retrieve_ms": round(retrieve_ms, 1),

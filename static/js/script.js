@@ -1191,12 +1191,20 @@ function populateKbliFilter() {
     <div class="kbli-filter-sep"></div>`;
 
   kodeArr.forEach((kode) => {
-    const desc = KBLI_KEY_MAPPING[kode] || kode;
-    const grpCls = _kbliGroupClass(kode);
-    // Ambil warna background dari class (hardcode letter background dari mapping CSS)
+    const desc     = KBLI_KEY_MAPPING[kode] || kode;
+    // Warna solid badge per group — sinkron dengan .kbli-g-X .kbli-badge-letter di CSS
+    const _KBLI_BADGE_BG = {
+      a: "#059669", b: "#ca8a04", c: "#4f46e5", d: "#f59e0b",
+      e: "#0f9488", f: "#ea580c", g: "#dc2626", h: "#2563eb",
+      i: "#c026d3", j: "#7c3aed", k: "#16a34a", l: "#475569",
+      mn: "#e11d48", o: "#0369a1", p: "#65a30d", q: "#e63950",
+      rstu: "#6b7280", ke: "#b91c1c", pg: "#c2410c",
+    };
+    const grp      = KBLI_GROUP_CLASS[kode] || "rstu";
+    const badgeBg  = _KBLI_BADGE_BG[grp] || "#6b7280";
     const selectedCls = _selectedKbli === kode ? " selected" : "";
     html += `<button class="kbli-filter-option${selectedCls}" onclick="selectKbliFilter('${kode}')">
-            <span class="kbli-filter-opt-letter kbli-g-${KBLI_GROUP_CLASS[kode] || "rstu"} kbli-badge-letter" style="min-width:22px;height:22px;">${escapeHtml(kode)}</span>
+            <span class="kbli-filter-opt-letter" style="background:${badgeBg};">${escapeHtml(kode)}</span>
             <span>${escapeHtml(desc)}</span>
         </button>`;
   });
@@ -2149,6 +2157,7 @@ function _showChatEmptyState() {
   if (!body) return;
   body.innerHTML = `
     <div class="chat-msg assistant" id="chatEmptyState">
+      <img class="chat-avatar" src="/static/logochatbotAI.png" alt="AI">
       <div class="chat-bubble">
         Halo! Saya siap membantu Anda menganalisis berita terkait kondisi ekonomi,
         kemiskinan, dan pengangguran di Kabupaten Tegal.<br><br>
@@ -2221,7 +2230,11 @@ function _appendChatMessage(role, content, citations = []) {
   const wrap = document.createElement("div");
   wrap.className = `chat-msg ${role === "user" ? "user" : "assistant"}`;
 
-  wrap.innerHTML = `<div class="chat-bubble">${_renderChatText(content, citations)}</div>`;
+  const avatarHtml = role !== "user"
+    ? `<img class="chat-avatar" src="/static/logochatbotAI.png" alt="AI">`
+    : "";
+
+  wrap.innerHTML = `${avatarHtml}<div class="chat-bubble">${_renderChatText(content, citations)}</div>`;
   body.appendChild(wrap);
   _scrollChatToBottom();
   return wrap.querySelector(".chat-bubble");
@@ -2309,6 +2322,54 @@ async function clearChatConversation() {
       showCancel: false,
     });
   }
+}
+
+/**
+ * Hapus blok [PERTANYAAN: ...] dari teks sebelum ditampilkan ke user.
+ * Blok ini disisipkan LLM di akhir jawaban dan di-parse terpisah di backend.
+ * Stripping di sisi JS juga sebagai safety-net saat streaming berlangsung.
+ */
+function _stripFollowUpBlock(text) {
+  return (text || "").replace(/\[PERTANYAAN:.*?\]/gis, "").trim();
+}
+
+/**
+ * Render tombol pertanyaan lanjutan di bawah bubble AI.
+ * @param {HTMLElement} msgWrap  — elemen .chat-msg.assistant
+ * @param {string[]}    questions — array 1-3 pertanyaan
+ */
+function _appendFollowUps(msgWrap, questions) {
+  if (!msgWrap || !questions?.length) return;
+
+  const container = document.createElement("div");
+  container.className = "chat-followups";
+
+  questions.forEach((q) => {
+    const btn = document.createElement("button");
+    btn.className   = "chat-followup-btn";
+    btn.type        = "button";
+    btn.textContent = q;
+    btn.title       = "Klik untuk mengirim pertanyaan ini";
+    btn.onclick     = () => {
+      // Hapus semua chip follow-up agar chat tidak penuh
+      document.querySelectorAll(".chat-followups").forEach((el) => el.remove());
+      _sendFollowUp(q);
+    };
+    container.appendChild(btn);
+  });
+
+  msgWrap.appendChild(container);
+  _scrollChatToBottom();
+}
+
+/**
+ * Isi chatInput dengan pertanyaan dan langsung kirim.
+ */
+function _sendFollowUp(question) {
+  const input = document.getElementById("chatInput");
+  if (!input || _chatLoading) return;
+  input.value = question;
+  sendChatMessage(null);
 }
 
 async function sendChatMessage(event) {
@@ -2410,8 +2471,9 @@ async function sendChatMessage(event) {
               } else if (payload.type === "delta") {
                 streamedText += payload.text || "";
                 if (assistantBubble) {
+                  // Strip blok [PERTANYAAN: ...] agar tidak tampil saat streaming
                   assistantBubble.innerHTML = _renderChatText(
-                    streamedText,
+                    _stripFollowUpBlock(streamedText),
                     activeCitations,
                   );
                 }
@@ -2423,12 +2485,16 @@ async function sendChatMessage(event) {
                 }
                 if (Array.isArray(payload.citations) && payload.citations.length > 0) {
                   activeCitations = payload.citations;
-                  if (assistantBubble) {
-                    assistantBubble.innerHTML = _renderChatText(
-                      streamedText,
-                      activeCitations,
-                    );
-                  }
+                }
+                if (assistantBubble) {
+                  assistantBubble.innerHTML = _renderChatText(
+                    _stripFollowUpBlock(streamedText),
+                    activeCitations,
+                  );
+                }
+                // Render tombol pertanyaan lanjutan
+                if (Array.isArray(payload.follow_ups) && payload.follow_ups.length > 0) {
+                  _appendFollowUps(assistantBubble?.parentElement, payload.follow_ups);
                 }
                 // Keluar dari loop segera setelah event "done" — jangan tunggu
                 // stream ditutup dari sisi server (tidak reliable di Vercel serverless)
