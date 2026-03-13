@@ -8,7 +8,4 @@ requests
 beautifulsoup4
 pandas
 openai
-numpy
-joblib
-scikit-learn
 openpyxl

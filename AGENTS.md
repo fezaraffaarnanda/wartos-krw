@@ -4,7 +4,7 @@ This file provides guidance to AI coding agents working in this repository.
 
 ## Project Overview
 
-Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 5 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. Includes AI-powered insights using DeepSeek LLM for analyzing PDRB, Kemiskinan, and Pengangguran trends. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
+Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 5 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. Includes AI-powered insights using Gemini LLM for analyzing PDRB, Kemiskinan, and Pengangguran trends. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
 
 ## Initialization
 
@@ -29,7 +29,7 @@ SUPABASE_URL=your_supabase_project_url
 SUPABASE_KEY=your_supabase_anon_key
 FLASK_SECRET_KEY=your_random_secret_key_here
 CRON_SECRET=your_cron_secret_for_api_auth
-DEEPSEEK_API_KEY=your_deepseek_api_key  # For AI insights feature
+GEMINI_API_KEY=your_gemini_api_key  # For AI insights feature
 
 # 6. Initialize database (run SQL files in Supabase SQL Editor)
 # - database/schema.sql (core tables)
@@ -63,7 +63,7 @@ No test suite, linter, or formatter is configured. There is no `pyproject.toml`,
 ```
 app.py                  # Flask app: routes, auth, scraping orchestration, threading
 utils.py                # normalize_date(), parse_date_to_iso() — shared date utilities
-ai_insights.py          # AI insights using DeepSeek LLM for PDRB/Kemiskinan/Pengangguran
+ai_insights.py          # AI insights using Gemini LLM for PDRB/Kemiskinan/Pengangguran
 requirements.txt        # pip dependencies (no pinned versions)
 scrapers/               # One module per news source, each exports scrape_new_articles()
   __init__.py            # Empty
@@ -121,12 +121,12 @@ Each scraper has its own `clean_content()` function that strips boilerplate (BAC
 
 ### AI Insights Feature
 
-`ai_insights.py` provides AI-powered analysis using DeepSeek LLM:
+`ai_insights.py` provides AI-powered analysis using Gemini LLM:
 - `generate_insights(articles: list[dict]) -> dict`: Analyzes articles for PDRB, Kemiskinan, Pengangguran trends
 - Pre-filters articles by keywords per category (ai_insights.py:27-49)
 - Limits to 30 articles per category, 500 chars per article content (token optimization)
 - Returns structured insights with summaries, trends, and source references
-- Requires `DEEPSEEK_API_KEY` in environment variables
+- Requires `GEMINI_API_KEY` in environment variables
 - Called from `/api/insights` endpoint in app.py
 
 ## Database
@@ -150,7 +150,7 @@ Required in `.env`:
 - `SUPABASE_KEY`: Supabase anon/service key
 - `FLASK_SECRET_KEY`: Flask session secret (auto-generated if missing, but sessions won't persist)
 - `CRON_SECRET`: Bearer token for `/api/scrape` cron authentication
-- `DEEPSEEK_API_KEY`: DeepSeek API key for AI insights feature (optional, required for insights)
+- `GEMINI_API_KEY`: Gemini API key for AI insights feature (optional, required for insights)
 
 ## Code Style Guidelines
 
@@ -220,5 +220,5 @@ All JSON responses follow: `{"status": "ok"|"error", ...}` with optional `"data"
 - Vercel serverless may timeout on full scrape — cron mode uses `_scrape_sync()` which runs sequentially
 - Login rate limit: 5 attempts per 15 minutes (app.py:141)
 - `requirements.txt` has no pinned versions — builds may break on dependency updates
-- AI insights feature requires OpenAI-compatible client but uses DeepSeek endpoint (ai_insights.py:16-17)
-- DeepSeek responses are parsed as JSON — malformed responses will cause insight generation to fail
+- AI insights feature uses Gemini via OpenAI-compatible client (ai_insights.py)
+- Gemini responses are parsed as JSON — malformed responses will cause insight generation to fail

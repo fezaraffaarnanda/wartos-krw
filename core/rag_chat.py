@@ -6,9 +6,8 @@ Fokus:
 - Sitasi inline memakai marker [Sxx].
 - Aman dari prompt injection dasar.
 
-Provider LLM (prioritas):
-  1. Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)
-  2. DeepSeek Chat (DEEPSEEK_API_KEY) — fallback
+Provider LLM:
+  Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)
 """
 
 import os
@@ -210,7 +209,7 @@ _HISTORY_CITATION_RE = re.compile(r"\[S\d{2}\]", re.IGNORECASE)
 def _build_user_prompt(query: str, context_text: str) -> str:
     """Bangun user prompt berisi pertanyaan + konteks berita saja.
     History percakapan TIDAK dimasukkan ke sini — dipass langsung ke LLM
-    sebagai conversation turns terpisah di stream_deepseek_answer().
+    sebagai conversation turns terpisah di stream_gemini_answer().
     """
     return f"""Pertanyaan pengguna:
 {query}
@@ -363,14 +362,14 @@ def prepare_rag_chat_context(
         "status":       "ok",
         "answer":       "",
         "user_prompt":  user_prompt,
-        "history":      history,       # dipass ke stream_deepseek_answer() sebagai messages turns
+        "history":      history,       # dipass ke stream_gemini_answer() sebagai messages turns
         "cite_map":     cite_map,
         "used_docs":    len(docs),
         "retrieve_ms":  retrieve_ms,
     }
 
 
-def stream_deepseek_answer(user_prompt: str, history: list[dict] | None = None):
+def stream_gemini_answer(user_prompt: str, history: list[dict] | None = None):
     """Yield token (delta content) dari LLM streaming response.
 
     History percakapan dipass sebagai proper conversation turns (bukan flat text)
@@ -442,7 +441,7 @@ def generate_rag_answer(
     answer_chunks = []
     t0 = perf_counter()
     try:
-        for delta in stream_deepseek_answer(
+        for delta in stream_gemini_answer(
             prepared["user_prompt"],
             history=prepared.get("history", []),
         ):

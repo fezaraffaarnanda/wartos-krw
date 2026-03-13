@@ -7,8 +7,8 @@ via Supabase pgvector (RPC match_articles).
 
 Catatan arsitektur:
 - Embedding  → Google Gemini API (modul ini, GEMINI_API_KEY)
-- AI Insights → Gemini / DeepSeek fallback (core/ai_insights.py)
-- RAG Chat   → Gemini / DeepSeek fallback (core/rag_chat.py)
+- AI Insights → Gemini (core/ai_insights.py)
+- RAG Chat   → Gemini (core/rag_chat.py)
 """
 
 import os

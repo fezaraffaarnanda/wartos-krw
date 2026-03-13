@@ -27,7 +27,7 @@ from scrapers.scrape_kompas         import scrape_new_articles as scrape_kompas
 from scrapers.scraping_tegal        import scrape_new_articles as scrape_tegal
 from core.utils import normalize_date, parse_date_to_iso
 from core.ai_insights import (
-    build_deepseek_client,
+    build_gemini_client,
     build_stream_category_context,
     extract_sources_from_markers,
     generate_insights,
@@ -36,7 +36,7 @@ from core.ai_insights import (
     stream_category_tokens,
 )
 from core.embeddings import batch_embed_articles, embed_article, _build_embedding_client
-from core.kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.kbli_utils import load_kbli_llm_classifier, predict_kbli_label
 from core.llm_client import build_chat_client
 from core.rag_chat import (
     finalize_citations,
@@ -44,7 +44,7 @@ from core.rag_chat import (
     normalize_citation_markers,
     prepare_rag_chat_context,
     sanitize_answer_citation_tokens,
-    stream_deepseek_answer,
+    stream_gemini_answer,
 )
 
 load_dotenv()
@@ -97,9 +97,26 @@ BERITA_EXPORT_COLUMNS = "id, title, date, date_parsed, url, tags, kbli, source, 
 WIB = timezone(timedelta(hours=7))
 
 
-# ── KBLI predictor ──────────────────────────────────────────────────────────────
+# ── KBLI LLM Classifier ─────────────────────────────────────────────────────────
+# Inisialisasi classifier KBLI berbasis LLM (Gemini + pgvector similarity search).
+# Membutuhkan: Supabase client, embedding client, dan LLM client.
 
-_kbli_predictor = load_kbli_predictor(os.getenv("KBLI_MODEL_DIR", "model_kbli"))
+try:
+    _kbli_embed_client = _build_embedding_client()
+except Exception as _kbli_init_exc:
+    print(f"[KBLI] Gagal buat embedding client untuk classifier: {_kbli_init_exc}")
+    _kbli_embed_client = None
+
+try:
+    _kbli_llm_client, _kbli_llm_model = build_chat_client()
+except Exception as _kbli_init_exc:
+    print(f"[KBLI] Gagal buat LLM client untuk classifier: {_kbli_init_exc}")
+    _kbli_llm_client = None
+    _kbli_llm_model  = ""
+
+_kbli_predictor = load_kbli_llm_classifier(
+    supabase, _kbli_embed_client, _kbli_llm_client, _kbli_llm_model
+)
 
 
 # ── User model ─────────────────────────────────────────────────────────────────
@@ -485,7 +502,7 @@ def _generate_insights_worker(
 @limiter.limit("30 per hour")
 def get_ai_insights():
     """
-    Hasilkan insight AI (DeepSeek) untuk PDRB, Kemiskinan, Pengangguran.
+    Hasilkan insight AI (Gemini) untuk PDRB, Kemiskinan, Pengangguran.
 
     Query params:
       period  — q1/q2/q3/q4/s1/s2/yearly (default: triwulan berjalan)
@@ -1089,7 +1106,7 @@ def api_ai_chat_stream():
 
             llm_start = perf_counter()
             chunks: list[str] = []
-            for delta in stream_deepseek_answer(
+            for delta in stream_gemini_answer(
                 prepared["user_prompt"],
                 history=prepared.get("history", []),
             ):
@@ -1238,8 +1255,11 @@ def _is_valid_article(article: dict | None, source_key: str) -> bool:
 def _build_article_row(article: dict, source_label: str) -> dict:
     """Rakit dict row siap insert ke tabel berita."""
     normalized_date = normalize_date(article["date"])
-    prediction_text = article.get("content") or article.get("title")
-    kbli = predict_kbli_label(prediction_text, _kbli_predictor)
+    kbli = predict_kbli_label(
+        article.get("content"),
+        _kbli_predictor,
+        title=article.get("title"),
+    )
     return {
         "title":       article["title"],
         "date":        normalized_date,
@@ -1304,7 +1324,7 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
     """
     Prediksi KBLI untuk semua berita yang kbli-nya NULL.
 
-    Opsi B — penanganan artikel yang tidak dapat diprediksi:
+    Penanganan artikel yang tidak dapat diprediksi:
       - Prediksi return None + content DAN title keduanya kosong
         → set kbli = "—" agar tidak di-retry selamanya.
       - Prediksi return None + masih ada isi content/title
@@ -1313,7 +1333,7 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
     Return jumlah artikel yang berhasil diupdate.
     """
     if _kbli_predictor is None:
-        print("[KBLI Backfill] Predictor tidak tersedia, backfill dilewati.")
+        print("[KBLI Backfill] Classifier tidak tersedia, backfill dilewati.")
         return 0
 
     total_updated = 0
@@ -1346,9 +1366,8 @@ def _run_kbli_backfill(batch_size: int = 100) -> int:
         for row in rows:
             content = (row.get("content") or "").strip()
             title   = (row.get("title")   or "").strip()
-            prediction_text = content or title
 
-            label = predict_kbli_label(prediction_text, _kbli_predictor)
+            label = predict_kbli_label(content, _kbli_predictor, title=title)
 
             if label is None:
                 # Opsi B: jika content DAN title benar-benar kosong,
@@ -1668,7 +1687,7 @@ def api_backfill_kbli():
     if _kbli_predictor is None:
         return jsonify({
             "status":  "error",
-            "message": "Model KBLI tidak tersedia. Periksa folder model_kbli/.",
+            "message": "KBLI Classifier tidak tersedia. Periksa GEMINI_API_KEY dan koneksi Supabase.",
         }), 503
 
     threading.Thread(

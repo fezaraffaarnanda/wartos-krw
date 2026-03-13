@@ -1,96 +1,156 @@
-"""Utilitas integrasi prediksi KBLI untuk app dan script backfill."""
+"""
+kbli_utils.py — Utilitas integrasi klasifikasi KBLI untuk app dan script backfill.
+
+Mapping kode KBLI sesuai KBLI 2025 (22 kategori A–V) + 2 kategori custom:
+  - KE : Kemiskinan
+  - PG : Pengangguran
+
+Klasifikasi menggunakan LLM Gemini + pgvector similarity search (KBLIClassifierLLM).
+"""
+
+# ── KBLI 2025 Mapping kode → judul ──────────────────────────────────────────
+# Sinkron dengan KBLI_KEY_MAPPING di static/js/script.js
+# 22 kategori standar (A–V) + 2 kategori custom (KE, PG)
 
 KBLI_KEY_MAPPING = {
-    "A1": "Pertanian, Peternakan, Perburuan dan Jasa Pertanian",
-    "A2": "Kehutanan dan Penebangan Kayu",
-    "A3": "Perikanan",
-    "B1": "Pertambangan Migas",
-    "B2": "Pertambangan Batu Bara",
-    "B3": "Pertambangan Bijih Logam",
-    "B4": "Pertambangan dan Penggalian Lainnya",
-    "C1": "Industri Migas",
-    "C2": "Industri Makan Minum (CPO, padi,dll)",
-    "C3": "Industri Kimia dan Farmasi",
-    "C4": "Industri Barang Galian",
-    "C5": "Industri selain 1-4",
-    "D": "Pengadaan Listrik dan Gas",
-    "E": "Pengadaan Air, Pengelolaan Sampah, Limbah dan Daur Ulang",
-    "F": "Konstruksi",
-    "G": "Perdagangan Besar & Eceran Reparasi Mobil & Sepeda Motor",
-    "H1": "Transportasi Darat",
-    "H2": "Transportasi Udara",
-    "H3": "Transportasi Laut",
-    "H4": "Penyeberangan/ASDP",
-    "H5": "Penunjang Angkutan dan Pergudangan",
-    "I": "Penyediaan Akomodasi dan Makan Minum",
-    "J": "Informasi dan Komunikasi",
-    "K": "Jasa Keuangan dan Asuransi",
-    "L": "Real Estate",
-    "MN": "Jasa Perusahaan",
-    "O": "Administrasi Pemerintahan Pertahanan & Jaminan Sosial Wajib",
-    "P": "Jasa Pendidikan",
-    "Q": "Jasa Kesehatan dan Kegiatan Sosial",
-    "RSTU": "Jasa lainnya",
-    "KE": "Kemiskinan",
-    "PG": "Pengangguran",
+    "A":   "Pertanian, Kehutanan, dan Perikanan",
+    "B":   "Pertambangan dan Penggalian",
+    "C":   "Industri",
+    "D":   "Penyediaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin",
+    "E":   "Penyediaan Air; Pengelolaan Air Limbah, Penanganan Limbah, dan Remediasi",
+    "F":   "Konstruksi",
+    "G":   "Perdagangan Besar dan Eceran",
+    "H":   "Transportasi dan Penyimpanan",
+    "I":   "Aktivitas Penyediaan Akomodasi dan Makan Minum",
+    "J":   "Aktivitas Penerbitan, Penyiaran, serta Produksi dan Distribusi Konten",
+    "K":   "Aktivitas Telekomunikasi, Pemrograman Komputer, Konsultansi, dan Jasa Informasi",
+    "L":   "Aktivitas Keuangan dan Asuransi",
+    "M":   "Aktivitas Real Estat",
+    "N":   "Aktivitas Profesional, Ilmiah, dan Teknis",
+    "O":   "Aktivitas Administratif dan Penunjang Usaha",
+    "P":   "Administrasi Pemerintahan dan Pertahanan, Serta Jaminan Sosial Wajib",
+    "Q":   "Pendidikan",
+    "R":   "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
+    "S":   "Kesenian, Olahraga, dan Rekreasi",
+    "T":   "Aktivitas Jasa Lainnya",
+    "U":   "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
+    "V":   "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
+    # Kategori custom (bukan standar KBLI, digunakan untuk analisis sosial-ekonomi)
+    "KE":  "Kemiskinan",
+    "PG":  "Pengangguran",
 }
 
 
-def format_kbli_hasil(kode: str | None, confidence_low: bool = False) -> str | None:
-    """Format hasil KBLI ke bentuk yang ditampilkan di tabel dashboard."""
+def format_kbli_hasil(kode: str | None) -> str | None:
+    """Format kode KBLI ke bentuk yang ditampilkan di tabel dashboard.
+
+    Contoh output:
+        "G/Perdagangan Besar dan Eceran"
+        "KE/Kemiskinan"
+        "Tidak Relevan"
+        None   (jika kode kosong)
+    """
     if not kode:
         return None
 
-    normalized = str(kode).strip().upper()
+    normalized = str(kode).strip()
     if not normalized:
         return None
 
-    if confidence_low:
-        return f"{normalized} (Tingkat Kepercayaan Model Rendah)"
-
-    deskripsi = KBLI_KEY_MAPPING.get(normalized)
-    if not deskripsi:
+    # "Tidak Relevan" dan "—" dikembalikan apa adanya
+    if normalized in ("Tidak Relevan", "—"):
         return normalized
-    return f"{normalized}/{deskripsi}"
+
+    normalized_upper = normalized.upper()
+    deskripsi = KBLI_KEY_MAPPING.get(normalized_upper)
+    if deskripsi:
+        return f"{normalized_upper}/{deskripsi}"
+
+    # Kode tidak dikenali — kembalikan apa adanya (misal data lama)
+    return normalized
 
 
-def load_kbli_predictor(model_dir: str = "model_kbli"):
-    """Load model predictor KBLI. Return None jika gagal."""
+def load_kbli_llm_classifier(supabase_client, embed_client, llm_client, llm_model: str):
+    """
+    Buat instance KBLIClassifierLLM.
+    Return instance classifier, atau None jika gagal inisialisasi.
+
+    Args:
+        supabase_client : instance supabase-py, untuk RPC match_kbli
+        embed_client    : OpenAI client ke Gemini embedding endpoint
+        llm_client      : OpenAI client ke Gemini chat endpoint
+        llm_model       : nama model LLM
+
+    Pemakaian di app.py:
+        _kbli_classifier = load_kbli_llm_classifier(supabase, embed_client, llm_client, model)
+    """
     try:
-        from core.predictor_kbli import KBLIPredictor
+        from core.kbli_classifier_llm import KBLIClassifierLLM
     except Exception as exc:
-        print(f"[KBLI] Gagal import predictor_kbli: {exc}")
+        print(f"[KBLI] Gagal import KBLIClassifierLLM: {exc}")
+        return None
+
+    if supabase_client is None:
+        print("[KBLI] Supabase client tidak tersedia — LLM classifier tidak diinisialisasi.")
+        return None
+    if embed_client is None:
+        print("[KBLI] Embedding client tidak tersedia — LLM classifier tidak diinisialisasi.")
+        return None
+    if llm_client is None:
+        print("[KBLI] LLM client tidak tersedia — LLM classifier tidak diinisialisasi.")
         return None
 
     try:
-        predictor = KBLIPredictor(model_dir)
-        print(f"[KBLI] Model KBLI aktif dari folder '{model_dir}'.")
-        return predictor
+        classifier = KBLIClassifierLLM(
+            supabase_client = supabase_client,
+            embed_client    = embed_client,
+            llm_client      = llm_client,
+            llm_model       = llm_model,
+            top_k           = 5,
+        )
+        print(f"[KBLI] LLM Classifier aktif (model: {llm_model}).")
+        return classifier
     except Exception as exc:
-        print(f"[KBLI] Gagal load model KBLI dari '{model_dir}': {exc}")
+        print(f"[KBLI] Gagal inisialisasi KBLIClassifierLLM: {exc}")
         return None
 
 
-def predict_kbli_label(content: str | None, predictor, threshold: float = 0.3) -> str | None:
-    """Prediksi label KBLI untuk konten berita dan format hasilnya."""
-    if predictor is None:
+def predict_kbli_label(
+    content: str | None,
+    classifier,
+    title:  str | None = None,
+) -> str | None:
+    """
+    Prediksi label KBLI untuk konten berita dan format hasilnya.
+
+    Args:
+        content    : isi konten berita (diutamakan)
+        classifier : instance KBLIClassifierLLM (atau None jika tidak tersedia)
+        title      : judul berita (opsional, digunakan sebagai konteks tambahan)
+
+    Return:
+        str  : label terformat, contoh "G/Perdagangan Besar dan Eceran" atau "Tidak Relevan"
+        None : jika classifier tidak tersedia atau input kosong
+    """
+    if classifier is None:
         return None
 
-    if not content or not str(content).strip():
+    if not content and not title:
+        return None
+
+    content_clean = (content or "").strip()
+    title_clean   = (title   or "").strip()
+
+    if not content_clean and not title_clean:
         return None
 
     try:
-        hasil = predictor.prediksi(content, threshold=threshold)
+        kode = classifier.classify(content_clean, title=title_clean)
     except Exception as exc:
-        print(f"[KBLI] Gagal prediksi konten berita: {exc}")
+        print(f"[KBLI] Gagal prediksi: {exc}")
         return None
 
-    kategori = str(hasil.get("kategori", "")).strip()
-    if not kategori:
+    if not kode:
         return None
 
-    if kategori == "Tidak Relevan":
-        kandidat = str(hasil.get("kandidat", "")).strip()
-        return format_kbli_hasil(kandidat, confidence_low=True)
-
-    return format_kbli_hasil(kategori, confidence_low=False)
+    return format_kbli_hasil(kode)

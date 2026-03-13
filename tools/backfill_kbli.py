@@ -1,131 +1,252 @@
 """
-tools/backfill_kbli.py — Backfill kolom KBLI untuk berita existing.
+tools/backfill_kbli.py — Backfill kolom KBLI (versi batch, optimized untuk RPM tinggi).
 
-Jalankan:
-    python tools/backfill_kbli.py
+Strategi:
+  1. Fetch SEMUA artikel NULL kbli dari DB sekaligus
+  2. Batch embed semua teks (100 artikel per API call Gemini)
+  3. Untuk setiap artikel: RPC match_kbli + LLM classify (paralel via ThreadPoolExecutor)
+  4. Bulk update DB per batch
 
-Script ini aman diulang: hanya memproses berita dengan kolom `kbli` yang masih NULL.
+Hasil: 754 artikel bisa selesai dalam < 5 menit dengan 4k RPM.
+
+Pemakaian:
+    python tools/backfill_kbli.py                   # semua NULL
+    python tools/backfill_kbli.py --workers 20      # jumlah thread paralel LLM
+    python tools/backfill_kbli.py --dry-run         # preview tanpa update DB
 """
 
+import argparse
 import os
 import sys
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
-# Tambah root project ke path agar bisa import module dari root
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 from supabase import create_client
 
-from core.kbli_utils import load_kbli_predictor, predict_kbli_label
+from core.embeddings import _build_embedding_client, batch_embed_texts
+from core.kbli_classifier_llm import KBLIClassifierLLM, _SPECIAL_CODES, _SYSTEM_PROMPT, _USER_PROMPT, _MAX_ARTICLE_CHARS, _MAX_DESKRIPSI_CHARS, _VALID_KBLI_CODES
+from core.llm_client import build_chat_client
 
 load_dotenv()
 
 
-# ── Config ─────────────────────────────────────────────────────────────────────
-
-_BATCH_SIZE = 100
-_SLEEP_BETWEEN = 0.2
-
-
 def main():
+    parser = argparse.ArgumentParser(description="Batch backfill KBLI dengan LLM paralel.")
+    parser.add_argument("--workers",  type=int,  default=15,    help="Thread paralel untuk LLM (default: 15)")
+    parser.add_argument("--db-batch", type=int,  default=50,    help="Jumlah update DB per batch (default: 50)")
+    parser.add_argument("--dry-run",  action="store_true",      help="Preview tanpa update DB")
+    args = parser.parse_args()
+
+    # ── Inisialisasi ──────────────────────────────────────────────────────────
     url = os.getenv("SUPABASE_URL", "")
     key = os.getenv("SUPABASE_KEY", "")
-    model_dir = os.getenv("KBLI_MODEL_DIR", "model_kbli")
-
     if not url or not key:
-        print("[Backfill KBLI] ERROR: SUPABASE_URL atau SUPABASE_KEY tidak ditemukan.")
-        sys.exit(1)
-
-    predictor = load_kbli_predictor(model_dir)
-    if predictor is None:
-        print("[Backfill KBLI] ERROR: Model KBLI gagal dimuat. Proses dihentikan.")
+        print("ERROR: SUPABASE_URL / SUPABASE_KEY tidak ditemukan di .env")
         sys.exit(1)
 
     supabase = create_client(url, key)
 
-    result_total = (
-        supabase.table("berita")
-        .select("id", count="exact")
-        .is_("kbli", "null")
-        .execute()
-    )
-    total_null = result_total.count or 0
-    print(f"[Backfill KBLI] Ditemukan {total_null} berita dengan kbli NULL.")
+    try:
+        embed_client = _build_embedding_client()
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
 
-    if total_null == 0:
-        print("[Backfill KBLI] Tidak ada data yang perlu di-backfill.")
-        return
+    try:
+        llm_client, llm_model = build_chat_client()
+    except ValueError as exc:
+        print(f"ERROR: {exc}")
+        sys.exit(1)
 
-    processed = 0
-    skipped = 0
-    failed = 0
-    started_at = time.time()
+    classifier = KBLIClassifierLLM(supabase, embed_client, llm_client, llm_model, top_k=5)
+    print(f"[Backfill] Model: {llm_model} | Workers: {args.workers} | Dry-run: {args.dry_run}")
 
+    # ── Step 1: Fetch semua artikel NULL kbli ─────────────────────────────────
+    print("[Backfill] Mengambil semua artikel dengan KBLI NULL...")
+    all_articles = []
+    offset = 0
+    PAGE = 1000
     while True:
-        rows = (
+        res = (
             supabase.table("berita")
             .select("id, title, content")
             .is_("kbli", "null")
             .order("id")
-            .limit(_BATCH_SIZE)
+            .range(offset, offset + PAGE - 1)
             .execute()
         )
-        articles = rows.data or []
-
-        if not articles:
+        batch = res.data or []
+        all_articles.extend(batch)
+        if len(batch) < PAGE:
             break
+        offset += PAGE
 
-        first_id = articles[0].get("id")
-        last_id = articles[-1].get("id")
-        print(f"[Backfill KBLI] Memproses {len(articles)} berita (ID {first_id}–{last_id})...")
+    total = len(all_articles)
+    if total == 0:
+        print("[Backfill] Tidak ada artikel dengan KBLI NULL.")
+        return
 
-        updated_this_batch = 0
+    print(f"[Backfill] Ditemukan {total} artikel — mulai proses...")
+    print()
 
-        for article in articles:
-            article_id = article.get("id")
-            prediction_text = article.get("content") or article.get("title")
-            label = predict_kbli_label(prediction_text, predictor)
+    # ── Step 2: Batch embed semua teks sekaligus ──────────────────────────────
+    print(f"[Backfill] Step 1/3: Batch embedding {total} artikel...")
+    t0 = time.time()
 
-            if not label:
-                skipped += 1
-                continue
+    # Buat teks embedding per artikel (gabungan title + content)
+    def _make_embed_text(a: dict) -> str:
+        title   = (a.get("title")   or "").strip()
+        content = (a.get("content") or "").strip()
+        parts = []
+        if title:   parts.append(f"Judul: {title}")
+        if content: parts.append(f"Konten: {content[:2000]}")
+        return "\n".join(parts)
 
-            try:
-                (
-                    supabase.table("berita")
-                    .update({"kbli": label})
-                    .eq("id", article_id)
-                    .execute()
+    texts = [_make_embed_text(a) for a in all_articles]
+    embeddings = batch_embed_texts(texts, client=embed_client)   # list[list[float] | None]
+
+    embed_ok   = sum(1 for e in embeddings if e is not None)
+    embed_fail = total - embed_ok
+    print(f"[Backfill]   -> {embed_ok}/{total} embedding berhasil ({embed_fail} gagal) | {time.time()-t0:.1f}s")
+    print()
+
+    # ── Step 3: Paralel classify via LLM ─────────────────────────────────────
+    print(f"[Backfill] Step 2/3: Klasifikasi LLM paralel ({args.workers} thread)...")
+    t1 = time.time()
+
+    # Pasangkan artikel dengan embedding-nya
+    tasks = []
+    for article, emb in zip(all_articles, embeddings):
+        tasks.append((article, emb))
+
+    results: dict[int, str] = {}   # article_id → label
+    done = 0
+    errors = 0
+
+    def _classify_one(article: dict, embedding) -> tuple[int, str | None]:
+        """Classify satu artikel: RPC match_kbli + LLM, return (id, label)."""
+        art_id  = article["id"]
+        content = (article.get("content") or "").strip()
+        title   = (article.get("title")   or "").strip()
+
+        if not content and not title:
+            return art_id, "—"
+
+        try:
+            # Gunakan pre-computed embedding jika tersedia, fallback ke classify normal
+            if embedding is not None:
+                # Ambil top-K kandidat langsung dengan embedding yang sudah ada
+                try:
+                    rpc_res = supabase.rpc(
+                        "match_kbli",
+                        {"query_embedding": embedding, "top_k": 5},
+                    ).execute()
+                    candidates = rpc_res.data or []
+                except Exception:
+                    candidates = []
+
+                # Build prompt manual (sama dengan _build_prompt di KBLIClassifierLLM)
+                kandidat_lines = []
+                for c in candidates:
+                    kode  = c.get("kode", "?")
+                    judul = c.get("judul", "")
+                    deskr = (c.get("deskripsi") or "")[:_MAX_DESKRIPSI_CHARS]
+                    kandidat_lines.append(f"[{kode}] {judul} — {deskr}")
+
+                kandidat_block = "\n".join(kandidat_lines) if kandidat_lines else "(Tidak ada kandidat)"
+                valid_codes_str = ", ".join(sorted(_VALID_KBLI_CODES)) + ", Tidak Relevan"
+
+                system = _SYSTEM_PROMPT.format(
+                    kandidat_block=kandidat_block,
+                    ke_deskripsi=_SPECIAL_CODES["KE"]["deskripsi"],
+                    pg_deskripsi=_SPECIAL_CODES["PG"]["deskripsi"],
+                    valid_codes=valid_codes_str,
                 )
-                processed += 1
-                updated_this_batch += 1
+                isi = content[:_MAX_ARTICLE_CHARS] + ("..." if len(content) > _MAX_ARTICLE_CHARS else "")
+                user_msg = _USER_PROMPT.format(
+                    judul=title or "(tanpa judul)",
+                    isi=isi or title,
+                )
+                prompt = system + "\n" + user_msg
+
+                raw = classifier._call_llm(prompt)
+                label_code = classifier._parse_response(raw)
+            else:
+                # Fallback: pakai classify normal (akan embed ulang)
+                label_code = classifier.classify(content, title=title)
+
+            if not label_code:
+                return art_id, None
+
+            # Format ke "KODE/Deskripsi"
+            from core.kbli_utils import format_kbli_hasil
+            return art_id, format_kbli_hasil(label_code)
+
+        except Exception as exc:
+            print(f"  [ERROR] ID={art_id}: {exc}")
+            return art_id, None
+
+    with ThreadPoolExecutor(max_workers=args.workers) as pool:
+        futures = {pool.submit(_classify_one, a, e): a["id"] for a, e in tasks}
+        for fut in as_completed(futures):
+            art_id = futures[fut]
+            try:
+                aid, label = fut.result()
+                results[aid] = label
             except Exception as exc:
-                print(f"[Backfill KBLI] Gagal update ID={article_id}: {exc}")
-                failed += 1
+                results[art_id] = None
+                errors += 1
+            done += 1
+            if done % 50 == 0 or done == total:
+                elapsed = time.time() - t1
+                rate = done / elapsed if elapsed > 0 else 0
+                print(f"  Progress: {done}/{total} ({rate:.1f}/s) | Errors: {errors}")
 
-        elapsed = time.time() - started_at
-        print(
-            f"[Backfill KBLI] Progress: {processed}/{total_null}"
-            f" | Skip: {skipped}"
-            f" | Gagal: {failed}"
-            f" | Waktu: {elapsed:.1f}s"
-        )
+    classify_ok   = sum(1 for v in results.values() if v is not None)
+    classify_fail = total - classify_ok
+    print(f"[Backfill]   -> {classify_ok}/{total} berhasil diklasifikasi | {time.time()-t1:.1f}s")
+    print()
 
-        time.sleep(_SLEEP_BETWEEN)
+    # ── Step 4: Bulk update DB ────────────────────────────────────────────────
+    if args.dry_run:
+        print("[Backfill] DRY-RUN aktif — tidak ada perubahan ke DB.")
+        sample = list(results.items())[:10]
+        for aid, lbl in sample:
+            print(f"  ID={aid}: {lbl}")
+        return
 
-        if updated_this_batch == 0:
-            print("[Backfill KBLI] Tidak ada update pada batch ini. Proses dihentikan agar tidak looping.")
-            break
+    print(f"[Backfill] Step 3/3: Update DB ({len(results)} artikel)...")
+    t2   = time.time()
+    ok   = 0
+    fail = 0
 
-    total_time = time.time() - started_at
+    items = list(results.items())
+    for i in range(0, len(items), args.db_batch):
+        chunk = items[i : i + args.db_batch]
+        for art_id, label in chunk:
+            if label is None:
+                continue
+            try:
+                supabase.table("berita").update({"kbli": label}).eq("id", art_id).execute()
+                ok += 1
+            except Exception as exc:
+                print(f"  [DB ERROR] ID={art_id}: {exc}")
+                fail += 1
+        print(f"  Update DB: {min(i + args.db_batch, len(items))}/{len(items)}")
+
+    total_time = time.time() - t0
     print()
     print("=" * 60)
-    print("[Backfill KBLI] SELESAI")
-    print(f"  Berhasil diupdate : {processed}")
-    print(f"  Skip (tanpa hasil): {skipped}")
-    print(f"  Gagal update      : {failed}")
-    print(f"  Total waktu       : {total_time:.1f} detik")
+    print("[Backfill] SELESAI")
+    print(f"  Total artikel        : {total}")
+    print(f"  Embedding berhasil   : {embed_ok}")
+    print(f"  Klasifikasi berhasil : {classify_ok}")
+    print(f"  DB update berhasil   : {ok}")
+    print(f"  DB update gagal      : {fail}")
+    print(f"  Total waktu          : {total_time:.0f}s ({total_time/60:.1f} menit)")
     print("=" * 60)
 
 

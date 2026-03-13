@@ -4,9 +4,8 @@ ai_insights.py — Modul AI Insight menggunakan LLM + RAG (pgvector)
 Menganalisis berita dari database dan menghasilkan insight untuk tiga kategori:
 PDRB, Kemiskinan, dan Pengangguran.
 
-Provider LLM (prioritas):
-  1. Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY) — lebih cepat, hemat quota
-  2. DeepSeek Chat (DEEPSEEK_API_KEY) — fallback
+Provider LLM:
+  Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)
 
 Alur RAG:
   1. Semantic search via pgvector (text-embedding-3-small) per kategori
@@ -24,10 +23,6 @@ from core.embeddings import semantic_search_multi
 from core.llm_client import build_chat_client
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
-
-# DeepSeek konstanta dipertahankan untuk referensi internal (fallback provider)
-_DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-_DEEPSEEK_MODEL    = "deepseek-chat"
 
 # Jumlah karakter konten per artikel yang dikirim ke LLM
 # Dinaikkan dari 500 → 800 karena artikel sudah di-filter by relevance
@@ -148,11 +143,10 @@ def _build_client() -> tuple[OpenAI, str]:
     return build_chat_client()
 
 
-def build_deepseek_client() -> OpenAI:
+def build_gemini_client() -> OpenAI:
     """
     Public wrapper untuk dipakai endpoint streaming di app.py.
-    Nama dipertahankan untuk kompatibilitas — sekarang mengembalikan
-    Gemini client (atau DeepSeek jika Gemini tidak tersedia).
+    Mengembalikan Gemini client via build_chat_client().
     Catatan: gunakan build_chat_client() untuk mendapatkan (client, model).
     """
     client, _model = build_chat_client()
@@ -612,11 +606,11 @@ def generate_insights(
     articles:          list[dict] | None = None,
 ) -> dict:
     """
-    Analisis berita dengan DeepSeek menggunakan RAG (pgvector semantic search).
+    Analisis berita menggunakan Gemini dengan RAG (pgvector semantic search).
 
     Alur utama (jika date_from + date_to + supabase_client tersedia):
       1. Semantic search per kategori via pgvector → top-30 artikel paling relevan
-      2. Format artikel → kirim ke DeepSeek dengan konteks yang sudah di-rank
+      2. Format artikel → kirim ke Gemini dengan konteks yang sudah di-rank
       3. Inject inline citation links ke hasil insight
 
     Fallback (jika semantic search gagal atau embedding belum ada):

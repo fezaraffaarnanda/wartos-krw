@@ -26,44 +26,42 @@ const BULAN_ID = {
   desember: 11,
 };
 
-// ── KBLI: Mapping kode → deskripsi (sinkron dengan kbli_utils.py) ─────────────
+// ── KBLI: Mapping kode → deskripsi (sinkron dengan KBLI_KEY_MAPPING di core/kbli_utils.py) ──
+// KBLI 2025: 22 kategori standar (A–V) + 2 kategori custom (KE, PG)
 const KBLI_KEY_MAPPING = {
-  A1: "Pertanian, Peternakan, Perburuan dan Jasa Pertanian",
-  A2: "Kehutanan dan Penebangan Kayu",
-  A3: "Perikanan",
-  B1: "Pertambangan Migas",
-  B2: "Pertambangan Batu Bara",
-  B3: "Pertambangan Bijih Logam",
-  B4: "Pertambangan dan Penggalian Lainnya",
-  C1: "Industri Migas",
-  C2: "Industri Makan Minum (CPO, padi,dll)",
-  C3: "Industri Kimia dan Farmasi",
-  C4: "Industri Barang Galian",
-  C5: "Industri selain 1-4",
-  D: "Pengadaan Listrik dan Gas",
-  E: "Pengadaan Air, Pengelolaan Sampah, Limbah dan Daur Ulang",
-  F: "Konstruksi",
-  G: "Perdagangan Besar & Eceran Reparasi Mobil & Sepeda Motor",
-  H1: "Transportasi Darat",
-  H2: "Transportasi Udara",
-  H3: "Transportasi Laut",
-  H4: "Penyeberangan/ASDP",
-  H5: "Penunjang Angkutan dan Pergudangan",
-  I: "Penyediaan Akomodasi dan Makan Minum",
-  J: "Informasi dan Komunikasi",
-  K: "Jasa Keuangan dan Asuransi",
-  L: "Real Estate",
-  MN: "Jasa Perusahaan",
-  O: "Administrasi Pemerintahan Pertahanan & Jaminan Sosial Wajib",
-  P: "Jasa Pendidikan",
-  Q: "Jasa Kesehatan dan Kegiatan Sosial",
-  RSTU: "Jasa lainnya",
+  A:  "Pertanian, Kehutanan, dan Perikanan",
+  B:  "Pertambangan dan Penggalian",
+  C:  "Industri",
+  D:  "Penyediaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin",
+  E:  "Penyediaan Air; Pengelolaan Air Limbah, Penanganan Limbah, dan Remediasi",
+  F:  "Konstruksi",
+  G:  "Perdagangan Besar dan Eceran",
+  H:  "Transportasi dan Penyimpanan",
+  I:  "Aktivitas Penyediaan Akomodasi dan Makan Minum",
+  J:  "Aktivitas Penerbitan, Penyiaran, serta Produksi dan Distribusi Konten",
+  K:  "Aktivitas Telekomunikasi, Pemrograman Komputer, Konsultansi, dan Jasa Informasi",
+  L:  "Aktivitas Keuangan dan Asuransi",
+  M:  "Aktivitas Real Estat",
+  N:  "Aktivitas Profesional, Ilmiah, dan Teknis",
+  O:  "Aktivitas Administratif dan Penunjang Usaha",
+  P:  "Administrasi Pemerintahan dan Pertahanan, Serta Jaminan Sosial Wajib",
+  Q:  "Pendidikan",
+  R:  "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
+  S:  "Kesenian, Olahraga, dan Rekreasi",
+  T:  "Aktivitas Jasa Lainnya",
+  U:  "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
+  V:  "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
   KE: "Kemiskinan",
   PG: "Pengangguran",
 };
 
-// Regex deteksi format confidence rendah: "KODE (Tingkat Kepercayaan Model Rendah)"
-const _RE_LOW_CONF = /^(.+?)\s+\(Tingkat Kepercayaan Model Rendah\)$/;
+// Helper: cek apakah nilai KBLI tidak relevan / tidak valid untuk chart/filter
+// (Sistem baru berbasis LLM: tidak ada lagi format "confidence rendah")
+function _isKbliIrrelevant(kbli) {
+  if (!kbli) return true;
+  const k = kbli.trim();
+  return k === "—" || k.toLowerCase().startsWith("tidak relevan");
+}
 
 // ── Filter tag tidak informatif (mirror logic dari core/utils.py clean_tags) ──
 
@@ -330,7 +328,7 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
       // Terapkan KBLI filter (client-side) jika aktif
       filteredData = _selectedKbli
         ? allData.filter((item) => {
-            if (!item.kbli || _RE_LOW_CONF.test(item.kbli)) return false;
+            if (_isKbliIrrelevant(item.kbli)) return false;
             const kode = item.kbli.split("/")[0].trim().toUpperCase();
             return kode === _selectedKbli;
           })
@@ -543,7 +541,7 @@ function updateSummary() {
   const kbliCount = {};
   last30.forEach((item) => {
     if (!item.kbli) return;
-    if (_RE_LOW_CONF.test(item.kbli)) return;
+    if (typeof _isKbliIrrelevant !== 'undefined' && _isKbliIrrelevant(item.kbli)) return;
     const kode = item.kbli.split("/")[0].trim().toUpperCase();
     if (!kode) return;
     kbliCount[kode] = (kbliCount[kode] || 0) + 1;
@@ -759,10 +757,10 @@ function renderKbliChart() {
     return !isNaN(d) && d >= cutoff;
   });
 
-  // Hitung frekuensi KBLI (skip low-confidence)
+  // Hitung frekuensi KBLI (skip tidak relevan / tidak valid)
   const kbliCount = {};
   last30.forEach((item) => {
-    if (!item.kbli || _RE_LOW_CONF.test(item.kbli)) return;
+    if (_isKbliIrrelevant(item.kbli)) return;
     const kode = item.kbli.split("/")[0].trim().toUpperCase();
     if (!kode) return;
     kbliCount[kode] = (kbliCount[kode] || 0) + 1;
@@ -982,37 +980,21 @@ function _kbliGroupClass(kode) {
 
 /**
  * Render konten sel KBLI.
- * - Confidence normal  → badge berwarna dengan kode & deskripsi
- * - Confidence rendah  → badge "Tidak Relevan" + tombol ⓘ dengan tooltip prediksi model
+ * Format nilai dari DB (sistem LLM baru):
+ * - "KODE/Deskripsi"  → badge berwarna dengan kode & deskripsi
+ * - "Tidak Relevan"   → badge abu-abu
+ * - "—"              → dash (artikel tanpa konten)
  */
 function renderKbliCell(kbliStr) {
   if (!kbliStr || !kbliStr.trim()) return "—";
 
-  const m = kbliStr.match(_RE_LOW_CONF);
-  if (m) {
-    const kode = m[1].trim().toUpperCase();
-    const deskripsi = KBLI_KEY_MAPPING[kode];
-    const rawText = deskripsi
-      ? `Prediksi model: ${kode} — ${deskripsi}`
-      : `Prediksi model: ${kode}`;
-    const safeAttr = rawText
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-    return (
-      `<span class="kbli-tidak-relevan">Tidak Relevan</span>` +
-      `<button class="kbli-info-btn" type="button"` +
-      ` data-kbli-tooltip="${safeAttr}"` +
-      ` aria-label="Lihat prediksi model">` +
-      `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor">` +
-      `<path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48` +
-      ` 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/>` +
-      `</svg></button>`
-    );
+  // "Tidak Relevan" atau "—"
+  if (_isKbliIrrelevant(kbliStr)) {
+    const label = kbliStr.trim() === "—" ? "—" : "Tidak Relevan";
+    return `<span class="kbli-tidak-relevan">${label}</span>`;
   }
 
-  // Normal confidence: badge berwarna
+  // Normal: badge berwarna
   const slashIdx = kbliStr.indexOf("/");
   if (slashIdx !== -1) {
     const kode = kbliStr.slice(0, slashIdx).trim().toUpperCase();
@@ -1162,10 +1144,10 @@ function populateKbliFilter() {
   const menu = document.getElementById("kbliFilterMenu");
   if (!menu) return;
 
-  // Kumpulkan kode KBLI unik (bukan Tidak Relevan)
+  // Kumpulkan kode KBLI unik (bukan Tidak Relevan / tidak valid)
   const kodeSet = new Set();
   allData.forEach((item) => {
-    if (!item.kbli || _RE_LOW_CONF.test(item.kbli)) return;
+    if (_isKbliIrrelevant(item.kbli)) return;
     const parts = item.kbli.split("/");
     const kode = parts[0].trim().toUpperCase();
     if (kode) kodeSet.add(kode);
@@ -1576,8 +1558,8 @@ function setAILoading(loading, articleCount) {
     const n = articleCount ? `${articleCount}` : "";
     if (statusText)
       statusText.textContent = n
-        ? `Menganalisis ${n} berita dengan DeepSeek AI...`
-        : "Menganalisis berita dengan DeepSeek AI...";
+        ? `Menganalisis ${n} berita dengan Gemini AI...`
+        : "Menganalisis berita dengan Gemini AI...";
     // Animasi pulse pada cards
     ["aiCardPdrb", "aiCardKemiskinan", "aiCardPengangguran"].forEach((id) => {
       document.getElementById(id)?.classList.add("ai-card-loading");
