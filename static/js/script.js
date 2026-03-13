@@ -328,13 +328,13 @@ async function loadUserInfo() {
         const infoBar = document.getElementById("scrapeInfoBar");
         if (infoBar) infoBar.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
-        if (guideAdminCard) guideAdminCard.style.display = "flex";
+        if (guideAdminCard) guideAdminCard.style.display = "block";
         if (guideUserCard) guideUserCard.style.display = "none";
       } else {
         const scrapeSection = document.getElementById("scrapeSection");
         if (scrapeSection) scrapeSection.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "none";
-        if (guideUserCard) guideUserCard.style.display = "flex";
+        if (guideUserCard) guideUserCard.style.display = "block";
         if (guideAdminCard) guideAdminCard.style.display = "none";
       }
     }

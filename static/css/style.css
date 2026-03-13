@@ -227,7 +227,7 @@ a:hover {
 /* Header */
 .welcome-header {
     margin-bottom: 20px;
-    padding-right: 32px;
+    padding-right: 0;
 }
 
 .welcome-badge {
@@ -373,6 +373,37 @@ a:hover {
     margin-bottom: 0;
 }
 
+.welcome-guide-wrap {
+    margin-top: 12px;
+}
+
+.welcome-guide-card {
+    padding: 16px 18px;
+    background: #fffaf4;
+    border: 1px solid var(--orange-200);
+    border-radius: var(--radius-md);
+}
+
+.welcome-guide-head {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.welcome-guide-title {
+    margin: 0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--text-primary);
+}
+
+.welcome-guide-subtitle {
+    margin: 2px 0 0;
+    font-size: 0.77rem;
+    color: var(--text-secondary);
+}
+
 /* Collapse animation */
 .welcome-section.is-hidden {
     display: none;
@@ -395,6 +426,10 @@ a:hover {
     .welcome-sources-row {
         flex-direction: column;
         align-items: flex-start;
+    }
+
+    .welcome-guide-card {
+        padding: 14px;
     }
 }
 

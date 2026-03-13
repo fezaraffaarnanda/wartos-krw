@@ -96,7 +96,7 @@
               </div>
               <div class="wf-body">
                 <strong>Scraping Berita Otomatis</strong>
-                <p>Mengumpulkan berita terbaru dari 5 sumber setiap jam secara otomatis. Duplikat terdeteksi dan dilewati secara pintar.</p>
+                <p>Mengumpulkan berita terbaru dari 5 sumber setiap jam secara otomatis.</p>
               </div>
             </div>
 
@@ -147,41 +147,47 @@
           </div>
 
           <!-- Petunjuk role-based -->
-          <div class="welcome-features" style="margin-top: 10px;">
-            <div class="welcome-feature" id="guideUserCard" style="display: none;">
-              <div class="wf-icon wf-chat">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-                  <path d="M8 9h8"/><path d="M8 13h6"/>
-                </svg>
+          <div class="welcome-guide-wrap">
+            <article class="welcome-guide-card" id="guideUserCard" style="display: none;">
+              <div class="welcome-guide-head">
+                <div class="wf-icon wf-chat">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                    <path d="M8 9h8"/><path d="M8 13h6"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="welcome-guide-title">Petunjuk Pengguna</h3>
+                  <p class="welcome-guide-subtitle">Langkah cepat untuk membaca tren dan insight dengan efektif.</p>
+                </div>
               </div>
-              <div class="wf-body">
-                <strong>Petunjuk Pengguna</strong>
-                <ul class="welcome-list">
-                  <li>Gunakan filter tanggal, KBLI, dan aktivitas ekonomi untuk fokus pada isu tertentu.</li>
-                  <li>Buka detail berita dengan klik judul untuk membaca konteks lengkap.</li>
-                  <li>Gunakan AI Insight dan AI Chat untuk ringkasan cepat sebelum analisis lanjutan.</li>
-                </ul>
-              </div>
-            </div>
+              <ul class="welcome-list">
+                <li>Gunakan filter tanggal, KBLI, dan aktivitas ekonomi untuk fokus pada isu tertentu.</li>
+                <li>Buka detail berita dengan klik judul untuk membaca konteks lengkap.</li>
+                <li>Gunakan AI Insight dan AI Chat untuk ringkasan cepat sebelum analisis lanjutan.</li>
+              </ul>
+            </article>
 
-            <div class="welcome-feature" id="guideAdminCard" style="display: none;">
-              <div class="wf-icon wf-scrape">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M21 12a9 9 0 11-6.22-8.56"/><path d="M21 3v6h-6"/>
-                </svg>
+            <article class="welcome-guide-card" id="guideAdminCard" style="display: none;">
+              <div class="welcome-guide-head">
+                <div class="wf-icon wf-scrape">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12a9 9 0 11-6.22-8.56"/><path d="M21 3v6h-6"/>
+                  </svg>
+                </div>
+                <div>
+                  <h3 class="welcome-guide-title">Petunjuk Admin</h3>
+                  <p class="welcome-guide-subtitle">Alur operasional untuk pengelolaan akun dan kualitas data scraping.</p>
+                </div>
               </div>
-              <div class="wf-body">
-                <strong>Petunjuk Admin</strong>
-                <ul class="welcome-list">
-                  <li>Gunakan menu <strong>Manajemen User</strong> untuk membuat akun dan generate password sementara.</li>
-                  <li>Jika user lupa password, generate <strong>kode autentikasi</strong> (berlaku 1 jam, sekali pakai).</li>
-                  <li>Lakukan scraping manual hanya saat dibutuhkan; sistem tetap scraping otomatis setiap jam.</li>
-                </ul>
-              </div>
-            </div>
+              <ul class="welcome-list">
+                <li>Gunakan menu <strong>Manajemen User</strong> untuk membuat akun dan generate password sementara.</li>
+                <li>Jika user lupa password, generate <strong>kode autentikasi</strong> (berlaku 1 jam, sekali pakai).</li>
+                <li>Lakukan scraping manual hanya saat dibutuhkan; sistem tetap scraping otomatis setiap jam.</li>
+              </ul>
+            </article>
           </div>
         </div>
       </section>
