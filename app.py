@@ -34,6 +34,8 @@ from core.ai_insights import (
     normalize_inline_markers,
     prepare_insight_articles,
     stream_category_tokens,
+    _ACTOR_PROMPTS,
+    _SYSTEM_PROMPT_BPS,
 )
 from core.embeddings import batch_embed_articles, embed_article, _build_embedding_client
 from core.kbli_utils import load_kbli_llm_classifier, predict_kbli_label
@@ -519,19 +521,23 @@ def get_ai_insights():
     poll_request  = request.args.get("poll", "") == "1"
     year_str      = request.args.get("year", "").strip()
     year          = int(year_str) if year_str.isdigit() else None
+    actor         = request.args.get("actor", "bps").strip().lower()
+    if actor not in _ACTOR_PROMPTS:
+        actor = "bps"
 
     period_key, period_label, date_from, date_to = _get_period_range(period, year)
+    actor_period_key = period_key if actor == "bps" else f"{actor}_{period_key}"
 
     # ── State generation ───────────────────────────────────────────────────────
-    gen_state = _INSIGHTS_GENERATING.get(period_key)
+    gen_state = _INSIGHTS_GENERATING.get(actor_period_key)
 
     # Sumber utama hasil insight adalah DB (persisten antar restart/deploy)
-    db_row = _load_insight_from_db(period_key)
+    db_row = _load_insight_from_db(actor_period_key)
 
     # Thread sebelumnya gagal — reset agar bisa dicoba ulang saat refresh
     if isinstance(gen_state, str) and gen_state.startswith("error"):
         error_msg = gen_state[len("error: "):]
-        print(f"[AI Insights] Thread sebelumnya gagal untuk {period_key}: {error_msg}")
+        print(f"[AI Insights] Thread sebelumnya gagal untuk {actor_period_key}: {error_msg}")
         return jsonify({
             "status":  "error",
             "message": f"Gagal menghasilkan insight: {error_msg}",
@@ -540,11 +546,11 @@ def get_ai_insights():
     # Request dari polling frontend: cek apakah hasil worker sudah siap
     if poll_request:
         if gen_state is True:
-            print(f"[AI Insights] Poll: thread masih berjalan untuk {period_key}.")
+            print(f"[AI Insights] Poll: thread masih berjalan untuk {actor_period_key}.")
             return jsonify({"status": "generating"})
 
         if db_row:
-            print(f"[AI Insights] Poll: hasil DB siap untuk {period_key}.")
+            print(f"[AI Insights] Poll: hasil DB siap untuk {actor_period_key}.")
             return jsonify({
                 "status":        "ok",
                 "cached":        True,
@@ -559,20 +565,20 @@ def get_ai_insights():
                 "generated_at": db_row["created_at"],
             })
 
-        ready = _INSIGHTS_CACHE.get(period_key)
+        ready = _INSIGHTS_CACHE.get(actor_period_key)
         if ready:
-            print(f"[AI Insights] Poll: hasil siap untuk {period_key}.")
+            print(f"[AI Insights] Poll: hasil siap untuk {actor_period_key}.")
             return jsonify(ready["data"])
 
-        print(f"[AI Insights] Poll: belum ada hasil untuk {period_key}.")
+        print(f"[AI Insights] Poll: belum ada hasil untuk {actor_period_key}.")
         return jsonify({"status": "generating"})
 
     # Request normal: jika DB sudah ada, selalu pakai DB (tidak overwrite hasil lama)
     if db_row:
         if force_refresh:
-            print(f"[AI Insights] Refresh diabaikan karena data DB sudah ada untuk {period_key}.")
+            print(f"[AI Insights] Refresh diabaikan karena data DB sudah ada untuk {actor_period_key}.")
         else:
-            print(f"[AI Insights] Ambil hasil dari DB untuk {period_key}.")
+            print(f"[AI Insights] Ambil hasil dari DB untuk {actor_period_key}.")
         return jsonify({
             "status":        "ok",
             "cached":        True,
@@ -589,7 +595,7 @@ def get_ai_insights():
 
     # Request non-poll: DB belum ada → generate baru
     if gen_state is True:
-        print(f"[AI Insights] Thread masih berjalan untuk {period_key} — return generating.")
+        print(f"[AI Insights] Thread masih berjalan untuk {actor_period_key} — return generating.")
         return jsonify({"status": "generating"})
 
     # Belum ada thread — fetch artikel terlebih dulu (cepat, < 2 detik)
@@ -597,7 +603,7 @@ def get_ai_insights():
 
     # Jika tidak ada artikel untuk periode ini, return langsung tanpa spawn thread
     if not articles:
-        print(f"[AI Insights] Tidak ada artikel untuk {period_key} — return langsung.")
+        print(f"[AI Insights] Tidak ada artikel untuk {actor_period_key} — return langsung.")
         empty_payload = {
             "status":        "ok",
             "cached":        False,
@@ -610,18 +616,18 @@ def get_ai_insights():
             },
             "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
         }
-        _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": empty_payload}
+        _INSIGHTS_CACHE[actor_period_key] = {"ts": 0.0, "data": empty_payload}
         return jsonify(empty_payload)
 
-    # Ada artikel — spawn thread, pass articles agar tidak fetch ulang di worker
-    _INSIGHTS_GENERATING[period_key] = True
+    # Ada artikel — spawn thread (legacy BPS path, actor non-BPS sebaiknya pakai SSE endpoint)
+    _INSIGHTS_GENERATING[actor_period_key] = True
     threading.Thread(
         target  = _generate_insights_worker,
-        args    = (period_key, period_label, date_from, date_to, articles),
+        args    = (actor_period_key, period_label, date_from, date_to, articles),
         daemon  = True,
-        name    = f"ai-insights-{period_key}",
+        name    = f"ai-insights-{actor_period_key}",
     ).start()
-    print(f"[AI Insights] Thread spawned untuk {period_key} ({len(articles)} artikel) — return generating.")
+    print(f"[AI Insights] Thread spawned untuk {actor_period_key} ({len(articles)} artikel) — return generating.")
     return jsonify({"status": "generating"})
 
 
@@ -634,11 +640,18 @@ def stream_ai_insights():
     force_refresh = request.args.get("refresh", "") == "1"
     year_str = request.args.get("year", "").strip()
     year = int(year_str) if year_str.isdigit() else None
+    actor = request.args.get("actor", "bps").strip().lower()
+    if actor not in _ACTOR_PROMPTS:
+        actor = "bps"
 
     period_key, period_label, date_from, date_to = _get_period_range(period, year)
 
+    # BPS tetap memakai period_key lama (backward-compat data DB lama)
+    # Aktor lain menggunakan prefix agar cache-nya terpisah
+    actor_period_key = period_key if actor == "bps" else f"{actor}_{period_key}"
+
     # Jika sudah ada di DB dan tidak force refresh, kirim cepat dari cache/DB
-    db_row = _load_insight_from_db(period_key)
+    db_row = _load_insight_from_db(actor_period_key)
     if db_row and not force_refresh:
         payload = {
             "status": "ok",
@@ -689,7 +702,7 @@ def stream_ai_insights():
                     "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
                     "latency_ms": {"total": round((perf_counter() - total_start) * 1000, 1)},
                 }
-                _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": done_payload}
+                _INSIGHTS_CACHE[actor_period_key] = {"ts": 0.0, "data": done_payload}
                 yield _sse_payload({"type": "start", "quarter": period_label, "article_count": 0, "cached": False})
                 yield _sse_payload({"type": "done", **done_payload})
                 return
@@ -711,8 +724,9 @@ def stream_ai_insights():
             })
 
             client, _chat_model = build_chat_client()
-            categories = ("pdrb", "kemiskinan", "pengangguran")
-            final_data: dict[str, str] = {}
+            actor_system_prompt  = _ACTOR_PROMPTS.get(actor, _SYSTEM_PROMPT_BPS)
+            categories           = ("pdrb", "kemiskinan", "pengangguran")
+            final_data:    dict[str, str]        = {}
             final_sources: dict[str, list[dict]] = {}
 
             for cat in categories:
@@ -725,17 +739,23 @@ def stream_ai_insights():
                     yield _sse_payload({"type": "category_done", "category": cat, "text": text, "sources": []})
                     continue
 
-                ctx = build_stream_category_context(cat, period_label, cat_articles)
+                ctx        = build_stream_category_context(cat, period_label, cat_articles, actor=actor)
                 source_map = ctx["source_map"]
                 yield _sse_payload({"type": "category_start", "category": cat, "source_map": source_map})
 
                 chunks: list[str] = []
-                for delta in stream_category_tokens(client=client, model=_chat_model, user_prompt=ctx["prompt"]):
+                for delta in stream_category_tokens(
+                    client=client,
+                    model=_chat_model,
+                    user_prompt=ctx["prompt"],
+                    system_prompt=actor_system_prompt,
+                ):
                     chunks.append(delta)
                     yield _sse_payload({"type": "delta", "category": cat, "text": delta})
 
-                raw_text = "".join(chunks).strip()
-                normalized = normalize_inline_markers(raw_text, prefixes="PKT")
+                raw_text   = "".join(chunks).strip()
+                cat_prefix = {"pdrb": "P", "kemiskinan": "K", "pengangguran": "T"}.get(cat, "P")
+                normalized = normalize_inline_markers(raw_text, prefixes="PKT", single_prefix=cat_prefix)
                 if not normalized:
                     normalized = "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini."
 
@@ -743,7 +763,7 @@ def stream_ai_insights():
                 if not used_sources:
                     used_sources = source_map[:2]
 
-                final_data[cat] = normalized
+                final_data[cat]    = normalized
                 final_sources[cat] = used_sources
 
                 yield _sse_payload({
@@ -754,12 +774,12 @@ def stream_ai_insights():
                 })
 
             insights_payload = {
-                "pdrb": final_data.get("pdrb", ""),
-                "kemiskinan": final_data.get("kemiskinan", ""),
+                "pdrb":        final_data.get("pdrb", ""),
+                "kemiskinan":  final_data.get("kemiskinan", ""),
                 "pengangguran": final_data.get("pengangguran", ""),
-                "sources": final_sources,
+                "sources":     final_sources,
             }
-            _save_insight_to_db(period_key, period_label, insights_payload, article_count)
+            _save_insight_to_db(actor_period_key, period_label, insights_payload, article_count)
 
             total_ms = (perf_counter() - total_start) * 1000
             done_payload = {
@@ -768,17 +788,17 @@ def stream_ai_insights():
                 "quarter": period_label,
                 "article_count": article_count,
                 "data": {
-                    "pdrb": insights_payload["pdrb"],
-                    "kemiskinan": insights_payload["kemiskinan"],
+                    "pdrb":        insights_payload["pdrb"],
+                    "kemiskinan":  insights_payload["kemiskinan"],
                     "pengangguran": insights_payload["pengangguran"],
                 },
-                "sources": final_sources,
+                "sources":    final_sources,
                 "latency_ms": {"total": round(total_ms, 1)},
             }
-            _INSIGHTS_CACHE[period_key] = {"ts": 0.0, "data": done_payload}
+            _INSIGHTS_CACHE[actor_period_key] = {"ts": 0.0, "data": done_payload}
             yield _sse_payload({"type": "done", **done_payload})
         except Exception as exc:
-            print(f"[AI Insights] Stream error {period_key}: {exc}")
+            print(f"[AI Insights] Stream error {actor_period_key}: {exc}")
             yield _sse_payload({
                 "type": "error",
                 "message": f"Gagal menghasilkan insight AI: {exc}",

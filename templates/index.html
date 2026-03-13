@@ -430,8 +430,8 @@
             </h2>
             <p class="ai-insight-subtitle">
               Analisis otomatis berita
-              <span id="aiQuarterLabel">triwulan ini</span> untuk tiga indikator
-              utama BPS
+              <span id="aiQuarterLabel">triwulan ini</span> · perspektif
+              <span id="aiActorSubtitleLabel">BPS</span>
             </p>
           </div>
           <div class="ai-insight-actions">
@@ -456,6 +456,74 @@
               </svg>
               <span id="aiArticleCountText">—</span>
             </span>
+
+            <!-- Dropdown Aktor (perspektif analisis) -->
+            <div class="ai-period-dropdown" id="aiActorDropdown">
+              <button
+                class="ai-period-btn"
+                id="aiActorBtn"
+                onclick="toggleActorDropdown()"
+                type="button"
+              >
+                <svg
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                  <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                </svg>
+                <span id="aiActorLabel">BPS</span>
+                <svg
+                  class="ai-period-chevron"
+                  width="13"
+                  height="13"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              <div
+                class="ai-period-menu"
+                id="aiActorMenu"
+                style="display: none"
+              >
+                <div class="ai-period-group-label">Perspektif Analisis</div>
+                <button
+                  class="ai-period-option active"
+                  data-value="bps"
+                  onclick="selectActor('bps')"
+                >
+                  BPS <span>Statistik</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="pemerintah"
+                  onclick="selectActor('pemerintah')"
+                >
+                  Pemerintah <span>Bappeda/Bappenas</span>
+                </button>
+                <button
+                  class="ai-period-option"
+                  data-value="akademisi"
+                  onclick="selectActor('akademisi')"
+                >
+                  Akademisi <span>Peneliti</span>
+                </button>
+              </div>
+            </div>
 
             <!-- Dropdown periode (custom) -->
             <div class="ai-period-dropdown" id="aiPeriodDropdown">

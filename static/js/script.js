@@ -942,14 +942,37 @@ function _normalizeCitationMarkers(text, prefixes = "S") {
   const safePrefixes = String(prefixes || "S").replace(/[^A-Z]/gi, "") || "S";
   const cls = `[${safePrefixes}]`;
 
-  // Contoh: S01S03S04 -> [S01][S03][S04]
+  // Step 0: Expand bracket berkoma: [P19, P22] → [P19][P22]
+  //         atau mixed: [P02, 3, P13] → [P02][P03][P13]
+  const commaBracketRe = new RegExp(
+    `\\[([${safePrefixes}]\\d{1,2}(?:\\s*,\\s*[${safePrefixes}]?\\d{1,2})+)\\]`,
+    "gi"
+  );
+  normalized = normalized.replace(commaBracketRe, (_, inner) => {
+    const tokens = inner.split(",").map((t) => t.trim()).filter(Boolean);
+    // Prefix default: ambil dari token pertama yang ada huruf awalan
+    let defaultPrefix = safePrefixes[0];
+    for (const tok of tokens) {
+      const m = tok.match(new RegExp(`^([${safePrefixes}])`, "i"));
+      if (m) { defaultPrefix = m[1].toUpperCase(); break; }
+    }
+    return tokens.map((tok) => {
+      const mFull = tok.match(new RegExp(`^([${safePrefixes}])(\\d{1,2})$`, "i"));
+      const mNum  = tok.match(/^(\d{1,2})$/);
+      if (mFull) return `[${mFull[1].toUpperCase()}${String(parseInt(mFull[2], 10)).padStart(2, "0")}]`;
+      if (mNum)  return `[${defaultPrefix}${String(parseInt(mNum[1], 10)).padStart(2, "0")}]`;
+      return "";
+    }).join("");
+  });
+
+  // Step 1: Expand marker tergabung: S01S03S04 → [S01][S03][S04]
   const concatRe = new RegExp(`(?:${cls}\\d{2}){2,}`, "gi");
   normalized = normalized.replace(concatRe, (token) => {
     const parts = token.toUpperCase().match(new RegExp(`${cls}\\d{2}`, "g")) || [];
     return parts.map((p) => `[${p}]`).join("");
   });
 
-  // Contoh: S01 -> [S01] (jika belum dibungkus)
+  // Step 2: Bungkus marker bare: S01 → [S01] (jika belum dibungkus)
   const singleRe = new RegExp(`(?<!\\[)\\b(${cls}\\d{2})\\b(?!\\])`, "gi");
   normalized = normalized.replace(singleRe, "[$1]");
   return normalized;
@@ -1402,9 +1425,54 @@ async function downloadExcel() {
 
 // ── AI Insights ───────────────────────────────────────────────────────────────
 
-let _aiLoading = false;
-let _currentYear = String(new Date().getFullYear()); // default tahun ini
-let _aiInsightStream = null;
+let _aiLoading        = false;
+let _currentYear      = String(new Date().getFullYear()); // default tahun ini
+let _aiInsightStream  = null;
+
+// ── Custom Actor Dropdown ─────────────────────────────────────────────────────
+
+let _currentActor = "bps";
+
+const _ACTOR_LABELS = {
+  bps:        "BPS",
+  pemerintah: "Pemerintah (Bappeda)",
+  akademisi:  "Akademisi",
+};
+
+const _ACTOR_SUBTITLE_LABELS = {
+  bps:        "BPS",
+  pemerintah: "Pemerintah (Bappeda/Bappenas)",
+  akademisi:  "Akademisi / Peneliti",
+};
+
+function selectActor(value) {
+  _currentActor = value;
+  const label = document.getElementById("aiActorLabel");
+  if (label) label.textContent = _ACTOR_LABELS[value] || value;
+  const subtitleLabel = document.getElementById("aiActorSubtitleLabel");
+  if (subtitleLabel) subtitleLabel.textContent = _ACTOR_SUBTITLE_LABELS[value] || value;
+  document.querySelectorAll("#aiActorMenu .ai-period-option").forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.value === value);
+  });
+  closeActorDropdown();
+  loadAIInsights({ forceRefresh: false });
+}
+
+function toggleActorDropdown() {
+  const menu = document.getElementById("aiActorMenu");
+  const btn  = document.getElementById("aiActorBtn");
+  if (!menu) return;
+  const isOpen = menu.style.display !== "none";
+  menu.style.display = isOpen ? "none" : "";
+  btn?.classList.toggle("open", !isOpen);
+}
+
+function closeActorDropdown() {
+  const menu = document.getElementById("aiActorMenu");
+  const btn  = document.getElementById("aiActorBtn");
+  if (menu) menu.style.display = "none";
+  btn?.classList.remove("open");
+}
 
 // ── Custom Period Dropdown ────────────────────────────────────────────────────
 
@@ -1434,14 +1502,16 @@ function _initPeriodDropdown() {
   _currentPeriod = def;
   const label = document.getElementById("aiPeriodLabel");
   if (label) label.textContent = _PERIOD_LABELS[def] || def;
-  // Mark active option
-  document.querySelectorAll(".ai-period-option").forEach((btn) => {
+  // Mark active option (hanya period dropdown, bukan actor)
+  document.querySelectorAll("#aiPeriodMenu .ai-period-option").forEach((btn) => {
     btn.classList.toggle("active", btn.dataset.value === def);
   });
-  // Close menu on outside click
+  // Close menus on outside click
   document.addEventListener("click", (e) => {
-    const dd = document.getElementById("aiPeriodDropdown");
-    if (dd && !dd.contains(e.target)) closePeriodDropdown();
+    const ddPeriod = document.getElementById("aiPeriodDropdown");
+    if (ddPeriod && !ddPeriod.contains(e.target)) closePeriodDropdown();
+    const ddActor = document.getElementById("aiActorDropdown");
+    if (ddActor && !ddActor.contains(e.target)) closeActorDropdown();
   });
   // Isi dropdown tahun
   _initYearDropdown();
@@ -1719,6 +1789,10 @@ function renderAIInsights(json) {
   const quarterEl = document.getElementById("aiQuarterLabel");
   if (quarterEl) quarterEl.textContent = quarter || "periode ini";
 
+  // Label aktor di subtitle
+  const actorSubtitleEl = document.getElementById("aiActorSubtitleLabel");
+  if (actorSubtitleEl) actorSubtitleEl.textContent = _ACTOR_SUBTITLE_LABELS[_currentActor] || _ACTOR_LABELS[_currentActor] || "BPS";
+
   // Badge jumlah berita
   const countBadge = document.getElementById("aiArticleCount");
   const countText = document.getElementById("aiArticleCountText");
@@ -1752,7 +1826,7 @@ async function loadAIInsights({
   // dalam sesi browser yang sama.
   // forceRefresh bypass cache karena butuh data segar.
   if (!forceRefresh) {
-    const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
+    const cacheKey = `ai_insights_v2_${_currentActor}_${selectedPeriod}_${_currentYear || ""}`;
     try {
       const raw = sessionStorage.getItem(cacheKey);
       if (raw) {
@@ -1773,7 +1847,8 @@ async function loadAIInsights({
   try {
     const params = new URLSearchParams({ period: selectedPeriod });
     if (forceRefresh) params.set("refresh", "1");
-    if (_currentYear) params.set("year", _currentYear);
+    if (_currentYear)  params.set("year", _currentYear);
+    params.set("actor", _currentActor);
     const url = "/api/ai-insights/stream?" + params.toString();
 
     const streamState = {
@@ -1868,7 +1943,7 @@ async function loadAIInsights({
             renderAIInsights(finalJson);
 
             try {
-              const cacheKey = `ai_insights_v1_${selectedPeriod}_${_currentYear || ""}`;
+              const cacheKey = `ai_insights_v2_${_currentActor}_${selectedPeriod}_${_currentYear || ""}`;
               sessionStorage.setItem(cacheKey, JSON.stringify(finalJson));
             } catch (_) {
               // ignore
@@ -1918,7 +1993,7 @@ function refreshAIInsights() {
   // agar forceRefresh benar-benar mengambil data segar dari backend.
   try {
     const p = _currentPeriod || _getDefaultPeriod();
-    sessionStorage.removeItem(`ai_insights_v1_${p}_${_currentYear || ""}`);
+    sessionStorage.removeItem(`ai_insights_v2_${_currentActor}_${p}_${_currentYear || ""}`);
   } catch (_) {
     /* abaikan */
   }

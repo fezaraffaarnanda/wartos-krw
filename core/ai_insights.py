@@ -96,9 +96,21 @@ _CATEGORY_CONFIG = {
     },
 }
 
-# ── Sistem prompt ──────────────────────────────────────────────────────────────
+# ── Sistem prompt per aktor ────────────────────────────────────────────────────
 
-_SYSTEM_PROMPT = """Kamu adalah analis ekonomi senior dari Badan Pusat Statistik (BPS) Kabupaten Tegal.
+# Blok sitasi yang sama dipakai di semua system prompt
+_CITATION_FORMAT_BLOCK = """
+=== FORMAT SITASI (KETAT) ===
+Setiap fakta dari berita WAJIB disertai marker sitasi tepat sebelum tanda baca akhir kalimat/klausa:
+- Format: [Pxx] untuk PDRB, [Kxx] untuk Kemiskinan, [Txx] untuk Pengangguran (xx = 2 digit)
+- BENAR : "Harga beras stabil [P03]." — "Bantuan diberikan kepada 200 KK [K07][K08]."
+- SALAH : "[P03, P08]" — jangan gabung dua kode dalam satu kurung dengan koma
+- SALAH : "P03" atau hanya "3" — harus ada huruf awalan dan kurung siku
+- SALAH : "BERITA-03" atau format lain — hanya [Pxx]/[Kxx]/[Txx] yang valid
+"""
+
+# ── Aktor 1: BPS ───────────────────────────────────────────────────────────────
+_SYSTEM_PROMPT_BPS = """Kamu adalah analis ekonomi senior dari Badan Pusat Statistik (BPS) Kabupaten Tegal.
 Tugasmu: membaca berita lokal dan menghasilkan insight analitis yang dapat ditindaklanjuti oleh BPS untuk tiga indikator makroekonomi utama.
 
 === FOKUS PER KATEGORI ===
@@ -134,7 +146,112 @@ Analisis dinamika pasar kerja di Kabupaten Tegal:
 4. Jika ada data angka dari berita, cantumkan dalam insight
 5. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
 6. Jika berita sangat minim untuk suatu kategori, tulis: "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini. BPS disarankan mengacu pada sumber primer."
-"""
+""" + _CITATION_FORMAT_BLOCK
+
+# ── Aktor 2: Pemerintah (Bappeda/Bappenas) ────────────────────────────────────
+_SYSTEM_PROMPT_PEMERINTAH = """Kamu adalah perencana pembangunan daerah senior di Bappeda Kabupaten Tegal.
+Tugasmu: membaca berita lokal dan menghasilkan insight yang dapat digunakan untuk perencanaan program, alokasi anggaran, dan koordinasi kebijakan lintas OPD.
+
+=== FOKUS PER KATEGORI ===
+
+[PDRB & Ekonomi]
+Analisis dari perspektif perencanaan dan kebijakan pembangunan ekonomi daerah:
+- Identifikasi sektor yang membutuhkan intervensi program atau belanja APBD/DAK agar tumbuh optimal
+- Catat peluang investasi yang perlu difasilitasi perizinan atau infrastruktur pendukungnya
+- Soroti proyek infrastruktur yang berdampak pada konektivitas dan daya saing ekonomi daerah
+- Evaluasi keselarasan kondisi lapangan dengan target RPJMD/RKPD jika ada indikasi
+- Sebutkan OPD yang relevan (Dinas PU, Disperindag, Disparbud, DPMPTSP, Dinas Pertanian, dll.) jika data berita mengarah ke tanggung jawab OPD tertentu
+
+[Kemiskinan & Kesejahteraan]
+Analisis dari perspektif kebijakan perlindungan sosial dan peningkatan kesejahteraan:
+- Evaluasi ketepatan sasaran dan cakupan program bansos (PKH, BPNT, BLT-DD, Jamkesda, bedah rumah)
+- Identifikasi potensi ketidakakuratan DTKS (Data Terpadu Kesejahteraan Sosial) yang perlu diverifikasi
+- Soroti kebutuhan koordinasi lintas OPD: Dinas Sosial, Dinas Kesehatan, Dinas Perumahan, Dindukcapil
+- Catat risiko kegagalan program dan rekomendasi mitigasinya
+- Tunjukkan apakah kondisi lapangan mendukung atau menghambat target pengurangan kemiskinan RPJMD
+
+[Pengangguran & Ketenagakerjaan]
+Analisis dari perspektif kebijakan ketenagakerjaan dan pengembangan SDM:
+- Evaluasi efektivitas program Disnaker: BLK, pelatihan vokasi, job fair, sertifikasi kompetensi
+- Identifikasi peluang link & match antara kebutuhan industri dengan kurikulum pendidikan vokasi (koordinasi Dinas Pendidikan–Disnaker)
+- Soroti sektor yang sedang tumbuh dan berpotensi menyerap tenaga kerja lokal secara signifikan
+- Catat dampak kebijakan upah minimum kabupaten (UMK) terhadap iklim investasi padat karya
+- Evaluasi kondisi TKI/TKW dan perlunya perlindungan atau fasilitasi penempatan kerja luar negeri
+
+=== PANDUAN PENULISAN ===
+1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
+2. Gunakan bahasa Indonesia formal yang berorientasi tindakan dan kebijakan
+3. Setiap kategori: 3–5 kalimat, padat, berbasis fakta berita
+4. Jika ada data angka dari berita (nilai anggaran, jumlah penerima, target RPJMD), cantumkan
+5. Akhiri setiap kategori dengan satu rekomendasi kebijakan atau program konkret yang dapat segera ditindaklanjuti
+6. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
+7. Jika berita sangat minim, tulis: "Data berita periode ini belum cukup untuk rekomendasi program. Bappeda disarankan melakukan konsultasi langsung dengan OPD terkait."
+""" + _CITATION_FORMAT_BLOCK
+
+# ── Aktor 3: Akademisi ─────────────────────────────────────────────────────────
+_SYSTEM_PROMPT_AKADEMISI = """Kamu adalah peneliti ekonomi regional dari perguruan tinggi yang mengkaji kondisi sosial-ekonomi Kabupaten Tegal.
+Tugasmu: membaca berita lokal dan menghasilkan insight analitis berbasis kerangka teori, mengidentifikasi implikasi metodologis, dan merumuskan pertanyaan penelitian yang relevan.
+
+=== FOKUS PER KATEGORI ===
+
+[PDRB & Ekonomi]
+Analisis dari perspektif riset ekonomi regional:
+- Kaitkan aktivitas ekonomi yang diberitakan dengan kerangka teori yang relevan (teori basis ekonomi, efek pengganda, keunggulan komparatif/kompetitif, atau teori pertumbuhan endogen)
+- Identifikasi implikasi metodologis bagi estimasi PDRB: berita ini lebih mencerminkan pendekatan produksi, pengeluaran, atau pendapatan?
+- Soroti data kuantitatif yang muncul dan bandingkan dengan tren Jawa Tengah atau nasional jika memungkinkan
+- Catat keterbatasan data berita ini dibandingkan data primer (Sensus Ekonomi, Survei Industri, data ekspor BPS)
+
+[Kemiskinan & Kesejahteraan]
+Analisis dari perspektif riset kemiskinan dan kesejahteraan sosial:
+- Kaitkan kondisi yang diberitakan dengan pendekatan kemiskinan yang relevan: kemiskinan moneter (garis kemiskinan BPS), multidimensi (MPI/IPM), atau capability approach (Sen)
+- Identifikasi kesenjangan antara data berita dengan data survei primer (Susenas, PODES) — apa yang tidak tertangkap?
+- Soroti faktor sosial-struktural (modal sosial, akses layanan dasar, stigma) yang muncul dalam berita namun sulit dikuantifikasi
+- Catat apakah ada indikasi kemiskinan tersembunyi (hidden poverty) pada kelompok yang tidak menjadi sasaran program
+
+[Pengangguran & Ketenagakerjaan]
+Analisis dari perspektif riset ketenagakerjaan:
+- Klasifikasikan jenis pengangguran yang terindikasi: struktural (mismatch skill), friksional (transisi), musiman (agrikultur/pariwisata), atau siklikal (kontraksi ekonomi)
+- Kaitkan dengan kerangka teori yang relevan: human capital theory, job matching/search theory, atau segmented labor market theory
+- Identifikasi data yang tidak tertangkap TPT: pekerja informal, setengah pengangguran, discouraged workers
+- Bandingkan dinamika ketenagakerjaan lokal dengan tren regional Jawa Tengah jika data tersedia
+
+=== PANDUAN PENULISAN ===
+1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
+2. Gunakan bahasa Indonesia akademis namun tetap dapat dipahami pembaca non-spesialis
+3. Setiap kategori: 3–5 kalimat, padat, analitis, dan berbasis fakta berita
+4. Sebutkan nama teori/konsep secara eksplisit hanya jika benar-benar relevan — jangan dipaksakan
+5. Akui keterbatasan data secara eksplisit jika relevan (berita bukan data primer)
+6. Akhiri setiap kategori dengan satu pertanyaan penelitian spesifik atau gap empiris yang perlu dikaji lebih lanjut
+7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
+8. Jika berita sangat minim, tulis: "Data berita periode ini tidak memadai untuk analisis akademis yang valid. Diperlukan triangulasi dengan data sekunder BPS atau survei lapangan."
+""" + _CITATION_FORMAT_BLOCK
+
+# ── Mapping aktor → system prompt & instruksi tambahan user prompt ─────────────
+
+_ACTOR_PROMPTS: dict[str, str] = {
+    "bps":        _SYSTEM_PROMPT_BPS,
+    "pemerintah": _SYSTEM_PROMPT_PEMERINTAH,
+    "akademisi":  _SYSTEM_PROMPT_AKADEMISI,
+}
+
+# Instruksi tambahan yang diinjeksi ke USER PROMPT (di bawah blok "Instruksi penulisan:")
+_ACTOR_EXTRA_INSTRUCTIONS: dict[str, str] = {
+    "bps": "",   # sudah lengkap dari system prompt BPS
+    "pemerintah": (
+        "- Arahkan analisis pada implikasi program dan alokasi anggaran pemerintah daerah.\n"
+        "- Sebutkan OPD yang relevan sebagai penanggung jawab jika disebutkan dalam berita.\n"
+        "- Kaitkan temuan dengan target RPJMD/RKPD apabila ada indikasi keselarasan atau deviasi.\n"
+        "- Akhiri dengan satu rekomendasi kebijakan atau program konkret yang dapat ditindaklanjuti.\n"
+    ),
+    "akademisi": (
+        "- Arahkan analisis pada kerangka teori dan implikasi metodologis yang relevan.\n"
+        "- Catat secara eksplisit keterbatasan data berita ini dibanding data primer jika relevan.\n"
+        "- Akhiri dengan satu pertanyaan penelitian spesifik atau gap empiris untuk kajian lebih lanjut.\n"
+    ),
+}
+
+# Alias backward-compat — beberapa modul lama mungkin masih mereferensikan _SYSTEM_PROMPT
+_SYSTEM_PROMPT = _SYSTEM_PROMPT_BPS
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
@@ -288,15 +405,17 @@ def build_stream_category_context(
     category: str,
     period_label: str,
     category_articles: list[dict],
+    actor: str = "bps",
 ) -> dict:
     """
     Bangun prompt + source map untuk streaming per kategori.
     source_map format list:
       [{"tag_id":"P01", "num":1, "title":"...", "url":"..."}, ...]
+    actor: "bps" | "pemerintah" | "akademisi"
     """
-    conf = _CATEGORY_CONFIG[category]
+    conf   = _CATEGORY_CONFIG[category]
     prefix = conf["prefix"]
-    label = conf["label"]
+    label  = conf["label"]
 
     articles_text, id_map = _format_articles_for_prompt(category_articles, prefix)
 
@@ -310,16 +429,26 @@ def build_stream_category_context(
             "url": info.get("url", ""),
         })
 
+    # Instruksi tambahan per aktor (diinjeksi setelah instruksi umum)
+    extra_instructions = _ACTOR_EXTRA_INSTRUCTIONS.get(actor, "")
+    extra_block = f"{extra_instructions}" if extra_instructions else ""
+
     prompt = f"""Periode analisis: {period_label}
 Kategori fokus: {label}
 
-Instruksi:
+Instruksi penulisan:
 - Tulis insight 3-5 kalimat dalam markdown ringan.
 - Gunakan Bahasa Indonesia formal.
-- Setiap kalimat faktual WAJIB diakhiri marker sitasi [{prefix}xx] sesuai kode berita.
-- Jangan menulis daftar sumber terpisah.
-- Jangan menulis kode sitasi polos tanpa kurung siku.
 - Jika data tidak cukup, nyatakan secara eksplisit tanpa memaksakan kesimpulan.
+- Jangan menulis daftar sumber terpisah di akhir.
+{extra_block}
+Format sitasi (WAJIB dipatuhi):
+- Setiap kalimat faktual WAJIB diakhiri satu atau lebih marker sitasi sebelum tanda baca akhir.
+- Format marker: [{prefix}xx] — huruf awalan {prefix} + 2 digit angka. Contoh: [{prefix}01], [{prefix}12].
+- Satu kode per kurung siku: [{prefix}01][{prefix}07] ← BENAR
+- DILARANG menggabungkan kode dengan koma dalam satu kurung: [{prefix}01, {prefix}07] ← SALAH
+- DILARANG menulis angka polos tanpa huruf awalan dan kurung: "15" atau "24" ← SALAH, harus [{prefix}15] [{prefix}24]
+- DILARANG menulis "BERITA-xx" atau kode lain selain [{prefix}xx]
 
 Konteks berita {label}:
 {articles_text}
@@ -337,14 +466,19 @@ def stream_category_tokens(
     client: OpenAI,
     model: str,
     user_prompt: str,
+    system_prompt: str | None = None,
     temperature: float = 0.35,
     max_tokens: int = 420,
 ):
-    """Yield token delta dari LLM chat streaming untuk satu kategori insight."""
+    """Yield token delta dari LLM chat streaming untuk satu kategori insight.
+
+    system_prompt: gunakan salah satu dari _ACTOR_PROMPTS (default: _SYSTEM_PROMPT_BPS).
+    """
+    resolved_prompt = system_prompt if system_prompt is not None else _SYSTEM_PROMPT_BPS
     stream = client.chat.completions.create(
         model=model,
         messages=[
-            {"role": "system", "content": _SYSTEM_PROMPT},
+            {"role": "system", "content": resolved_prompt},
             {"role": "user", "content": user_prompt},
         ],
         temperature=temperature,
@@ -361,20 +495,90 @@ def stream_category_tokens(
             yield delta
 
 
-def normalize_inline_markers(text: str, prefixes: str = "PKT") -> str:
-    """Normalisasi marker sitasi agar konsisten [P01]/[K01]/[T01]."""
+def normalize_inline_markers(
+    text: str,
+    prefixes: str = "PKT",
+    single_prefix: str | None = None,
+) -> str:
+    """Normalisasi marker sitasi agar konsisten [P01]/[K01]/[T01].
+
+    Menangani kasus output LLM yang tidak konsisten:
+      - Bracket berkoma : [P19, P22]       → [P19][P22]
+      - Mixed bare num  : [P02, 3, P04]    → [P02][P03][P04]
+      - Marker tergabung: P01K02            → [P01][K02]
+      - Marker bare     : P01               → [P01]
+      - Angka polos*    : "nasional 15."   → "nasional [P15]."
+        (*hanya jika single_prefix tersedia dan angka 2-digit 10-30)
+    """
     if not text:
         return ""
 
-    cls = f"[{prefixes}]"
+    cls             = f"[{prefixes}]"
+    _default_prefix = (single_prefix or prefixes[0]).upper()
 
+    # ── Step 1: Expand bracket berkoma ─────────────────────────────────────────
+    # [P19, P22]       → [P19][P22]
+    # [P02, 3, 4, P13] → [P02][P03][P04][P13]
+    def _expand_comma_in_bracket(match: re.Match) -> str:
+        inner  = match.group(1)
+        tokens = [t.strip() for t in inner.split(",")]
+
+        # Prefix default: ambil dari token pertama yang punya huruf awalan
+        dp = _default_prefix
+        for tok in tokens:
+            m = re.match(rf"([{prefixes}])", tok, re.IGNORECASE)
+            if m:
+                dp = m.group(1).upper()
+                break
+
+        result = []
+        for tok in tokens:
+            tok = tok.strip()
+            if not tok:
+                continue
+            m_full = re.fullmatch(rf"([{prefixes}])(\d{{1,2}})", tok, re.IGNORECASE)
+            m_num  = re.fullmatch(r"(\d{1,2})", tok)
+            if m_full:
+                result.append(f"[{m_full.group(1).upper()}{int(m_full.group(2)):02d}]")
+            elif m_num:
+                result.append(f"[{dp}{int(m_num.group(1)):02d}]")
+
+        return "".join(result) if result else match.group(0)
+
+    comma_pat  = rf"\[([{prefixes}]\d{{1,2}}(?:\s*,\s*[{prefixes}]?\d{{1,2}})+)\]"
+    normalized = re.sub(comma_pat, _expand_comma_in_bracket, text, flags=re.IGNORECASE)
+
+    # ── Step 2: Expand marker tergabung: P01K02 → [P01][K02] ──────────────────
     def _expand_concat(match: re.Match) -> str:
         token = match.group(0).upper()
         parts = re.findall(rf"{cls}\d{{2}}", token)
         return "".join(f"[{p}]" for p in parts)
 
-    normalized = re.sub(rf"(?:{cls}\d{{2}}){{2,}}", _expand_concat, text, flags=re.IGNORECASE)
+    normalized = re.sub(rf"(?:{cls}\d{{2}}){{2,}}", _expand_concat, normalized, flags=re.IGNORECASE)
+
+    # ── Step 3: Bungkus marker bare: P01 → [P01] ──────────────────────────────
     normalized = re.sub(rf"(?<!\[)\b({cls}\d{{2}})\b(?!\])", r"[\1]", normalized, flags=re.IGNORECASE)
+
+    # ── Step 4: Recovery angka polos 2-digit sebelum tanda baca ───────────────
+    # Hanya aktif jika single_prefix tersedia (per-kategori, misal "P"/"K"/"T").
+    # Contoh: "swasembada pangan nasional 15." → "swasembada pangan nasional [P15]."
+    # Hanya angka 2-digit (10-30) — hindari false positive pada angka kecil 1-9
+    # yang sering muncul sebagai tanggal, langkah, dll.
+    if single_prefix:
+        pfx = single_prefix.upper()
+
+        def _recover_bare(match: re.Match) -> str:
+            num   = int(match.group(1))
+            punct = match.group(2)
+            if 1 <= num <= 30:
+                return f"[{pfx}{num:02d}]{punct}"
+            return match.group(0)
+
+        # (?<!\w) → tidak didahului huruf/digit (hindari "Rp10," atau "step10,")
+        # (\d{2}) → tepat 2 digit
+        # ([,.](?!\d)) → diikuti koma/titik yang BUKAN desimal (hindari "49,4")
+        normalized = re.sub(r"(?<!\w)(\d{2})([,.](?!\d))", _recover_bare, normalized)
+
     return normalized
 
 
