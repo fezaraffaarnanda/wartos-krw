@@ -14,7 +14,8 @@ To be developed (7 Maret 2026):
 2. Pembentukan dataset untuk modelling klasifikasi lapangan usaha (done)
 3. Integrasi auto-scrape + prediksi klasifikasi lapangan usaha (done)
 4. Insight AI untuk menangkap fonemena (masih dipertimbangkan karena masalah biaya) (done)
-5. Pemberian aktivitas utama
+5. Pemberian aktivitas utama (done)
 
 Additional Feature : 
-1. AI Chat 
+1. AI Chat (done)
+2. Penambahan indikator real time (PDRB, Kemiskinan, dan Pengangguran) dan menambahkannya ke context AI
