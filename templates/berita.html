@@ -149,6 +149,29 @@
 
           <!-- Tags -->
           <div class="article-tags" id="articleTags"></div>
+
+          <!-- Klasifikasi KBLI & Aktivitas Ekonomi -->
+          <div class="article-classification" id="articleClassification" style="display:none">
+            <div class="classification-item" id="kbliItem">
+              <span class="classification-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="3"/>
+                  <path d="M3 9h18M9 21V9"/>
+                </svg>
+                KBLI
+              </span>
+              <span class="classification-badge kbli-badge" id="kbliBadge"></span>
+            </div>
+            <div class="classification-item" id="aktivitasItem">
+              <span class="classification-label">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                </svg>
+                Aktivitas Ekonomi
+              </span>
+              <span class="classification-badge aktivitas-badge" id="aktivitasBadge"></span>
+            </div>
+          </div>
         </header>
 
         <div class="article-divider"></div>
@@ -166,7 +189,35 @@
       </p>
     </footer>
 
-    <script>
+      <script>
+      // ── KBLI Mapping (sinkron dengan core/kbli_utils.py & script.js) ─────────
+      const KBLI_KEY_MAPPING = {
+        A:  "Pertanian, Kehutanan, dan Perikanan",
+        B:  "Pertambangan dan Penggalian",
+        C:  "Industri",
+        D:  "Penyediaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin",
+        E:  "Penyediaan Air; Pengelolaan Air Limbah, Penanganan Limbah, dan Remediasi",
+        F:  "Konstruksi",
+        G:  "Perdagangan Besar dan Eceran",
+        H:  "Transportasi dan Penyimpanan",
+        I:  "Aktivitas Penyediaan Akomodasi dan Makan Minum",
+        J:  "Aktivitas Penerbitan, Penyiaran, serta Produksi dan Distribusi Konten",
+        K:  "Aktivitas Telekomunikasi, Pemrograman Komputer, Konsultansi, dan Jasa Informasi",
+        L:  "Aktivitas Keuangan dan Asuransi",
+        M:  "Aktivitas Real Estat",
+        N:  "Aktivitas Profesional, Ilmiah, dan Teknis",
+        O:  "Aktivitas Administratif dan Penunjang Usaha",
+        P:  "Administrasi Pemerintahan dan Pertahanan, Serta Jaminan Sosial Wajib",
+        Q:  "Pendidikan",
+        R:  "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
+        S:  "Kesenian, Olahraga, dan Rekreasi",
+        T:  "Aktivitas Jasa Lainnya",
+        U:  "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
+        V:  "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
+        KE: "Kemiskinan",
+        PG: "Pengangguran",
+      };
+
       // ── Init ─────────────────────────────────────────────────────────────────
       document.addEventListener("DOMContentLoaded", async () => {
         await loadUserInfo();
@@ -253,6 +304,9 @@
             .join(" ");
         }
 
+        // Klasifikasi KBLI & Aktivitas Ekonomi
+        renderClassification(d.kbli, d.aktivitas_ekonomi);
+
         // Body: split paragraphs by newline
         const bodyEl = document.getElementById("articleBody");
         const paragraphs = (d.content || "Isi berita tidak tersedia.")
@@ -263,6 +317,63 @@
           .join("");
 
         document.getElementById("articleCard").style.display = "block";
+      }
+
+      function renderClassification(kbliRaw, aktivitasRaw) {
+        const section = document.getElementById("articleClassification");
+        const kbliBadge = document.getElementById("kbliBadge");
+        const aktivitasBadge = document.getElementById("aktivitasBadge");
+
+        let hasContent = false;
+
+        // ── KBLI ──
+        if (kbliRaw && kbliRaw.trim()) {
+          const kode = kbliRaw.trim().toUpperCase();
+          const isIrrelevant = kode === "TIDAK RELEVAN" || kode === "—";
+
+          if (isIrrelevant) {
+            kbliBadge.textContent = "Tidak Relevan";
+            kbliBadge.classList.add("badge-irrelevant");
+          } else {
+            const deskripsi = KBLI_KEY_MAPPING[kode];
+            kbliBadge.innerHTML = deskripsi
+              ? `<strong>${escapeHtml(kode)}</strong> — ${escapeHtml(deskripsi)}`
+              : escapeHtml(kode);
+          }
+          hasContent = true;
+        } else {
+          kbliBadge.textContent = "Belum diklasifikasi";
+          kbliBadge.classList.add("badge-pending");
+          hasContent = true;
+        }
+
+        // ── Aktivitas Ekonomi ──
+        if (aktivitasRaw && aktivitasRaw.trim()) {
+          const val = aktivitasRaw.trim();
+          const isIrrelevant = val.toLowerCase() === "tidak relevan" || val === "—";
+
+          if (isIrrelevant) {
+            aktivitasBadge.textContent = "Tidak Relevan";
+            aktivitasBadge.classList.add("badge-irrelevant");
+          } else {
+            // Format: "9/Aktivitas industri makanan dan minuman selain CPO"
+            const slashIdx = val.indexOf("/");
+            if (slashIdx !== -1) {
+              const nomor = val.slice(0, slashIdx).trim();
+              const label = val.slice(slashIdx + 1).trim();
+              aktivitasBadge.innerHTML = `<strong>${escapeHtml(nomor)}</strong> — ${escapeHtml(label)}`;
+            } else {
+              aktivitasBadge.textContent = val;
+            }
+          }
+          hasContent = true;
+        } else {
+          aktivitasBadge.textContent = "Belum diklasifikasi";
+          aktivitasBadge.classList.add("badge-pending");
+          hasContent = true;
+        }
+
+        if (hasContent) section.style.display = "flex";
       }
 
       function showError(msg) {

@@ -2273,6 +2273,75 @@ a:hover {
     margin-bottom: 4px;
 }
 
+/* ── Klasifikasi KBLI & Aktivitas Ekonomi ── */
+.article-classification {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-top: 18px;
+    padding: 16px 20px;
+    background: var(--orange-50);
+    border: 1px solid var(--orange-200);
+    border-radius: var(--radius-md);
+}
+
+.classification-item {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.classification-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--orange-700);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    white-space: nowrap;
+    min-width: 130px;
+    flex-shrink: 0;
+}
+
+.classification-label svg {
+    color: var(--accent);
+    flex-shrink: 0;
+}
+
+.classification-badge {
+    font-size: 0.84rem;
+    color: var(--text-primary);
+    line-height: 1.4;
+}
+
+.classification-badge strong {
+    color: var(--orange-600);
+    font-weight: 700;
+}
+
+.classification-badge.badge-irrelevant {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+.classification-badge.badge-pending {
+    color: var(--text-muted);
+    font-style: italic;
+}
+
+@media (max-width: 600px) {
+    .classification-item {
+        flex-direction: column;
+        gap: 4px;
+    }
+    .classification-label {
+        min-width: unset;
+    }
+}
+
 .article-divider {
     height: 1px;
     background: var(--border-color);
