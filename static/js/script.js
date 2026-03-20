@@ -482,17 +482,13 @@ async function loadUserInfo() {
       // Non-admin: sembunyikan scrape section
       if (json.role === "admin") {
         const infoBar = document.getElementById("scrapeInfoBar");
-        const sidebarScrapeMenu = document.getElementById("sidebarScrapeMenu");
         if (infoBar) infoBar.style.display = "none";
-        if (sidebarScrapeMenu) sidebarScrapeMenu.style.display = "";
         if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
         if (guideAdminCard) guideAdminCard.style.display = "block";
         if (guideUserCard) guideUserCard.style.display = "none";
       } else {
         const scrapeSection = document.getElementById("scrapeSection");
-        const sidebarScrapeMenu = document.getElementById("sidebarScrapeMenu");
         if (scrapeSection) scrapeSection.style.display = "none";
-        if (sidebarScrapeMenu) sidebarScrapeMenu.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "none";
         if (guideUserCard) guideUserCard.style.display = "block";
         if (guideAdminCard) guideAdminCard.style.display = "none";

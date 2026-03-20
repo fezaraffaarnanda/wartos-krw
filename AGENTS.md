@@ -60,6 +60,7 @@ python -m scrapers.scraping_tegal
 python tools/create_user.py <username> <password> [role]
 python tools/backfill_kbli.py
 python tools/backfill_embeddings.py
+python tools/trigger_scrape.py --max-articles 150
 ```
 
 ### Test Commands (terutama single test)
