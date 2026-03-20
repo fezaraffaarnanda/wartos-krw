@@ -1,224 +1,189 @@
 # AGENTS.md
 
-This file provides guidance to AI coding agents working in this repository.
+Panduan ini ditujukan untuk coding agent yang bekerja di repository ini.
+Tujuan utamanya: menjaga konsistensi arsitektur Flask, alur scraping, dan gaya kode yang sudah ada.
 
 ## Project Overview
 
-Flask news scraping dashboard for BPS (Badan Pusat Statistik). Scrapes 5 Indonesian news sources about the Tegal region and stores them in Supabase PostgreSQL. Includes AI-powered insights using Gemini LLM for analyzing PDRB, Kemiskinan, and Pengangguran trends. UI, comments, log messages, and docstrings are in **Bahasa Indonesia**. Deployed on Vercel.
+- Aplikasi Flask untuk scraping berita wilayah Tegal dari beberapa sumber:
+  Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal.
+- Data disimpan ke Supabase Postgres (tanpa ORM), terutama pada tabel `berita`, `scrape_log`, dan `users`.
+- Fitur AI meliputi insight indikator, klasifikasi KBLI, aktivitas ekonomi, embedding, dan AI chat.
+- Teks user-facing, pesan API, log, komentar, dan docstring menggunakan Bahasa Indonesia.
 
-## Initialization
+## Rule Files Discovery
+
+Hasil pengecekan file aturan tambahan:
+
+- `.cursorrules`: tidak ditemukan.
+- `.cursor/rules/`: tidak ditemukan.
+- `.github/copilot-instructions.md`: tidak ditemukan.
+
+Karena tidak ada rule file lain, ikuti AGENTS.md ini dan pola dari kode existing.
+
+## Environment Setup
 
 ```bash
-# 1. Clone repository and navigate to project directory
-cd "C:\Users\fezaa\OneDrive\Documents\01. BPS\SCRAPING"
-
-# 2. Create virtual environment (recommended)
 python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # Linux/Mac
-
-# 3. Install Python dependencies
+source venv/bin/activate              # macOS/Linux
+# venv\Scripts\activate              # Windows
 pip install -r requirements.txt
-
-# 4. Install Playwright browser (required for Kompas scraper)
-playwright install chromium
-
-# 5. Configure environment variables
-# Create .env file with:
-SUPABASE_URL=your_supabase_project_url
-SUPABASE_KEY=your_supabase_anon_key
-FLASK_SECRET_KEY=your_random_secret_key_here
-CRON_SECRET=your_cron_secret_for_api_auth
-GEMINI_API_KEY=your_gemini_api_key  # For AI insights feature
-
-# 6. Initialize database (run SQL files in Supabase SQL Editor)
-# - database/schema.sql (core tables)
-# - database/migration_*.sql (in order)
-
-# 7. Create initial admin user
-python tools/create_user.py admin your_password admin
-
-# 8. Run development server
-python app.py  # Access at http://localhost:5000
 ```
 
-## Commands
+Variabel `.env` minimum:
+
+- `SUPABASE_URL`
+- `SUPABASE_KEY`
+- `FLASK_SECRET_KEY`
+- `CRON_SECRET`
+- `GEMINI_API_KEY` (wajib untuk fitur AI, opsional untuk boot dasar)
+
+## Build / Run / Lint / Test Commands
+
+Repository ini saat ini **tidak memiliki** tool build formal, linter wajib, atau test suite bawaan.
+File seperti `pyproject.toml`, `pytest.ini`, `tox.ini`, `.flake8`, `.pylintrc` tidak ditemukan.
+
+Perintah operasional utama:
 
 ```bash
-python app.py                                      # Run Flask dev server (localhost:5000)
-python -m scrapers.scrape_radartegal_bs4            # Run RadarTegal scraper standalone
-python -m scrapers.scraping_panturapost             # Run PanturaPost scraper standalone
-python -m scrapers.scrape_tribunjateng_v2           # Run TribunJateng scraper standalone
-python -m scrapers.scrape_kompas                    # Run Kompas scraper standalone
-python -m scrapers.scraping_tegal                   # Run Setda Tegal scraper standalone
-python tools/create_user.py <user> <pass> [role]    # Create user (role: admin/user)
-pip install -r requirements.txt                     # Install dependencies
-playwright install chromium                         # REQUIRED before running Kompas scraper
+# Jalankan aplikasi Flask (dev)
+python app.py
+
+# Jalankan scraper per sumber (standalone)
+python -m scrapers.scrape_radartegal_bs4
+python -m scrapers.scraping_panturapost
+python -m scrapers.scrape_tribunjateng_v2
+python -m scrapers.scrape_kompas
+python -m scrapers.scraping_tegal
+
+# Utility data/user
+python tools/create_user.py <username> <password> [role]
+python tools/backfill_kbli.py
+python tools/backfill_embeddings.py
 ```
 
-No test suite, linter, or formatter is configured. There is no `pyproject.toml`, `setup.py`, or `Makefile`.
+### Test Commands (terutama single test)
 
-## Project Structure
+- Belum ada file test bawaan (`test_*.py` / `*_test.py` tidak ditemukan).
+- Jika menambahkan test, gunakan konvensi ini:
 
-```
-app.py                  # Flask app: routes, auth, scraping orchestration, threading
-utils.py                # normalize_date(), parse_date_to_iso() — shared date utilities
-ai_insights.py          # AI insights using Gemini LLM for PDRB/Kemiskinan/Pengangguran
-requirements.txt        # pip dependencies (no pinned versions)
-scrapers/               # One module per news source, each exports scrape_new_articles()
-  __init__.py            # Empty
-  scrape_radartegal_bs4.py   # RadarTegal — requests + BS4, offset-based pagination
-  scraping_panturapost.py    # PanturaPost — requests + BS4
-  scrape_tribunjateng_v2.py  # TribunJateng — requests + BS4
-  scrape_kompas.py           # Kompas — requests + BS4 (was Playwright, now HTTP)
-  scraping_tegal.py          # Setda Tegal — requests + BS4, JNews theme
-database/               # Raw SQL files — run manually in Supabase SQL Editor
-  schema.sql             # Core berita table
-  migration_*.sql        # Additive migrations (indexes, source column, users table)
-templates/              # Jinja2-style HTML (served as static files via send_from_directory)
-static/css/style.css    # Single stylesheet
-static/js/script.js     # Single JS file — vanilla JS, no framework
-tools/create_user.py    # CLI script to seed users into Supabase
+```bash
+# Semua test (pytest)
+python -m pytest
+
+# Satu file test
+python -m pytest tests/test_something.py
+
+# Single test case (penting)
+python -m pytest tests/test_something.py::test_case_name
 ```
 
-## Critical Patterns
+Jika menggunakan `unittest`:
 
-### Scraper API Contract
+```bash
+# Semua unittest
+python -m unittest discover -s tests -p "test_*.py"
 
-Every scraper module in `scrapers/` MUST export this function:
+# Single unittest
+python -m unittest tests.test_something.TestClass.test_method
+```
+
+## Arsitektur Singkat
+
+- `app.py`: app factory, registrasi blueprint, init classifier/client, startup background thread.
+- `routes/`: endpoint per domain (`auth`, `berita`, `scraping`, `admin`, `ai_insights`, `ai_chat`, `pages`).
+- `core/`: logika pipeline artikel, state, util tanggal/tag, helper DB, client LLM/embedding.
+- `scrapers/`: scraper per media dengan kontrak output yang konsisten.
+- `tools/`: script utilitas maintenance dan backfill.
+
+## Kontrak Penting
+
+### Scraper Contract
+
+Semua module scraper wajib menyediakan:
 
 ```python
 def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]:
-    # Returns list of: {"title", "date", "url", "content", "tags", "source"}
+    ...
 ```
 
-- `existing_urls`: set of URLs already in DB — scraper must stop when it hits a duplicate
-- `on_progress(count, msg)`: optional callback for real-time progress updates
-- `source`: string matching one of SOURCE_LABELS values in app.py:64 ("Radar Tegal", "Pantura Post", "Tribun Jateng", "Kompas", "Setda Tegal")
-- RadarTegal uses `max_pages` instead of `max_articles` — see `_build_scraper_config()` in app.py
+Minimal field artikel: `title`, `date`, `url`, `content`, `tags`, `source`.
 
-### Date Normalization
+### Date Handling
 
-ALL date strings from scrapers pass through `utils.normalize_date()` (utils.py:28) before DB insert. Target format: `"DD MMMM YYYY, HH:MM WIB"` (e.g., `"23 Februari 2026, 16:04 WIB"`). The companion `parse_date_to_iso()` (utils.py:79) converts to `"YYYY-MM-DD"` for the `date_parsed` column. Month names are in Bahasa Indonesia (Januari, Februari, Maret, etc.).
+- Semua tanggal dinormalisasi via `core/utils.py` (`normalize_date`).
+- Format target: `DD MMMM YYYY, HH:MM WIB`.
+- Simpan versi ISO menggunakan `parse_date_to_iso()` ke kolom `date_parsed`.
 
-### Duplicate Detection
+### Duplicate & Concurrency
 
-`_fetch_existing_urls()` (app.py:396) loads all URLs from Supabase before scraping begins. Scrapers receive this set and must stop pagination when they encounter a known URL. The `berita.url` column has a UNIQUE constraint.
-
-### Threading & Shared State
-
-`_scrape_progress` (app.py:315) and `_scrape_overall` (app.py:321) are module-level dicts shared across threads. Use `_scraping_lock` (app.py:313) when modifying. The lock is acquired in `start_scrape()` and released in `_scrape_worker()`'s `finally` block.
-
-### Dual Auth on /api/scrape
-
-`/api/scrape` (app.py:518) supports two auth modes:
-1. Session auth (dashboard) → spawns background thread, returns immediately
-2. `Authorization: Bearer <CRON_SECRET>` header → runs synchronously via `_scrape_sync()`
-
-### Content Cleaning
-
-Each scraper has its own `clean_content()` function that strips boilerplate (BACA JUGA, domain watermarks, editor/author lines, Google News footers). Pattern is consistent: regex domain removal → line-by-line prefix/regex filtering → rejoin.
-
-### AI Insights Feature
-
-`ai_insights.py` provides AI-powered analysis using Gemini LLM:
-- `generate_insights(articles: list[dict]) -> dict`: Analyzes articles for PDRB, Kemiskinan, Pengangguran trends
-- Pre-filters articles by keywords per category (ai_insights.py:27-49)
-- Limits to 30 articles per category, 500 chars per article content (token optimization)
-- Returns structured insights with summaries, trends, and source references
-- Requires `GEMINI_API_KEY` in environment variables
-- Called from `/api/insights` endpoint in app.py
-
-## Database
-
-Supabase PostgreSQL via `supabase-py` client. No ORM.
-
-Tables:
-- `berita`: `id, title, date, date_parsed, url (UNIQUE), content, tags, source, created_at`
-- `scrape_log`: `id, total_inserted, scraped_at`
-- `users`: `id, username, password_hash, role, created_at`
-
-Queries use the Supabase fluent builder pattern:
-```python
-supabase.table("berita").select("*").eq("id", berita_id).single().execute()
-```
-
-## Environment Variables
-
-Required in `.env`:
-- `SUPABASE_URL`: Supabase project URL
-- `SUPABASE_KEY`: Supabase anon/service key
-- `FLASK_SECRET_KEY`: Flask session secret (auto-generated if missing, but sessions won't persist)
-- `CRON_SECRET`: Bearer token for `/api/scrape` cron authentication
-- `GEMINI_API_KEY`: Gemini API key for AI insights feature (optional, required for insights)
+- Duplicate dicegah berbasis URL (`_fetch_existing_urls` + UNIQUE `berita.url`).
+- Shared state scraping berada di `core/state.py`.
+- Gunakan `_scraping_lock` untuk mencegah scrape paralel yang bentrok.
+- Endpoint `/api/scrape` mendukung dual auth: session admin dan bearer `CRON_SECRET`.
 
 ## Code Style Guidelines
 
-### Language
+### Language & Messaging
 
-- All user-facing strings, log messages, comments, and docstrings: **Bahasa Indonesia**
-- Variable/function names: English (snake_case), except domain terms like `berita`, `judul`, `tanggal`
-- Internal scraper dicts may use Indonesian keys (`judul`, `tanggal`, `isi`, `waktu`) — these are mapped to English keys (`title`, `date`, `content`) in `scrape_new_articles()`
+- Semua teks user-facing, log, komentar, dan docstring harus Bahasa Indonesia.
+- Error autentikasi harus generik (jangan bocorkan detail kredensial yang salah).
 
 ### Imports
 
-- Standard library first, then third-party, then local — separated by blank lines
-- Flask imports use parenthesized multi-line style (see app.py:7-17)
-- Scraper imports in app.py use aliased form: `from scrapers.scrape_X import scrape_new_articles as scrape_X`
+- Urutan import: standard library -> third-party -> local.
+- Pisahkan grup import dengan satu baris kosong.
+- Untuk import panjang di Flask route/module, gunakan multi-line import bertanda kurung.
 
 ### Formatting
 
-- 4-space indentation, no tabs
-- Max line length ~100 chars (soft limit, not enforced)
-- Section headers use box-drawing comment style: `# ── Section Name ──────────────────`
-- Alignment padding with spaces for related assignments (e.g., app.py:48, app.py:79)
-- Trailing commas in multi-line function calls and dicts
-- Module-level constants: `UPPER_SNAKE_CASE`
-- Private helpers: `_leading_underscore`
+- Indent 4 spasi, tanpa tab.
+- Soft line length sekitar 100 karakter.
+- Pertahankan gaya section header existing:
+  `# ── Nama Section ─────────────────────────`
+- Gunakan trailing comma pada struktur multiline.
+- Alignment spasi antar assignment boleh dipakai jika konsisten dalam blok yang sama.
 
 ### Naming Conventions
 
-- Functions/variables: `snake_case`
-- Classes: `PascalCase` (only `User` class exists)
-- Constants: `UPPER_SNAKE_CASE` (e.g., `SOURCE_LABELS`, `BERITA_LIST_COLUMNS`, `BASE_URL`)
-- Module-level compiled regexes: `_UPPER_SNAKE_CASE` with leading underscore (e.g., `_PP_DOMAIN_REGEX`)
-- Source key strings: lowercase, no spaces (`"radartegal"`, `"panturapost"`, `"tribunjateng"`, `"kompas"`, `"setdategal"`)
+- Fungsi/variabel: `snake_case`.
+- Class: `PascalCase`.
+- Konstanta module-level: `UPPER_SNAKE_CASE`.
+- Helper private/internal: prefix underscore (`_helper_name`).
+- Regex compiled di module-level mengikuti pola `_UPPER_SNAKE_CASE`.
 
-### Type Hints
+### Typing
 
-- Used on function signatures: `def func(param: str) -> dict | None:`
-- Union syntax uses `X | Y` (Python 3.10+), not `Optional[X]` or `Union[X, Y]`
-- Collection types use lowercase builtins: `list[dict]`, `set[str]`, `tuple[str, str]`
-- Not used on local variables
+- Gunakan type hints pada signature fungsi penting (publik/internal).
+- Gunakan syntax union modern `X | Y` (Python 3.10+), bukan `Optional[X]`.
+- Gunakan generic builtin (`list[dict]`, `set[str]`) dibanding typing legacy.
 
 ### Error Handling
 
-- Scrapers: catch `Exception` per-article, log with `print(f"[SOURCE] ...")`, continue to next
-- DB operations: catch `Exception`, return error JSON with `{"status": "error", "message": "..."}` and appropriate HTTP status
-- Log format: `[TAG] message` where TAG is source name or category (e.g., `[SCRAPE]`, `[DB ERROR]`, `[Kompas]`)
-- Silent failures for non-critical ops (e.g., `_log_scrape_run` at app.py:388)
-- Login errors use generic messages — never reveal whether username or password was wrong
+- Tangani boundary I/O (HTTP scraper, DB, client AI) dengan `try/except Exception`.
+- Log sederhana dengan `print` dan prefix tag (contoh: `[SCRAPE]`, `[DB ERROR]`, `[AUTH]`).
+- Response API Flask konsisten:
+  - sukses: `{"status": "ok", ...}`
+  - gagal: `{"status": "error", "message": "..."}` + HTTP status relevan
+- Operasi non-kritis boleh fail-soft; operasi kritis wajib return error eksplisit.
 
-### API Response Format
+### Data & DB
 
-All JSON responses follow: `{"status": "ok"|"error", ...}` with optional `"data"`, `"message"` fields.
+- Gunakan Supabase Python client fluent API untuk query DB.
+- Jangan ubah schema dari runtime code; lakukan melalui migration SQL terpisah.
+- Jika menambah field artikel, pastikan kompatibel dengan insert pipeline + backfill.
 
 ### Scraper Conventions
 
-- Each scraper defines a `requests.Session` or uses `requests.get()` with browser-like `User-Agent` headers
-- Rate limiting via `time.sleep(random.uniform(lo, hi))` between requests
-- Each has a standalone `if __name__ == "__main__":` block for independent testing
-- Content cleaning follows the same pattern across all scrapers (regex + line filtering)
-- Inner `log()` closure for prefixed logging: `def log(msg): print(f"[SourceName] {msg}")`
+- Gunakan `requests` + `BeautifulSoup` dengan header browser-like.
+- Terapkan retry/backoff + delay acak antar request.
+- Bersihkan boilerplate konten dengan regex + filter per baris.
+- Pertahankan mode standalone tiap scraper (`if __name__ == "__main__":`).
 
-## Gotchas
+## Operational Notes
 
-- Kompas scraper filters out "Jadwal Imsak" / "Jadwal Buka Puasa" articles (scrape_kompas.py:104)
-- TribunJateng has double NA validation: once in the scraper and once in `_is_valid_article()` in app.py
-- PanturaPost internal article keys are Indonesian (`judul`, `tanggal`, `isi`), Kompas uses capitalized Indonesian (`Judul`, `Tanggal`, `Isi`) — both mapped in `scrape_new_articles()`
-- Setda Tegal uses JNews WordPress theme with specific date format parsing (scraping_tegal.py:34-48)
-- Vercel serverless may timeout on full scrape — cron mode uses `_scrape_sync()` which runs sequentially
-- Login rate limit: 5 attempts per 15 minutes (app.py:141)
-- `requirements.txt` has no pinned versions — builds may break on dependency updates
-- AI insights feature uses Gemini via OpenAI-compatible client (ai_insights.py)
-- Gemini responses are parsed as JSON — malformed responses will cause insight generation to fail
+- Jangan commit `.env` atau kredensial.
+- Hindari refactor lintas modul besar tanpa permintaan eksplisit user.
+- Saat mengubah route/API, cek dampaknya ke `static/js/script.js` dan template.
+- Saat menambah fitur AI, sediakan fallback aman jika `GEMINI_API_KEY` tidak tersedia.
+- Jaga kompatibilitas deployment Vercel (hindari pekerjaan berat sinkron di request path biasa).

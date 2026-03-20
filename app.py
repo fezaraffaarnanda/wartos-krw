@@ -124,6 +124,6 @@ if _kbli_llm_client is not None:
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("Chatbot Berita KBLI")
+    print("KABARE (Kanal Berita & Rekomendasi Ekonomi)")
     print("=" * 50)
     app.run(debug=True, port=5000, use_reloader=False)

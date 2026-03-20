@@ -3,13 +3,56 @@
    5 Sumber: Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal
    ============================================ */
 
-let allData = [];
 let filteredData = [];
 let currentPage = 1;
 const PER_PAGE = 15;
-let sortField = "date";
+let sortField = "date_parsed";
 let sortAsc = false; // default: terbaru di atas
 let currentUser = null;
+let _activeView = "overview";
+let _overviewSummary = null;
+let _filterOptions = { kbli_codes: [], aktivitas_codes: [] };
+let _sortKeyUi = "date";
+
+const _tableFilterState = {
+  search: "",
+  date_from: "",
+  date_to: "",
+  kbli_code: "",
+  aktivitas_code: "",
+};
+
+const _tablePaginationState = {
+  page: 1,
+  per_page: PER_PAGE,
+  total_items: 0,
+  total_pages: 1,
+  has_prev: false,
+  has_next: false,
+};
+
+const VIEW_META = {
+  overview: {
+    title: "KABARE Dashboard",
+    subtitle: "Pemantauan fenomena ekonomi berbasis berita lokal",
+  },
+  data: {
+    title: "Data Berita",
+    subtitle: "Tabel berita, filter, dan ekspor data",
+  },
+  insight: {
+    title: "Insight AI",
+    subtitle: "Analisis otomatis indikator ekonomi, kemiskinan, dan pengangguran",
+  },
+  chat: {
+    title: "AI Chat",
+    subtitle: "Diskusi interaktif berbasis berita tersitasi",
+  },
+  scrape: {
+    title: "Scraping Manual",
+    subtitle: "Kontrol scraping manual untuk kebutuhan operasional admin",
+  },
+};
 
 const BULAN_ID = {
   januari: 0,
@@ -94,6 +137,15 @@ const AKTIVITAS_LABELS = {
   27: "Aktivitas bongkar muat di pelabuhan/bandara/stasiun",
 };
 
+function buildMasterFilterOptions() {
+  const kbli_codes = Object.keys(KBLI_KEY_MAPPING);
+  const aktivitas_codes = Object.keys(AKTIVITAS_LABELS).sort(
+    (a, b) => Number(a) - Number(b),
+  );
+
+  return { kbli_codes, aktivitas_codes };
+}
+
 // ── Filter tag tidak informatif (mirror logic dari core/utils.py clean_tags) ──
 
 // 1. Kata lokasi — word-boundary: menangkap "berita tegal", "pemkab tegal", dll.
@@ -172,6 +224,90 @@ function parseDateID(str) {
   if (month === undefined) return new Date(0);
   return new Date(+year, month, +day, +hour, +min);
 }
+
+function _closeSidebar() {
+  const shell = document.getElementById("appShell");
+  if (shell) shell.classList.remove("sidebar-open");
+}
+
+function _setViewHeader(view) {
+  const titleEl = document.getElementById("viewTitle");
+  const subtitleEl = document.getElementById("viewSubtitle");
+  const meta = VIEW_META[view] || VIEW_META.overview;
+  if (titleEl) titleEl.textContent = meta.title;
+  if (subtitleEl) subtitleEl.textContent = meta.subtitle;
+}
+
+function _setActiveMenu(view) {
+  document.querySelectorAll(".sidebar-link[data-view]").forEach((btn) => {
+    const active = btn.dataset.view === view;
+    btn.classList.toggle("active", active);
+    if (active) {
+      btn.setAttribute("aria-current", "page");
+    } else {
+      btn.removeAttribute("aria-current");
+    }
+  });
+}
+
+function _setActiveView(view) {
+  _activeView = view;
+  _setViewHeader(view);
+  _setActiveMenu(view);
+  document.body.classList.toggle("chat-view-lock", view === "chat");
+
+  document.querySelectorAll(".app-view").forEach((el) => {
+    const ownsView = el.dataset.view === view;
+    el.classList.toggle("view-hidden", !ownsView);
+  });
+
+  const main = document.getElementById("mainContent");
+  const appContent = document.querySelector(".app-content");
+  if (main) {
+    main.classList.toggle("is-chat-mode", view === "chat");
+  }
+  if (appContent) {
+    appContent.classList.toggle("chat-view-active", view === "chat");
+  }
+
+  if (view === "chat") {
+    _ensureChatReady();
+    const input = document.getElementById("chatInput");
+    if (input) {
+      setTimeout(() => input.focus(), 80);
+    }
+  }
+}
+
+function _viewFromHash() {
+  const raw = (window.location.hash || "").replace("#", "").trim().toLowerCase();
+  if (!raw) return "overview";
+  return VIEW_META[raw] ? raw : "overview";
+}
+
+function _openView(view, { updateHash = true } = {}) {
+  if (!VIEW_META[view]) view = "overview";
+  _setActiveView(view);
+  if (updateHash) {
+    window.location.hash = view === "overview" ? "" : view;
+  }
+  _closeSidebar();
+}
+
+function initSidebarNavigation() {
+  document.querySelectorAll(".sidebar-link[data-view]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const view = btn.dataset.view || "overview";
+      _openView(view, { updateHash: true });
+    });
+  });
+
+  window.addEventListener("hashchange", () => {
+    _openView(_viewFromHash(), { updateHash: false });
+  });
+
+  _openView(_viewFromHash(), { updateHash: false });
+}
 let chartInstance = null;
 let clockTimer = null;
 let pollTimer = null;
@@ -241,10 +377,16 @@ async function loadLastScrape() {
 // ── Init ──────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", async () => {
+  if (typeof initAppShell === "function") {
+    initAppShell();
+  }
   startRealtimeClock();
   await loadUserInfo();
+  initSidebarNavigation();
   initFloatingChat();
-  loadBerita();
+  _filterOptions = buildMasterFilterOptions();
+  await loadOverviewSummary();
+  await loadBerita();
   loadLastScrape();
   loadAIInsights();
   animateCards();
@@ -278,8 +420,27 @@ function startAutoRefresh() {
     // Jangan refresh kalau sedang ada polling scraping manual
     if (pollTimer) return;
     await loadLastScrape();
+    await loadOverviewSummary();
     await loadBerita();
   }, AUTO_REFRESH_MS);
+}
+
+async function loadOverviewSummary() {
+  try {
+    const res = await fetch("/api/dashboard/overview/summary");
+    if (res.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    const json = await res.json();
+    if (json.status !== "ok") return;
+    _overviewSummary = json.data || null;
+    updateSummary();
+    renderChart();
+    renderKbliChart();
+  } catch (e) {
+    console.error("Gagal memuat ringkasan overview:", e);
+  }
 }
 
 function updateTimestamp() {
@@ -326,16 +487,24 @@ async function loadUserInfo() {
       // Non-admin: sembunyikan scrape section
       if (json.role === "admin") {
         const infoBar = document.getElementById("scrapeInfoBar");
+        const sidebarScrapeMenu = document.getElementById("sidebarScrapeMenu");
         if (infoBar) infoBar.style.display = "none";
+        if (sidebarScrapeMenu) sidebarScrapeMenu.style.display = "";
         if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
         if (guideAdminCard) guideAdminCard.style.display = "block";
         if (guideUserCard) guideUserCard.style.display = "none";
       } else {
         const scrapeSection = document.getElementById("scrapeSection");
+        const sidebarScrapeMenu = document.getElementById("sidebarScrapeMenu");
         if (scrapeSection) scrapeSection.style.display = "none";
+        if (sidebarScrapeMenu) sidebarScrapeMenu.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "none";
         if (guideUserCard) guideUserCard.style.display = "block";
         if (guideAdminCard) guideAdminCard.style.display = "none";
+
+        if (_activeView === "scrape") {
+          _openView("overview", { updateHash: true });
+        }
       }
     }
   } catch (e) {
@@ -355,10 +524,21 @@ function animateCards() {
 
 async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
   try {
+    if (search !== undefined) _tableFilterState.search = search.trim();
+    if (date_from !== undefined) _tableFilterState.date_from = date_from;
+    if (date_to !== undefined) _tableFilterState.date_to = date_to;
+
     const params = new URLSearchParams();
-    if (search) params.set("search", search);
-    if (date_from) params.set("date_from", date_from);
-    if (date_to) params.set("date_to", date_to);
+    if (_tableFilterState.search) params.set("search", _tableFilterState.search);
+    if (_tableFilterState.date_from) params.set("date_from", _tableFilterState.date_from);
+    if (_tableFilterState.date_to) params.set("date_to", _tableFilterState.date_to);
+    if (_selectedKbli) params.set("kbli_code", _selectedKbli);
+    if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
+
+    params.set("page", String(currentPage));
+    params.set("per_page", String(_tablePaginationState.per_page));
+    params.set("sort_by", sortField);
+    params.set("sort_dir", sortAsc ? "asc" : "desc");
 
     const url =
       "/api/berita" + (params.toString() ? "?" + params.toString() : "");
@@ -369,27 +549,18 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
     }
     const json = await res.json();
     if (json.status === "ok") {
-      allData = json.data || [];
-      // Terapkan KBLI filter (client-side) jika aktif
-      filteredData = allData.filter((item) => {
-        if (_selectedKbli) {
-          if (_isKbliIrrelevant(item.kbli)) return false;
-          const kode = item.kbli.split("/")[0].trim().toUpperCase();
-          if (kode !== _selectedKbli) return false;
-        }
-        if (_selectedAktivitas) {
-          const a = item.aktivitas_ekonomi || "";
-          if (!a || a === "—") return false;
-          const num = a.split("/")[0].trim();
-          if (num !== _selectedAktivitas) return false;
-        }
-        return true;
-      });
-      currentPage = 1;
-      updateSummary();
+      filteredData = json.data || [];
+      const pg = json.pagination || {};
+      _tablePaginationState.page = Number(pg.page || currentPage || 1);
+      _tablePaginationState.per_page = Number(pg.per_page || PER_PAGE);
+      _tablePaginationState.total_items = Number(pg.total_items || 0);
+      _tablePaginationState.total_pages = Number(pg.total_pages || 1);
+      _tablePaginationState.has_prev = Boolean(pg.has_prev);
+      _tablePaginationState.has_next = Boolean(pg.has_next);
+
+      currentPage = _tablePaginationState.page;
+
       renderTable();
-      renderChart();
-      renderKbliChart();
     }
   } catch (err) {
     console.error("Gagal memuat berita:", err);
@@ -558,6 +729,7 @@ function onScrapingDone(overall) {
     alert("Scraping selesai dengan error: " + overall.error);
   }
 
+  loadOverviewSummary();
   loadBerita();
   loadLastScrape();
 }
@@ -573,35 +745,16 @@ function hideProgress() {
 // ── Summary cards ─────────────────────────────────────────────────────────────
 
 function updateSummary() {
-  // Filter ke 30 hari terakhir untuk semua card statistik
-  const now    = new Date();
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10); // "YYYY-MM-DD"
-
-  const last30 = allData.filter((item) => {
-    if (item.date_parsed) return String(item.date_parsed) >= cutoffStr;
-    // Fallback: parse dari string date Indonesia
-    const d = parseDateID(item.date);
-    return !isNaN(d) && d >= cutoff;
-  });
+  const data = _overviewSummary || {};
 
   // Card 1: Total Berita (30 hari)
-  document.getElementById("totalBerita").textContent = last30.length;
+  document.getElementById("totalBerita").textContent = String(data.total_30d || 0);
 
   // Card 2: KBLI Terbanyak (30 hari)
-  const kbliCount = {};
-  last30.forEach((item) => {
-    if (!item.kbli) return;
-    if (typeof _isKbliIrrelevant !== 'undefined' && _isKbliIrrelevant(item.kbli)) return;
-    const kode = item.kbli.split("/")[0].trim().toUpperCase();
-    if (!kode) return;
-    kbliCount[kode] = (kbliCount[kode] || 0) + 1;
-  });
-  const kbliSorted = Object.entries(kbliCount).sort((a, b) => b[1] - a[1]);
+  const kbliSorted = (data.top_kbli || []).map((item) => [item.code, item.count]);
   const topKbliEl  = document.getElementById("topKbli");
   if (kbliSorted.length > 0) {
-    const topKode = kbliSorted[0][0];
+    const topKode = String(kbliSorted[0][0] || "");
     const topDesc = KBLI_KEY_MAPPING[topKode];
     const label   = topDesc
       ? `${topKode} — ${topDesc.length > 20 ? topDesc.slice(0, 18) + "…" : topDesc}`
@@ -615,19 +768,10 @@ function updateSummary() {
   }
 
   // Card 3: Tag Terbanyak (30 hari)
-  const tagCount = {};
-  last30.forEach((item) => {
-    if (!item.tags) return;
-    item.tags.split(/\s*\|\s*|,\s*/).forEach((t) => {
-      if (!_isCleanTag(t)) return;
-      const tag = t.trim().replace(/^#/, "");
-      tagCount[tag] = (tagCount[tag] || 0) + 1;
-    });
-  });
-  const tagSorted = Object.entries(tagCount).sort((a, b) => b[1] - a[1]);
+  const tagSorted = data.top_tags_30d || [];
   const topEl     = document.getElementById("topTag");
   if (tagSorted.length > 0) {
-    topEl.textContent = tagSorted[0][0];
+    topEl.textContent = tagSorted[0].tag || "—";
     topEl.classList.add("text-value");
   } else {
     topEl.textContent = "—";
@@ -635,8 +779,7 @@ function updateSummary() {
 
   // Card 4: Berita Terbaru (tanggal artikel terbaru dari semua data)
   const latestEl = document.getElementById("tanggalTerbaru");
-  latestEl.textContent =
-    allData.length > 0 && allData[0].date ? allData[0].date : "—";
+  latestEl.textContent = data.latest_date || "—";
 }
 
 // ── Chart ─────────────────────────────────────────────────────────────────────
@@ -659,36 +802,10 @@ const BULAN_NAMA_ID = [
 function renderChart() {
   const now = new Date();
   const thisYear = now.getFullYear();
-  const thisMonth = now.getMonth(); // 0-based
+  const thisMonth = now.getMonth();
 
-  // ── Filter artikel bulan berjalan ─────────────────────────────────────────
-  // Gunakan date_parsed (YYYY-MM-DD) kalau ada, fallback ke parse string date
-  const prefix = `${thisYear}-${String(thisMonth + 1).padStart(2, "0")}-`;
-
-  const monthData = allData.filter((item) => {
-    if (item.date_parsed) {
-      return String(item.date_parsed).startsWith(prefix);
-    }
-    // fallback: parse dari string date ("7 Maret 2026, 14:30 WIB")
-    const d = parseDateID(item.date);
-    return d.getFullYear() === thisYear && d.getMonth() === thisMonth;
-  });
-
-  // ── Hitung frekuensi tag (skip noise) ───────────────────────────────────────
-  const tagCount = {};
-  monthData.forEach((item) => {
-    if (!item.tags) return;
-    item.tags.split(/\s*\|\s*|,\s*/).forEach((t) => {
-      if (!_isCleanTag(t)) return;
-      const tag = t.trim().replace(/^#/, "").toLowerCase();
-      tagCount[tag] = (tagCount[tag] || 0) + 1;
-    });
-  });
-
-  // ── Top 5 ─────────────────────────────────────────────────────────────────
-  const sorted = Object.entries(tagCount)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5);
+  const sorted = (_overviewSummary?.top_tags_month || [])
+    .map((item) => [item.tag, item.count]);
   const fullLabels = sorted.map((e) => e[0]);
   const values = sorted.map((e) => e[1]);
 
@@ -797,29 +914,8 @@ function renderChart() {
 let kbliChartInstance = null;
 
 function renderKbliChart() {
-  const now    = new Date();
-  const cutoff = new Date(now);
-  cutoff.setDate(cutoff.getDate() - 30);
-  const cutoffStr = cutoff.toISOString().slice(0, 10);
-
-  // Filter 30 hari terakhir
-  const last30 = allData.filter((item) => {
-    if (item.date_parsed) return String(item.date_parsed) >= cutoffStr;
-    const d = parseDateID(item.date);
-    return !isNaN(d) && d >= cutoff;
-  });
-
-  // Hitung frekuensi KBLI (skip tidak relevan / tidak valid)
-  const kbliCount = {};
-  last30.forEach((item) => {
-    if (_isKbliIrrelevant(item.kbli)) return;
-    const kode = item.kbli.split("/")[0].trim().toUpperCase();
-    if (!kode) return;
-    kbliCount[kode] = (kbliCount[kode] || 0) + 1;
-  });
-
-  // Top 5
-  const sorted = Object.entries(kbliCount).sort((a, b) => b[1] - a[1]).slice(0, 5);
+  const sorted = (_overviewSummary?.top_kbli || [])
+    .map((item) => [item.code, item.count]);
 
   const canvas = document.getElementById("chartKbli");
   if (!canvas) return;
@@ -920,8 +1016,7 @@ function renderKbliChart() {
 
 function renderTable() {
   const tbody = document.getElementById("tableBody");
-  const start = (currentPage - 1) * PER_PAGE;
-  const pageData = filteredData.slice(start, start + PER_PAGE);
+  const pageData = filteredData;
 
   if (pageData.length === 0) {
     tbody.innerHTML = `
@@ -941,7 +1036,7 @@ function renderTable() {
 
   tbody.innerHTML = pageData
     .map((item, i) => {
-      const no = start + i + 1;
+      const no = (currentPage - 1) * _tablePaginationState.per_page + i + 1;
       const tags = parseTags(item.tags)
         .map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`)
         .join(" ");
@@ -1177,7 +1272,7 @@ function _hideKbliTooltip() {
 
 function renderPagination() {
   const container = document.getElementById("pagination");
-  const totalPages = Math.ceil(filteredData.length / PER_PAGE);
+  const totalPages = _tablePaginationState.total_pages || 1;
 
   if (totalPages <= 1) {
     container.innerHTML = "";
@@ -1200,7 +1295,7 @@ function renderPagination() {
     html += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
   }
   html += `<button class="page-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="goPage(${currentPage + 1})">›</button>`;
-  html += `<span class="page-info">${filteredData.length} berita</span>`;
+  html += `<span class="page-info">${_tablePaginationState.total_items} berita</span>`;
 
   container.innerHTML = html;
 }
@@ -1218,10 +1313,10 @@ function getPageRange(current, total, maxVisible) {
 }
 
 function goPage(p) {
-  const totalPages = Math.ceil(filteredData.length / PER_PAGE);
+  const totalPages = _tablePaginationState.total_pages || 1;
   if (p < 1 || p > totalPages) return;
   currentPage = p;
-  renderTable();
+  loadBerita();
   document
     .getElementById("tableSection")
     .scrollIntoView({ behavior: "smooth", block: "start" });
@@ -1240,22 +1335,12 @@ function populateKbliFilter() {
   const menu = document.getElementById("kbliFilterMenu");
   if (!menu) return;
 
-  // Kumpulkan kode KBLI unik (bukan Tidak Relevan / tidak valid)
-  const kodeSet = new Set();
-  allData.forEach((item) => {
-    if (_isKbliIrrelevant(item.kbli)) return;
-    const parts = item.kbli.split("/");
-    const kode = parts[0].trim().toUpperCase();
-    if (kode) kodeSet.add(kode);
-  });
+  const kodeArr = _filterOptions.kbli_codes || [];
 
-  if (kodeSet.size === 0) {
+  if (kodeArr.length === 0) {
     menu.innerHTML = `<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">Belum ada kategori KBLI</div>`;
     return;
   }
-
-  // Urutkan berdasarkan kode
-  const kodeArr = [...kodeSet].sort();
 
   let html = `<button class="kbli-filter-clear" onclick="clearKbliFilter()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1302,6 +1387,7 @@ function toggleKbliFilter() {
 
 function selectKbliFilter(kode) {
   _selectedKbli = kode;
+  _tableFilterState.kbli_code = kode;
   const btn = document.getElementById("kbliFilterBtn");
   const dot = document.getElementById("kbliFilterDot");
   const label = document.getElementById("kbliFilterLabel");
@@ -1314,11 +1400,13 @@ function selectKbliFilter(kode) {
     menu.classList.remove("open");
     btn?.classList.remove("open");
   }
+  currentPage = 1;
   applyFilters();
 }
 
 function clearKbliFilter() {
   _selectedKbli = "";
+  _tableFilterState.kbli_code = "";
   const btn = document.getElementById("kbliFilterBtn");
   const dot = document.getElementById("kbliFilterDot");
   const label = document.getElementById("kbliFilterLabel");
@@ -1330,6 +1418,7 @@ function clearKbliFilter() {
     menu.classList.remove("open");
     btn?.classList.remove("open");
   }
+  currentPage = 1;
   applyFilters();
 }
 
@@ -1354,22 +1443,12 @@ function populateAktivitasFilter() {
   const menu = document.getElementById("aktivitasFilterMenu");
   if (!menu) return;
 
-  // Kumpulkan nomor aktivitas unik (bukan "—" / kosong)
-  const numSet = new Set();
-  allData.forEach((item) => {
-    const a = item.aktivitas_ekonomi || "";
-    if (!a || a === "—") return;
-    const num = a.split("/")[0].trim();
-    if (num && !isNaN(Number(num))) numSet.add(num);
-  });
+  const numArr = _filterOptions.aktivitas_codes || [];
 
-  if (numSet.size === 0) {
+  if (numArr.length === 0) {
     menu.innerHTML = `<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">Belum ada data aktivitas</div>`;
     return;
   }
-
-  // Urutkan secara numerik
-  const numArr = [...numSet].sort((a, b) => Number(a) - Number(b));
 
   let html = `<button class="kbli-filter-clear" onclick="clearAktivitasFilter()">
         <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -1406,6 +1485,7 @@ function toggleAktivitasDropdown() {
 
 function selectAktivitasFilter(num) {
   _selectedAktivitas = num;
+  _tableFilterState.aktivitas_code = num;
   const btn   = document.getElementById("aktivitasFilterBtn");
   const dot   = document.getElementById("aktivitasFilterDot");
   const label = document.getElementById("aktivitasFilterLabel");
@@ -1417,11 +1497,13 @@ function selectAktivitasFilter(num) {
     menu.classList.remove("open");
     btn?.classList.remove("open");
   }
+  currentPage = 1;
   applyFilters();
 }
 
 function clearAktivitasFilter() {
   _selectedAktivitas = "";
+  _tableFilterState.aktivitas_code = "";
   const btn   = document.getElementById("aktivitasFilterBtn");
   const dot   = document.getElementById("aktivitasFilterDot");
   const label = document.getElementById("aktivitasFilterLabel");
@@ -1433,6 +1515,7 @@ function clearAktivitasFilter() {
     menu.classList.remove("open");
     btn?.classList.remove("open");
   }
+  currentPage = 1;
   applyFilters();
 }
 
@@ -1476,6 +1559,12 @@ function applyFilters() {
   const date_from = document.getElementById("dateFrom").value; // "yyyy-mm-dd" or ""
   const date_to = document.getElementById("dateTo").value;
 
+  _tableFilterState.search = search;
+  _tableFilterState.date_from = date_from;
+  _tableFilterState.date_to = date_to;
+  _tableFilterState.kbli_code = _selectedKbli;
+  _tableFilterState.aktivitas_code = _selectedAktivitas;
+
   // Toggle reset button visibility
   const resetBtn = document.getElementById("btnResetDate");
   if (resetBtn) {
@@ -1486,7 +1575,7 @@ function applyFilters() {
     }
   }
 
-  // Kirim filter text/tanggal ke server; KBLI filter diterapkan client-side setelah load
+  currentPage = 1;
   loadBerita({ search, date_from, date_to });
 }
 
@@ -1512,16 +1601,26 @@ function applySortDate(arr) {
 }
 
 function sortTable(field) {
+  const prevSortKey = _sortKeyUi;
+
   document
     .querySelectorAll(".th-sortable")
     .forEach((th) => th.classList.remove("active"));
 
-  if (sortField === field) {
+  if (prevSortKey === field) {
     sortAsc = !sortAsc;
   } else {
-    sortField = field;
     sortAsc = field !== "date"; // date: default desc (terbaru di atas)
   }
+  _sortKeyUi = field;
+
+  const sortFieldMap = {
+    date: "date_parsed",
+    title: "title",
+    source: "source",
+    tags: "tags",
+  };
+  const backendSortField = sortFieldMap[field] || "date_parsed";
 
   const thEl = document.querySelector(`[onclick="sortTable('${field}')"]`);
   if (thEl) {
@@ -1530,26 +1629,15 @@ function sortTable(field) {
     if (icon) icon.textContent = sortAsc ? "↑" : "↓";
   }
 
-  filteredData.sort((a, b) => {
-    if (field === "date") {
-      const diff = parseDateID(a.date) - parseDateID(b.date);
-      return sortAsc ? diff : -diff;
-    }
-    const va = (a[field] || "").toLowerCase();
-    const vb = (b[field] || "").toLowerCase();
-    if (va < vb) return sortAsc ? -1 : 1;
-    if (va > vb) return sortAsc ? 1 : -1;
-    return 0;
-  });
-
   currentPage = 1;
-  renderTable();
+  sortField = backendSortField;
+  loadBerita();
 }
 
 // ── Download Excel ────────────────────────────────────────────────────────────
 
 async function downloadExcel() {
-  if (allData.length === 0) {
+  if (_tablePaginationState.total_items === 0) {
     alert("Belum ada data untuk diunduh.");
     return;
   }
@@ -1567,6 +1655,8 @@ async function downloadExcel() {
     if (searchVal) params.set("search", searchVal);
     if (date_from) params.set("date_from", date_from);
     if (date_to) params.set("date_to", date_to);
+    if (_selectedKbli) params.set("kbli_code", _selectedKbli);
+    if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
     params.set("with_content", "1");
 
     const res = await fetch("/api/berita/export?" + params.toString());
@@ -2188,10 +2278,27 @@ function refreshAIInsights() {
 
 // ── Floating AI Chat (RAG) ────────────────────────────────────────────────────
 
-let _chatOpen = false;
 let _chatLoading = false;
 let _chatSessionId = "";
 let _chatModalResolver = null;
+let _chatReady = false;
+
+async function _ensureChatReady() {
+  if (_chatReady) return;
+  try {
+    const fromStorage = localStorage.getItem(_chatStorageKey());
+    if (fromStorage && /^\d+$/.test(fromStorage)) {
+      _chatSessionId = fromStorage;
+    } else {
+      await _ensureChatSession(false);
+    }
+    await _loadChatHistory();
+    _chatReady = true;
+  } catch (err) {
+    _showChatEmptyState();
+    console.error("Gagal memuat sesi chat:", err);
+  }
+}
 
 function _chatStorageKey() {
   const username = currentUser?.username || "anon";
@@ -2211,6 +2318,11 @@ function initFloatingChat() {
       sendChatMessage(e);
     }
   });
+
+  const chatView = document.getElementById("chatWindow");
+  if (chatView) {
+    chatView.classList.add("open");
+  }
 }
 
 function _chatModalElements() {
@@ -2419,33 +2531,11 @@ function _appendChatMessage(role, content, citations = []) {
 }
 
 async function toggleChatWindow() {
-  const win = document.getElementById("chatWindow");
-  if (!win) return;
-
-  _chatOpen = !_chatOpen;
-  win.classList.toggle("open", _chatOpen);
-  if (!_chatOpen) return;
-
-  try {
-    // Resume session terakhir per user
-    const fromStorage = localStorage.getItem(_chatStorageKey());
-    if (fromStorage && /^\d+$/.test(fromStorage)) {
-      _chatSessionId = fromStorage;
-    } else {
-      await _ensureChatSession(false);
-    }
-    await _loadChatHistory();
-  } catch (err) {
-    _showChatEmptyState();
-    console.error("Gagal membuka chat:", err);
-  }
+  _openView("chat", { updateHash: true });
 }
 
 function closeChatWindow() {
-  const win = document.getElementById("chatWindow");
-  if (!win) return;
-  _chatOpen = false;
-  win.classList.remove("open");
+  _openView("overview", { updateHash: true });
 }
 
 async function clearChatConversation() {

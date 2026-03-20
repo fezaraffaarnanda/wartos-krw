@@ -24,11 +24,7 @@ WIB = timezone(timedelta(hours=7))
 
 def _build_berita_query(columns: str, search: str, date_from: str, date_to: str):
     """Buat Supabase query dengan filter opsional."""
-    query = (
-        supabase.table("berita")
-        .select(columns)
-        .order("date_parsed", desc=True, nullsfirst=False)
-    )
+    query = supabase.table("berita").select(columns)
     if search:
         query = query.or_(f"title.ilike.%{search}%,tags.ilike.%{search}%,kbli.ilike.%{search}%")
     if date_from:

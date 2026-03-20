@@ -11,30 +11,69 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="../static/css/style.css" />
+    <link rel="stylesheet" href="../static/css/pages/auth.css" />
     <link rel="icon" href="../static/favicon.png" />
   </head>
 
   <body>
-    <!-- Header -->
-    <header class="header">
-      <div class="header-inner">
-        <div class="header-brand">
-          <div class="header-logo">
-            <img src="../static/bps.svg" alt="BPS Logo" height="40" />
-          </div>
-          <div class="header-text">
-            <h1>Dashboard Fenomena Ekonomi</h1>
-            <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
+    <div class="app-shell" id="appShell">
+      <aside class="app-sidebar" id="appSidebar">
+        <div class="sidebar-brand">
+          <img src="../static/bps.svg" alt="BPS Logo" height="34" />
+          <div>
+            <h1>KABARE</h1>
+            <p>BPS Kabupaten Tegal</p>
           </div>
         </div>
-        <div class="header-actions">
+        <nav class="sidebar-nav" aria-label="Menu utama">
+          <a class="sidebar-link sidebar-link-anchor" href="/dashboard#overview">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9" /><path d="M9 21V9h6v12" /></svg>
+            <span class="sidebar-link-label">Ringkasan Dashboard</span>
+          </a>
+          <a class="sidebar-link sidebar-link-anchor" href="/dashboard#data">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>
+            <span class="sidebar-link-label">Data Berita</span>
+          </a>
+          <a class="sidebar-link sidebar-link-anchor" href="/dashboard#insight">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>
+            <span class="sidebar-link-label">Insight AI</span>
+          </a>
+          <a class="sidebar-link sidebar-link-anchor" href="/dashboard#chat">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
+            <span class="sidebar-link-label">AI Chat</span>
+          </a>
+        </nav>
+        <div class="sidebar-footer">
           <span class="header-user" id="headerUser"></span>
           <a href="/logout" class="btn-logout" id="btnLogout">Keluar</a>
         </div>
-      </div>
-    </header>
+      </aside>
 
-    <main class="main">
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+      <div class="app-content">
+        <header class="header">
+          <div class="header-inner">
+            <div class="header-brand header-brand-main">
+              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Tutup sidebar" title="Tutup sidebar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+              <div class="header-text">
+                <h1>Detail Berita</h1>
+                <p class="header-subtitle">Konten lengkap dan metadata berita</p>
+              </div>
+            </div>
+            <div class="header-actions">
+              <a href="/dashboard#data" class="btn-logout">Kembali ke Data</a>
+            </div>
+          </div>
+        </header>
+
+        <main class="main">
       <!-- Breadcrumb / Back -->
       <div class="breadcrumb">
         <a href="/" class="breadcrumb-link">
@@ -61,7 +100,7 @@
       </div>
 
       <!-- Error state -->
-      <div id="errorState" class="error-state" style="display: none">
+      <div id="errorState" class="error-state is-hidden">
         <svg
           width="48"
           height="48"
@@ -79,7 +118,7 @@
       </div>
 
       <!-- Article content -->
-      <article class="article-card" id="articleCard" style="display: none">
+      <article class="article-card is-hidden" id="articleCard">
         <header class="article-header">
           <h1 class="article-title" id="articleTitle"></h1>
           <div class="article-meta">
@@ -151,7 +190,7 @@
           <div class="article-tags" id="articleTags"></div>
 
           <!-- Klasifikasi KBLI & Aktivitas Ekonomi -->
-          <div class="article-classification" id="articleClassification" style="display:none">
+          <div class="article-classification is-hidden" id="articleClassification">
             <div class="classification-item" id="kbliItem">
               <span class="classification-label">
                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -179,215 +218,21 @@
         <!-- Body -->
         <div class="article-body" id="articleBody"></div>
       </article>
-    </main>
+        </main>
 
-    <!-- Footer -->
-    <footer class="footer">
+        <!-- Footer -->
+        <footer class="footer">
       <p>
-        © 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi
+        © 2026 Badan Pusat Statistik Kabupaten Tegal. KABARE
         — Kabupaten Tegal.
       </p>
-    </footer>
+        </footer>
 
-      <script>
-      // ── KBLI Mapping (sinkron dengan core/kbli_utils.py & script.js) ─────────
-      const KBLI_KEY_MAPPING = {
-        A:  "Pertanian, Kehutanan, dan Perikanan",
-        B:  "Pertambangan dan Penggalian",
-        C:  "Industri",
-        D:  "Penyediaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin",
-        E:  "Penyediaan Air; Pengelolaan Air Limbah, Penanganan Limbah, dan Remediasi",
-        F:  "Konstruksi",
-        G:  "Perdagangan Besar dan Eceran",
-        H:  "Transportasi dan Penyimpanan",
-        I:  "Aktivitas Penyediaan Akomodasi dan Makan Minum",
-        J:  "Aktivitas Penerbitan, Penyiaran, serta Produksi dan Distribusi Konten",
-        K:  "Aktivitas Telekomunikasi, Pemrograman Komputer, Konsultansi, dan Jasa Informasi",
-        L:  "Aktivitas Keuangan dan Asuransi",
-        M:  "Aktivitas Real Estat",
-        N:  "Aktivitas Profesional, Ilmiah, dan Teknis",
-        O:  "Aktivitas Administratif dan Penunjang Usaha",
-        P:  "Administrasi Pemerintahan dan Pertahanan, Serta Jaminan Sosial Wajib",
-        Q:  "Pendidikan",
-        R:  "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
-        S:  "Kesenian, Olahraga, dan Rekreasi",
-        T:  "Aktivitas Jasa Lainnya",
-        U:  "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
-        V:  "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
-        KE: "Kemiskinan",
-        PG: "Pengangguran",
-      };
-
-      // ── Init ─────────────────────────────────────────────────────────────────
-      document.addEventListener("DOMContentLoaded", async () => {
-        await loadUserInfo();
-        const id = getArticleId();
-        if (!id) {
-          showError("ID berita tidak valid.");
-          return;
-        }
-        await loadArticle(id);
-      });
-
-      function getArticleId() {
-        const parts = window.location.pathname.split("/");
-        const id = parseInt(parts[parts.length - 1]);
-        return isNaN(id) || id <= 0 ? null : id;
-      }
-
-      // ── User info ─────────────────────────────────────────────────────────────
-
-      async function loadUserInfo() {
-        try {
-          const res = await fetch("/api/me");
-          if (res.status === 401) {
-            window.location.href = "/login";
-            return;
-          }
-          const json = await res.json();
-          if (json.status === "ok") {
-            document.getElementById("headerUser").textContent = json.username;
-          }
-        } catch (e) {
-          /* silently ignore */
-        }
-      }
-
-      // ── Load article ──────────────────────────────────────────────────────────
-
-      async function loadArticle(id) {
-        try {
-          const res = await fetch(`/api/berita/${id}`);
-          if (res.status === 401) {
-            window.location.href = "/login";
-            return;
-          }
-          const json = await res.json();
-
-          document.getElementById("loadingState").style.display = "none";
-
-          if (json.status !== "ok" || !json.data) {
-            showError(json.message || "Berita tidak ditemukan.");
-            return;
-          }
-
-          renderArticle(json.data);
-        } catch (err) {
-          document.getElementById("loadingState").style.display = "none";
-          showError("Gagal memuat berita. Coba lagi nanti.");
-        }
-      }
-
-      function renderArticle(d) {
-        document.title = `${d.title || "Detail Berita"} — BPS Kab. Tegal`;
-
-        document.getElementById("articleTitle").textContent = d.title || "—";
-        document.getElementById("articleSource").textContent = d.source || "—";
-        document.getElementById("articleDate").textContent = d.date || "—";
-
-        const extLink = document.getElementById("articleExternalLink");
-        if (d.url) {
-          extLink.href = d.url;
-        } else {
-          extLink.parentElement.style.display = "none";
-        }
-
-        // Tags
-        const tagsContainer = document.getElementById("articleTags");
-        if (d.tags) {
-          const tags = d.tags
-            .split(/\s*\|\s*|,\s*/)
-            .map((t) => t.trim().replace(/^#/, ""))
-            .filter(Boolean);
-          tagsContainer.innerHTML = tags
-            .map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`)
-            .join(" ");
-        }
-
-        // Klasifikasi KBLI & Aktivitas Ekonomi
-        renderClassification(d.kbli, d.aktivitas_ekonomi);
-
-        // Body: split paragraphs by newline
-        const bodyEl = document.getElementById("articleBody");
-        const paragraphs = (d.content || "Isi berita tidak tersedia.")
-          .split(/\n+/)
-          .filter((p) => p.trim());
-        bodyEl.innerHTML = paragraphs
-          .map((p) => `<p>${escapeHtml(p.trim())}</p>`)
-          .join("");
-
-        document.getElementById("articleCard").style.display = "block";
-      }
-
-      function renderClassification(kbliRaw, aktivitasRaw) {
-        const section = document.getElementById("articleClassification");
-        const kbliBadge = document.getElementById("kbliBadge");
-        const aktivitasBadge = document.getElementById("aktivitasBadge");
-
-        let hasContent = false;
-
-        // ── KBLI ──
-        if (kbliRaw && kbliRaw.trim()) {
-          const kode = kbliRaw.trim().toUpperCase();
-          const isIrrelevant = kode === "TIDAK RELEVAN" || kode === "—";
-
-          if (isIrrelevant) {
-            kbliBadge.textContent = "Tidak Relevan";
-            kbliBadge.classList.add("badge-irrelevant");
-          } else {
-            const deskripsi = KBLI_KEY_MAPPING[kode];
-            kbliBadge.innerHTML = deskripsi
-              ? `<strong>${escapeHtml(kode)}</strong> — ${escapeHtml(deskripsi)}`
-              : escapeHtml(kode);
-          }
-          hasContent = true;
-        } else {
-          kbliBadge.textContent = "Belum diklasifikasi";
-          kbliBadge.classList.add("badge-pending");
-          hasContent = true;
-        }
-
-        // ── Aktivitas Ekonomi ──
-        if (aktivitasRaw && aktivitasRaw.trim()) {
-          const val = aktivitasRaw.trim();
-          const isIrrelevant = val.toLowerCase() === "tidak relevan" || val === "—";
-
-          if (isIrrelevant) {
-            aktivitasBadge.textContent = "Tidak Relevan";
-            aktivitasBadge.classList.add("badge-irrelevant");
-          } else {
-            // Format: "9/Aktivitas industri makanan dan minuman selain CPO"
-            const slashIdx = val.indexOf("/");
-            if (slashIdx !== -1) {
-              const nomor = val.slice(0, slashIdx).trim();
-              const label = val.slice(slashIdx + 1).trim();
-              aktivitasBadge.innerHTML = `<strong>${escapeHtml(nomor)}</strong> — ${escapeHtml(label)}`;
-            } else {
-              aktivitasBadge.textContent = val;
-            }
-          }
-          hasContent = true;
-        } else {
-          aktivitasBadge.textContent = "Belum diklasifikasi";
-          aktivitasBadge.classList.add("badge-pending");
-          hasContent = true;
-        }
-
-        if (hasContent) section.style.display = "flex";
-      }
-
-      function showError(msg) {
-        document.getElementById("errorMsg").textContent = msg;
-        document.getElementById("errorState").style.display = "flex";
-      }
-
-      function escapeHtml(str) {
-        const div = document.createElement("div");
-        div.textContent = str;
-        return div.innerHTML;
-      }
-    </script>
-    <!-- Vercel Web Analytics -->
-    <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+      <script src="../static/js/layout_shell.js"></script>
+      <script src="../static/js/pages/berita_detail.js"></script>
+      <!-- Vercel Web Analytics -->
+      <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+      </div>
+    </div>
   </body>
 </html>

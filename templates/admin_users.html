@@ -11,436 +11,73 @@
         href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
         rel="stylesheet" />
     <link rel="stylesheet" href="../static/css/style.css" />
+    <link rel="stylesheet" href="../static/css/pages/admin_users.css" />
     <link rel="icon" href="../static/favicon.png" />
-    <style>
-        .admin-shell {
-            max-width: 1180px;
-            margin: 0 auto;
-            padding: 24px 20px 34px;
-        }
-
-        .admin-topbar {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 16px;
-            margin-bottom: 18px;
-            flex-wrap: wrap;
-        }
-
-        .admin-topbar-left {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
-        .admin-topbar-title {
-            margin: 0;
-            font-size: 1.35rem;
-            line-height: 1.2;
-            color: var(--text-primary);
-            font-weight: 800;
-        }
-
-        .admin-topbar-sub {
-            margin: 2px 0 0;
-            font-size: 0.82rem;
-            color: var(--text-muted);
-        }
-
-        .admin-grid {
-            display: grid;
-            grid-template-columns: 1.1fr 1.9fr;
-            gap: 16px;
-        }
-
-        .admin-card {
-            background: var(--bg-card);
-            border: 1px solid var(--border);
-            border-radius: var(--radius-lg);
-            box-shadow: var(--shadow-sm);
-            padding: 18px;
-        }
-
-        .admin-card h2 {
-            margin: 0 0 6px;
-            font-size: 1.02rem;
-            color: var(--text-primary);
-        }
-
-        .admin-card p {
-            margin: 0 0 14px;
-            font-size: 0.82rem;
-            color: var(--text-muted);
-            line-height: 1.5;
-        }
-
-        .admin-inline-form {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .admin-input {
-            width: 100%;
-            height: 41px;
-            border: 1.4px solid var(--border);
-            border-radius: var(--radius-md);
-            padding: 0 12px;
-            font-size: 0.86rem;
-            font-family: inherit;
-            color: var(--text-primary);
-            background: var(--white);
-            transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
-        }
-
-        .admin-input:focus {
-            outline: none;
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.15);
-        }
-
-        .btn-admin {
-            height: 41px;
-            border: 1.5px solid var(--accent);
-            background: var(--accent);
-            color: #fff;
-            border-radius: var(--radius-md);
-            padding: 0 14px;
-            font-size: 0.8rem;
-            font-weight: 700;
-            cursor: pointer;
-            transition: all var(--transition-fast);
-            white-space: nowrap;
-        }
-
-        .btn-admin:hover {
-            background: var(--accent-hover);
-            border-color: var(--accent-hover);
-            box-shadow: var(--shadow-accent);
-        }
-
-        .btn-admin:disabled {
-            opacity: 0.65;
-            cursor: not-allowed;
-            box-shadow: none;
-        }
-
-        .btn-admin.ghost {
-            background: #fff;
-            color: var(--accent);
-        }
-
-        .btn-admin.ghost:hover {
-            background: var(--accent-bg);
-            color: var(--accent-hover);
-            border-color: var(--accent-hover);
-        }
-
-        .btn-admin.warn {
-            background: #fff;
-            border-color: #f5b5b8;
-            color: #b4232c;
-        }
-
-        .btn-admin.warn:hover {
-            background: #fff3f4;
-            border-color: #ef8f95;
-        }
-
-        .admin-hint {
-            margin-top: 9px;
-            font-size: 0.75rem;
-            color: var(--text-muted);
-        }
-
-        .admin-message {
-            display: none;
-            margin-top: 12px;
-            border-radius: var(--radius-sm);
-            padding: 9px 11px;
-            font-size: 0.78rem;
-            font-weight: 500;
-            line-height: 1.45;
-        }
-
-        .admin-message.success {
-            display: block;
-            border: 1px solid #b7e2c3;
-            background: #eaf7ee;
-            color: #1f6f39;
-        }
-
-        .admin-message.error {
-            display: block;
-            border: 1px solid #f2bdc1;
-            background: #fff1f3;
-            color: #b4232c;
-        }
-
-        .admin-table-wrap {
-            overflow: auto;
-            border-radius: var(--radius-md);
-            border: 1px solid var(--border);
-            background: #fff;
-        }
-
-        .admin-table {
-            width: 100%;
-            border-collapse: collapse;
-            min-width: 740px;
-        }
-
-        .admin-table thead th {
-            font-size: 0.73rem;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--text-muted);
-            background: #fafafa;
-            padding: 11px 12px;
-            text-align: left;
-            border-bottom: 1px solid var(--border);
-            white-space: nowrap;
-        }
-
-        .admin-table tbody td {
-            padding: 11px 12px;
-            border-bottom: 1px solid #f2f3f5;
-            font-size: 0.82rem;
-            vertical-align: middle;
-            color: var(--text-primary);
-        }
-
-        .admin-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-
-        .admin-table tbody tr:hover {
-            background: #fffaf5;
-        }
-
-        .status-pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            border-radius: 999px;
-            padding: 5px 10px;
-            font-size: 0.73rem;
-            font-weight: 700;
-            border: 1px solid;
-        }
-
-        .status-pill.ok {
-            border-color: #b7e2c3;
-            background: #eaf7ee;
-            color: #1f6f39;
-        }
-
-        .status-pill.warn {
-            border-color: #f8d391;
-            background: #fff7e6;
-            color: #9f6000;
-        }
-
-        .status-pill.code {
-            border-color: #b9d8ff;
-            background: #eef6ff;
-            color: #0f4d95;
-        }
-
-        .user-role-badge {
-            display: inline-flex;
-            align-items: center;
-            border-radius: 999px;
-            padding: 4px 8px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            border: 1px solid var(--border);
-            color: var(--text-secondary);
-            background: #fafafa;
-        }
-
-        .row-actions {
-            display: flex;
-            gap: 6px;
-            align-items: center;
-            justify-content: flex-start;
-            flex-wrap: wrap;
-        }
-
-        .btn-mini {
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            height: 31px;
-            padding: 0 10px;
-            font-size: 0.72rem;
-            font-weight: 700;
-            background: #fff;
-            cursor: pointer;
-            color: var(--text-secondary);
-            transition: all var(--transition-fast);
-        }
-
-        .btn-mini:hover {
-            border-color: var(--accent);
-            color: var(--accent);
-            background: var(--accent-bg);
-        }
-
-        .btn-mini.warn:hover {
-            border-color: #e8848d;
-            color: #b4232c;
-            background: #fff3f4;
-        }
-
-        .btn-mini:disabled {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
-        .table-empty {
-            text-align: center;
-            padding: 24px 12px;
-            color: var(--text-muted);
-            font-size: 0.84rem;
-        }
-
-        .admin-meta-row {
-            margin-top: 11px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 10px;
-            flex-wrap: wrap;
-        }
-
-        .admin-meta-row span {
-            font-size: 0.76rem;
-            color: var(--text-muted);
-        }
-
-        .sec-note {
-            margin-top: 16px;
-            border: 1px dashed #f0d3a7;
-            background: #fffaf1;
-            border-radius: var(--radius-md);
-            padding: 10px 12px;
-            font-size: 0.77rem;
-            color: #8f6318;
-            line-height: 1.5;
-        }
-
-        /* Modal */
-        .admin-modal-backdrop {
-            position: fixed;
-            inset: 0;
-            background: rgba(17, 24, 39, 0.48);
-            display: none;
-            align-items: center;
-            justify-content: center;
-            z-index: 3000;
-            padding: 14px;
-        }
-
-        .admin-modal-backdrop.open {
-            display: flex;
-        }
-
-        .admin-modal {
-            width: min(500px, 100%);
-            background: #fff;
-            border-radius: 14px;
-            box-shadow: 0 16px 50px rgba(0, 0, 0, 0.24);
-            border: 1px solid #eceef1;
-            padding: 18px;
-        }
-
-        .admin-modal h3 {
-            margin: 0;
-            font-size: 1rem;
-            color: var(--text-primary);
-        }
-
-        .admin-modal p {
-            margin: 8px 0 0;
-            color: var(--text-muted);
-            font-size: 0.82rem;
-            line-height: 1.5;
-        }
-
-        .secret-box {
-            margin-top: 14px;
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px;
-            background: #fafafa;
-        }
-
-        .secret-label {
-            font-size: 0.72rem;
-            color: var(--text-muted);
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            font-weight: 700;
-            margin-bottom: 6px;
-        }
-
-        .secret-row {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-        }
-
-        .secret-value {
-            width: 100%;
-            height: 40px;
-            border: 1px solid var(--border);
-            background: #fff;
-            border-radius: 8px;
-            padding: 0 11px;
-            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-            font-size: 0.95rem;
-            font-weight: 700;
-            color: #2f3844;
-            letter-spacing: 0.04em;
-        }
-
-        .modal-actions {
-            margin-top: 14px;
-            display: flex;
-            justify-content: flex-end;
-            gap: 8px;
-        }
-
-        @media (max-width: 980px) {
-            .admin-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
 </head>
 
 <body>
-    <header class="header" id="header">
-        <div class="header-inner">
-            <div class="header-brand">
-                <div class="header-logo"><img src="../static/bps.svg" alt="BPS Logo" height="40" /></div>
-                <div class="header-text">
-                    <h1>Manajemen Pengguna</h1>
-                    <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
+    <div class="app-shell" id="appShell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-brand">
+                <img src="../static/bps.svg" alt="BPS Logo" height="34" />
+                <div>
+                    <h1>KABARE</h1>
+                    <p>BPS Kabupaten Tegal</p>
                 </div>
             </div>
-            <div class="header-actions">
-                <div class="header-user-info">
-                    <span class="header-user" id="headerUser"></span>
-                    <a href="/dashboard" class="btn-logout" style="margin-right:4px">Dashboard</a>
-                    <a href="/logout" class="btn-logout">Keluar</a>
-                </div>
+            <nav class="sidebar-nav" aria-label="Menu utama">
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#overview">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9" /><path d="M9 21V9h6v12" /></svg>
+                    <span class="sidebar-link-label">Ringkasan Dashboard</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#data">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>
+                    <span class="sidebar-link-label">Data Berita</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#insight">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>
+                    <span class="sidebar-link-label">Insight AI</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#chat">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
+                    <span class="sidebar-link-label">AI Chat</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor active" href="/admin/users" aria-current="page">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                    <span class="sidebar-link-label">Manajemen User</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="header-user" id="headerUser"></span>
+                <a href="/logout" class="btn-logout">Keluar</a>
             </div>
-        </div>
-    </header>
+        </aside>
 
-    <main class="admin-shell">
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <div class="app-content">
+            <header class="header" id="header">
+                <div class="header-inner">
+                    <div class="header-brand header-brand-main">
+                        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Tutup sidebar" title="Tutup sidebar">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="3" y1="6" x2="21" y2="6" />
+                                <line x1="3" y1="12" x2="21" y2="12" />
+                                <line x1="3" y1="18" x2="21" y2="18" />
+                            </svg>
+                        </button>
+                        <div class="header-text">
+                            <h1>Manajemen Pengguna</h1>
+                            <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <a href="/dashboard" class="btn-logout">Dashboard</a>
+                    </div>
+                </div>
+            </header>
+
+            <main class="admin-shell">
         <div class="admin-topbar">
             <div class="admin-topbar-left">
                 <div>
@@ -507,7 +144,7 @@
                 </div>
             </section>
         </div>
-    </main>
+            </main>
 
     <!-- Modal: Tampilkan password sementara -->
     <div class="admin-modal-backdrop" id="passwordModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
@@ -564,259 +201,12 @@
         </div>
     </div>
 
-    <script>
-        let currentMe = null;
-        let usersData = [];
-
-        document.addEventListener("DOMContentLoaded", async () => {
-            bindEvents();
-            await loadMe();
-            await loadUsers();
-        });
-
-        function bindEvents() {
-            document.getElementById("createUserForm").addEventListener("submit", onCreateUser);
-            document.getElementById("btnRefreshUsers").addEventListener("click", loadUsers);
-            document.querySelectorAll(".admin-modal-backdrop").forEach((backdrop) => {
-                backdrop.addEventListener("click", (e) => {
-                    if (e.target === backdrop) backdrop.classList.remove("open");
-                });
-            });
-        }
-
-        async function loadMe() {
-            try {
-                const res = await fetch("/api/me");
-                if (res.status === 401) {
-                    window.location.href = "/login";
-                    return;
-                }
-                const json = await res.json();
-                if (json.status !== "ok" || json.role !== "admin") {
-                    window.location.href = "/dashboard";
-                    return;
-                }
-                currentMe = json;
-                const headerUser = document.getElementById("headerUser");
-                if (headerUser) headerUser.textContent = json.username;
-            } catch (_) {
-                window.location.href = "/login";
-            }
-        }
-
-        async function loadUsers() {
-            const tbody = document.getElementById("usersTableBody");
-            tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Memuat data pengguna...</td></tr>`;
-            try {
-                const res = await fetch("/api/admin/users");
-                if (res.status === 401) {
-                    window.location.href = "/login";
-                    return;
-                }
-                if (res.status === 403) {
-                    window.location.href = "/dashboard";
-                    return;
-                }
-                const json = await res.json();
-                if (!res.ok || json.status !== "ok") {
-                    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Gagal memuat pengguna.</td></tr>`;
-                    return;
-                }
-
-                usersData = json.data || [];
-                renderUsersTable();
-            } catch (_) {
-                tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Gagal memuat pengguna.</td></tr>`;
-            }
-        }
-
-        function renderUsersTable() {
-            const tbody = document.getElementById("usersTableBody");
-            const countText = document.getElementById("userCountText");
-            const users = usersData;
-
-            countText.textContent = `${users.length} pengguna`;
-            if (!users.length) {
-                tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Belum ada pengguna.</td></tr>`;
-                return;
-            }
-
-            tbody.innerHTML = users
-                .map((u) => {
-                    const isSelf = currentMe && String(u.id) === String(currentMe.id);
-                    const passStatus = u.must_change_password
-                        ? `<span class="status-pill warn">Wajib ganti password</span>`
-                        : `<span class="status-pill ok">Aktif</span>`;
-                    const codeStatus = u.has_active_code
-                        ? `<span class="status-pill code">Ada kode aktif</span>`
-                        : `<span class="status-pill ok">Tidak ada</span>`;
-
-                    return `
-                        <tr>
-                            <td><strong>${escapeHtml(u.username || "-")}</strong>${isSelf ? " <small>(Anda)</small>" : ""}</td>
-                            <td><span class="user-role-badge">${escapeHtml(u.role || "user")}</span></td>
-                            <td>${passStatus}</td>
-                            <td>${codeStatus}</td>
-                            <td>
-                                <div class="row-actions">
-                                    <button
-                                        class="btn-mini"
-                                        type="button"
-                                        onclick="generateCode(${u.id}, '${escapeAttr(u.username || "")}')"
-                                    >Generate Kode</button>
-                                    <button
-                                        class="btn-mini warn"
-                                        type="button"
-                                        onclick="deleteUser(${u.id}, '${escapeAttr(u.username || "")}')"
-                                        ${isSelf ? "disabled" : ""}
-                                        title="${isSelf ? "Akun sendiri tidak dapat dihapus" : "Hapus pengguna"}"
-                                    >Hapus</button>
-                                </div>
-                            </td>
-                        </tr>
-                    `;
-                })
-                .join("");
-        }
-
-        async function onCreateUser(e) {
-            e.preventDefault();
-            clearCreateMessage();
-
-            const usernameInput = document.getElementById("usernameInput");
-            const btn = document.getElementById("btnCreateUser");
-            const username = usernameInput.value.trim().toLowerCase();
-
-            if (!/^[A-Za-z0-9_-]{3,50}$/.test(username)) {
-                setCreateMessage("Format username tidak valid. Gunakan 3-50 karakter huruf/angka/_/-.", "error");
-                return;
-            }
-
-            btn.disabled = true;
-            try {
-                const res = await fetch("/api/admin/users", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ username }),
-                });
-                const json = await res.json();
-
-                if (!res.ok || json.status !== "ok") {
-                    setCreateMessage(json.message || "Gagal membuat pengguna.", "error");
-                    return;
-                }
-
-                usernameInput.value = "";
-                setCreateMessage(`Pengguna '${json.user?.username || username}' berhasil dibuat.`, "success");
-                showPasswordModal(json.user?.username || username, json.generated_password || "");
-                await loadUsers();
-            } catch (_) {
-                setCreateMessage("Gagal terhubung ke server.", "error");
-            } finally {
-                btn.disabled = false;
-            }
-        }
-
-        async function deleteUser(userId, username) {
-            if (!confirm(`Yakin ingin menghapus pengguna '${username}'?`)) return;
-
-            try {
-                const res = await fetch(`/api/admin/users/${userId}`, {
-                    method: "DELETE",
-                });
-                const json = await res.json();
-                if (!res.ok || json.status !== "ok") {
-                    alert(json.message || "Gagal menghapus pengguna.");
-                    return;
-                }
-                await loadUsers();
-                setCreateMessage(json.message || "Pengguna berhasil dihapus.", "success");
-            } catch (_) {
-                alert("Gagal terhubung ke server.");
-            }
-        }
-
-        async function generateCode(userId, username) {
-            if (!confirm(`Generate kode autentikasi baru untuk '${username}'? Kode lama akan tidak berlaku.`)) {
-                return;
-            }
-
-            try {
-                const res = await fetch(`/api/admin/users/${userId}/auth-code`, {
-                    method: "POST",
-                });
-                const json = await res.json();
-                if (!res.ok || json.status !== "ok") {
-                    alert(json.message || "Gagal membuat kode autentikasi.");
-                    return;
-                }
-                showCodeModal(json.username || username, json.code || "", json.expires_at || "");
-                await loadUsers();
-            } catch (_) {
-                alert("Gagal terhubung ke server.");
-            }
-        }
-
-        function showPasswordModal(username, password) {
-            document.getElementById("newUsernameValue").value = username;
-            document.getElementById("newPasswordValue").value = password;
-            document.getElementById("passwordModalBackdrop").classList.add("open");
-        }
-
-        function showCodeModal(username, code, expiry) {
-            document.getElementById("codeUsernameValue").value = username;
-            document.getElementById("authCodeValue").value = code;
-            document.getElementById("authCodeExpiryValue").value = expiry;
-            document.getElementById("codeModalBackdrop").classList.add("open");
-        }
-
-        function closeModal(id) {
-            const el = document.getElementById(id);
-            if (el) el.classList.remove("open");
-        }
-
-        async function copySecret(inputId) {
-            const input = document.getElementById(inputId);
-            if (!input) return;
-            const text = input.value;
-            if (!text) return;
-            try {
-                await navigator.clipboard.writeText(text);
-                alert("Berhasil disalin.");
-            } catch (_) {
-                input.select();
-                document.execCommand("copy");
-                alert("Berhasil disalin.");
-            }
-        }
-
-        function setCreateMessage(message, type) {
-            const el = document.getElementById("createUserMessage");
-            el.textContent = message;
-            el.className = `admin-message ${type}`;
-        }
-
-        function clearCreateMessage() {
-            const el = document.getElementById("createUserMessage");
-            el.className = "admin-message";
-            el.textContent = "";
-        }
-
-        function escapeHtml(value) {
-            return String(value)
-                .replace(/&/g, "&amp;")
-                .replace(/</g, "&lt;")
-                .replace(/>/g, "&gt;")
-                .replace(/\"/g, "&quot;")
-                .replace(/'/g, "&#39;");
-        }
-
-        function escapeAttr(value) {
-            return escapeHtml(value).replace(/`/g, "&#96;");
-        }
-    </script>
-    <!-- Vercel Web Analytics -->
-    <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+            <script src="../static/js/layout_shell.js"></script>
+            <script src="../static/js/pages/admin_users.js"></script>
+            <!-- Vercel Web Analytics -->
+            <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
+        </div>
+    </div>
 </body>
 
 </html>

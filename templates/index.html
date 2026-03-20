@@ -6,7 +6,7 @@
     <title>Dashboard Berita Lokal — BPS Kab. Tegal</title>
     <meta
       name="description"
-      content="Dashboard scraping berita lokal 3 sumber. Badan Pusat Statistik Kabupaten Tegal."
+      content="KABARE (Kanal Berita & Rekomendasi Ekonomi) - platform pemantauan berita ekonomi BPS Kabupaten Tegal."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,32 +21,77 @@
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
-    <!-- Header -->
-    <header class="header" id="header">
-      <div class="header-inner">
-        <div class="header-brand">
-          <div class="header-logo">
-            <img src="../static/bps.svg" alt="BPS Logo" height="40" />
-          </div>
-          <div class="header-text">
-            <h1>Dashboard Fenomena Ekonomi</h1>
-            <p class="header-subtitle">Badan Pusat Statistik Kabupaten Tegal</p>
+    <div class="app-shell" id="appShell">
+      <aside class="app-sidebar" id="appSidebar">
+        <div class="sidebar-brand">
+          <img src="../static/bps.svg" alt="BPS Logo" height="34" />
+          <div>
+            <h1>KABARE</h1>
+            <p>BPS Kabupaten Tegal</p>
           </div>
         </div>
-        <div class="header-actions">
-          <span class="header-timestamp" id="headerTimestamp">—</span>
-          <div class="header-user-info">
-            <span class="header-user" id="headerUser"></span>
-            <a href="/admin/users" class="btn-logout" id="adminUsersLink" style="display: none">Manajemen User</a>
-            <a href="/logout" class="btn-logout">Keluar</a>
-          </div>
-        </div>
-      </div>
-    </header>
 
-    <main class="main">
+        <nav class="sidebar-nav" aria-label="Menu utama">
+          <button class="sidebar-link active" data-view="overview" type="button">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9" /><path d="M9 21V9h6v12" /></svg>
+            <span class="sidebar-link-label">Ringkasan Dashboard</span>
+          </button>
+          <button class="sidebar-link" data-view="data" type="button">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>
+            <span class="sidebar-link-label">Data Berita</span>
+          </button>
+          <button class="sidebar-link" data-view="insight" type="button">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>
+            <span class="sidebar-link-label">Insight AI</span>
+          </button>
+          <button class="sidebar-link" data-view="chat" type="button">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
+            <span class="sidebar-link-label">AI Chat</span>
+          </button>
+          <button class="sidebar-link" data-view="scrape" type="button" id="sidebarScrapeMenu" style="display: none">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.22-8.56" /><path d="M21 3v6h-6" /></svg>
+            <span class="sidebar-link-label">Scraping Manual</span>
+          </button>
+          <a href="/admin/users" class="sidebar-link sidebar-link-anchor" id="adminUsersLink" style="display: none">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+            <span class="sidebar-link-label">Manajemen User</span>
+          </a>
+        </nav>
+
+        <div class="sidebar-footer">
+          <span class="header-user" id="headerUser"></span>
+          <a href="/logout" class="btn-logout">Keluar</a>
+        </div>
+      </aside>
+
+      <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+      <div class="app-content">
+        <!-- Header -->
+        <header class="header" id="header">
+          <div class="header-inner">
+            <div class="header-brand header-brand-main">
+              <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Tutup sidebar" title="Tutup sidebar">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="3" y1="6" x2="21" y2="6" />
+                  <line x1="3" y1="12" x2="21" y2="12" />
+                  <line x1="3" y1="18" x2="21" y2="18" />
+                </svg>
+              </button>
+              <div class="header-text">
+                <h1 id="viewTitle">KABARE Dashboard</h1>
+                <p class="header-subtitle" id="viewSubtitle">Pemantauan fenomena ekonomi berbasis berita lokal</p>
+              </div>
+            </div>
+            <div class="header-actions">
+              <span class="header-timestamp" id="headerTimestamp">—</span>
+            </div>
+          </div>
+        </header>
+
+        <main class="main" id="mainContent">
       <!-- Welcome / About Card -->
-      <section class="welcome-section" id="welcomeSection">
+      <section class="welcome-section app-view" data-view="overview" id="welcomeSection">
         <div class="welcome-card">
           <!-- Header kartu -->
           <div class="welcome-header">
@@ -58,7 +103,7 @@
               </svg>
               Tentang Dashboard
             </div>
-            <h2 class="welcome-title">Dashboard Pemantauan Fenomena Ekonomi Kabupaten Tegal</h2>
+            <h2 class="welcome-title">KABARE - Kanal Berita & Rekomendasi Ekonomi</h2>
             <p class="welcome-subtitle">
               Platform pemantauan berita lokal berbasis AI untuk mendukung analisis kegiatan ekonomi,
               kemiskinan, dan ketenagakerjaan di Kabupaten Tegal secara otomatis dan real-time.
@@ -193,7 +238,7 @@
       </section>
 
       <!-- Info Bar: last scrape & berita baru (visible untuk semua user) -->
-      <section class="scrape-info-bar" id="scrapeInfoBar">
+      <section class="scrape-info-bar app-view" data-view="overview" id="scrapeInfoBar">
         <div class="last-scrape-badge" id="lastScrapeBadgeUser">
           <svg
             width="13"
@@ -233,7 +278,7 @@
       </section>
 
       <!-- Scrape Section (admin only) -->
-      <section class="scrape-section" id="scrapeSection">
+      <section class="scrape-section app-view" data-view="scrape" id="scrapeSection">
         <div class="scrape-card">
           <div class="scrape-info">
             <h2>Mulai Scraping Berita</h2>
@@ -418,7 +463,7 @@
       </section>
 
       <!-- Summary Cards — 4 card, 30 hari terakhir -->
-      <section class="summary-section" id="summarySection">
+      <section class="summary-section app-view" data-view="overview" id="summarySection">
         <div class="cards-grid">
           <!-- Card 1: Total Berita -->
           <div class="stat-card card-animate" id="cardTotal">
@@ -524,7 +569,7 @@
       </section>
 
       <!-- KBLI Chart Section — Top 5 KBLI 30 hari terakhir -->
-      <section class="chart-section" id="kbliChartSection">
+      <section class="chart-section app-view" data-view="overview" id="kbliChartSection">
         <div class="section-card">
           <div class="section-header">
             <h2>Top 5 Kategori KBLI</h2>
@@ -540,7 +585,7 @@
       </section>
 
       <!-- Chart Section — Top 5 Tag Bulan Ini -->
-      <section class="chart-section" id="chartSection">
+      <section class="chart-section app-view" data-view="overview" id="chartSection">
         <div class="section-card">
           <div class="section-header">
             <h2>Top 5 Tag Berita Bulan Ini</h2>
@@ -556,7 +601,7 @@
       </section>
 
       <!-- AI Insight Section -->
-      <section class="ai-insight-section" id="aiInsightSection">
+      <section class="ai-insight-section app-view" data-view="insight" id="aiInsightSection">
         <div class="ai-insight-header">
           <div>
             <h2 class="ai-insight-title">
@@ -1040,7 +1085,7 @@
       </section>
 
       <!-- Table Section -->
-      <section class="table-section" id="tableSection">
+      <section class="table-section app-view" data-view="data" id="tableSection">
         <div class="section-card">
           <div class="section-header">
             <h2>Tabel Hasil Scraping</h2>
@@ -1293,39 +1338,9 @@
       </section>
     </main>
 
-    <!-- Floating AI Chat Window -->
-    <button
-      class="chat-fab"
-      id="chatFab"
-      type="button"
-      onclick="toggleChatWindow()"
-      aria-label="Buka AI Chat"
-    >
-      <svg
-        width="22"
-        height="22"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2.2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-      >
-        <path
-          d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"
-        />
-        <path d="M8 9h8" />
-        <path d="M8 13h6" />
-      </svg>
-      <span>AI Chat</span>
-    </button>
-
-    <section class="chat-window" id="chatWindow" aria-live="polite">
+    <section class="chat-window app-view" data-view="chat" id="chatWindow" aria-live="polite">
       <header class="chat-header">
-        <div>
-          <h3>AI Chat</h3>
-          <p>Berbasis berita tersitasi</p>
-        </div>
+        <span class="sr-only">AI Chat</span>
         <div class="chat-header-actions">
           <button
             type="button"
@@ -1348,26 +1363,6 @@
               <path d="M10 11v6" />
               <path d="M14 11v6" />
               <path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2" />
-            </svg>
-          </button>
-          <button
-            type="button"
-            class="chat-icon-btn"
-            onclick="closeChatWindow()"
-            title="Tutup chat"
-          >
-            <svg
-              width="14"
-              height="14"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2.3"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
           </button>
         </div>
@@ -1436,11 +1431,14 @@
     <!-- Footer -->
     <footer class="footer">
       <p>
-        © 2026 Badan Pusat Statistik Kabupaten Tegal. Dashboard Fenomena Ekonomi
+        © 2026 Badan Pusat Statistik Kabupaten Tegal. KABARE
         — Kabupaten Tegal.
       </p>
     </footer>
+      </div>
+    </div>
 
+    <script src="../static/js/layout_shell.js"></script>
     <script src="../static/js/script.js"></script>
     <!-- Vercel Web Analytics -->
     <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
