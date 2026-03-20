@@ -1,8 +1,3 @@
-/* ============================================
-   Dashboard Berita — Frontend Logic
-   5 Sumber: Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal
-   ============================================ */
-
 let filteredData = [];
 let currentPage = 1;
 const PER_PAGE = 15;
