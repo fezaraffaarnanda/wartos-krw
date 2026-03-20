@@ -5,8 +5,6 @@ Provider LLM:
   Gemini 3.1 Flash-Lite Preview via Google AI OpenAI-compatible endpoint
   → Diaktifkan jika GEMINI_API_KEY tersedia
 
-Modul ini dipakai oleh core/rag_chat.py dan core/ai_insights.py.
-Embedding (text-embedding-3-small) tetap pakai OpenAI langsung — lihat core/embeddings.py.
 """
 
 import os

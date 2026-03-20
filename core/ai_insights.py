@@ -8,9 +8,9 @@ Provider LLM:
   Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)
 
 Alur RAG:
-  1. Semantic search via pgvector (text-embedding-3-small) per kategori
+  1. Semantic search via pgvector (gemini-embedding) per kategori
   2. Artikel top-K paling relevan dikirim ke LLM sebagai konteks
-  3. Fallback ke keyword filtering jika embedding belum tersedia
+  3. Fallback ke keyword filtering jika embedding belum/tidak tersedia
 """
 
 import json

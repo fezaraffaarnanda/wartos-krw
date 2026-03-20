@@ -124,9 +124,6 @@ if _kbli_llm_client is not None:
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("Dashboard Berita — Flask Server (4 Sumber)")
+    print("Chatbot Berita KBLI")
     print("=" * 50)
-    print(f"Supabase: {os.getenv('SUPABASE_URL')}")
-    print("Buka http://localhost:5000")
-    print()
     app.run(debug=True, port=5000, use_reloader=False)

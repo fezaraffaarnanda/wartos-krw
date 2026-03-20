@@ -1,11 +1,11 @@
 """
 embeddings.py — Modul Vector Embedding untuk RAG
 
-Mengelola pembuatan embedding artikel menggunakan Google gemini-embedding-001
+Generate embedding artikel menggunakan Google gemini-embedding-001
 via Gemini OpenAI-compatible endpoint (GEMINI_API_KEY), dan semantic search
 via Supabase pgvector (RPC match_articles).
 
-Catatan arsitektur:
+Arsitektur:
 - Embedding  → Google Gemini API (modul ini, GEMINI_API_KEY)
 - AI Insights → Gemini (core/ai_insights.py)
 - RAG Chat   → Gemini (core/rag_chat.py)
@@ -20,12 +20,12 @@ from openai import OpenAI
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
 _EMBEDDING_MODEL     = "gemini-embedding-001"
-_EMBEDDING_DIMS      = 1536   # Gemini mendukung 3072/1536/768 — pakai 1536 agar kompatibel dgn skema DB
+_EMBEDDING_DIMS      = 1536 
 
 # Gemini OpenAI-compatible endpoint untuk embeddings
 _GEMINI_EMBED_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
 
-# Panjang konten artikel yang dipakai untuk embedding (lebih panjang = representasi lebih kaya)
+# Panjang konten artikel yang dipakai untuk embedding
 _EMBED_CONTENT_CHARS = 2000
 
 # Batch size untuk API call
@@ -38,7 +38,7 @@ _BATCH_SLEEP = 0.3
 # ── Client builder ─────────────────────────────────────────────────────────────
 
 def _build_embedding_client() -> OpenAI:
-    """Buat client ke Google Gemini embedding API menggunakan GEMINI_API_KEY."""
+    """Generate client ke Google Gemini embedding API menggunakan GEMINI_API_KEY."""
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
     if not api_key:
         raise ValueError("GEMINI_API_KEY tidak ditemukan di environment variables.")
@@ -253,8 +253,7 @@ def semantic_search_multi(
 ) -> dict[str, list[dict]]:
     """
     Jalankan semantic search untuk beberapa kategori secara PARALEL.
-    Semua kategori embed + RPC call dijalankan bersamaan via ThreadPoolExecutor,
-    memangkas waktu dari ~4.5 detik (sequential) menjadi ~1.5 detik (paralel).
+    Semua kategori embed + RPC call dijalankan bersamaan via ThreadPoolExecutor.
 
     Gunakan satu embedding client yang di-share antar thread agar efisien.
 

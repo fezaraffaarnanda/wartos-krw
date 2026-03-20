@@ -35,7 +35,7 @@ KBLI_KEY_MAPPING = {
     "T":   "Aktivitas Jasa Lainnya",
     "U":   "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
     "V":   "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
-    # Kategori custom (bukan standar KBLI, digunakan untuk analisis sosial-ekonomi)
+    # Kategori custom (bukan standar KBLI, request Pak Adnan BPS Kab Tegal)
     "KE":  "Kemiskinan",
     "PG":  "Pengangguran",
 }

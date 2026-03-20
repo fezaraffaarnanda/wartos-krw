@@ -2,9 +2,9 @@
 rag_chat.py — Pipeline RAG Chat (LLM + pgvector) untuk dashboard berita.
 
 Fokus:
-- Jawaban grounded ke konteks berita.
+- Jawaban berasal dari konteks berita.
 - Sitasi inline memakai marker [Sxx].
-- Aman dari prompt injection dasar.
+- Hindari prompt injection
 
 Provider LLM:
   Gemini 3.1 Flash-Lite Preview (GEMINI_API_KEY)

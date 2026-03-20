@@ -1,5 +1,5 @@
 """
-Utilitas bersama untuk normalisasi tanggal dan pembersihan tag.
+Utils untuk normalisasi tanggal dan pembersihan tag.
 
 - normalize_date()    : "DD MMMM YYYY, HH:MM WIB"
 - parse_date_to_iso() : "YYYY-MM-DD"
