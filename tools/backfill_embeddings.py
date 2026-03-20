@@ -19,8 +19,6 @@ Mode force (--force):
   Batch size 25 artikel       : 25 × 700 = ~17.500 token per request
   Delay 65 detik antar batch  : 17.500 / 65s × 60 ≈ 16.000 TPM  ← aman di bawah 30k
   ~800 artikel                : 32 batch × 65s ≈ 35 menit total
-
-Aman untuk di-restart: mode default hanya memproses artikel yang belum ter-embed.
 """
 
 import argparse
