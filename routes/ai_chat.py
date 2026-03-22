@@ -9,6 +9,7 @@ from flask import Blueprint, Response, jsonify, request, stream_with_context
 from flask_login import current_user, login_required
 
 from repositories.ai_chat import (
+    AIChatRepository,
     _create_chat_session,
     _get_or_create_chat_session,
     _get_chat_session_owned,
@@ -28,6 +29,7 @@ from ai.chat import (
 from config.extensions import limiter
 
 ai_chat_bp = Blueprint("ai_chat", __name__)
+_ai_chat_repo = AIChatRepository()
 
 
 # ── Helper ───────────────────────────────────────────────────────────────────
@@ -97,7 +99,6 @@ def api_ai_chat_history():
 @limiter.limit("30 per hour")
 def api_ai_chat_clear():
     """Hapus seluruh pesan dalam satu session chat milik user."""
-    from datetime import datetime, timezone
     body           = request.get_json(silent=True) or {}
     user_id        = _current_user_id()
     session_id_raw = str(body.get("session_id", "")).strip()
@@ -111,10 +112,8 @@ def api_ai_chat_clear():
         return jsonify({"status": "error", "message": "Session chat tidak ditemukan."}), 404
 
     try:
-        supabase.table("ai_chat_messages").delete().eq("session_id", session_id).execute()
-        supabase.table("ai_chat_sessions").update({
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", session_id).execute()
+        _ai_chat_repo.clear_chat_messages(session_id)
+        _ai_chat_repo.touch_chat_session(session_id)
         return jsonify({"status": "ok", "message": "Percakapan berhasil dibersihkan."})
     except Exception as exc:
         return jsonify({"status": "error", "message": f"Gagal membersihkan percakapan: {exc}"}), 500

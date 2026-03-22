@@ -20,6 +20,7 @@ import time
 
 from openai import OpenAI
 
+from ai.base import KBLIClassifier
 from ai.embeddings import generate_embedding
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
@@ -94,7 +95,7 @@ Kode KBLI:"""
 
 # ── KBLIClassifierLLM ─────────────────────────────────────────────────────────
 
-class KBLIClassifierLLM:
+class KBLIClassifierLLM(KBLIClassifier):
     """
     Klasifikasi KBLI menggunakan pipeline: embedding similarity → Gemini LLM.
 

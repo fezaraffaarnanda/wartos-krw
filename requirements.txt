@@ -3,9 +3,12 @@ flask-login
 flask-bcrypt
 flask-limiter
 python-dotenv
+pydantic
+pydantic-settings
 supabase
 requests
 beautifulsoup4
 pandas
 openai
 openpyxl
+pytest

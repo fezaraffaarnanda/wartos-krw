@@ -8,6 +8,8 @@ Mapping kode KBLI sesuai KBLI 2025 (22 kategori A–V) + 2 kategori custom:
 Klasifikasi menggunakan LLM Gemini + pgvector similarity search (KBLIClassifierLLM).
 """
 
+from ai.base import KBLIClassifier
+
 # ── KBLI 2025 Mapping kode → judul ──────────────────────────────────────────
 # Sinkron dengan KBLI_KEY_MAPPING di static/js/script.js
 # 22 kategori standar (A–V) + 2 kategori custom (KE, PG)
@@ -70,7 +72,12 @@ def format_kbli_hasil(kode: str | None) -> str | None:
     return normalized
 
 
-def load_kbli_llm_classifier(supabase_client, embed_client, llm_client, llm_model: str):
+def load_kbli_llm_classifier(
+    supabase_client,
+    embed_client,
+    llm_client,
+    llm_model: str,
+) -> KBLIClassifier | None:
     """
     Buat instance KBLIClassifierLLM.
     Return instance classifier, atau None jika gagal inisialisasi.
@@ -117,7 +124,7 @@ def load_kbli_llm_classifier(supabase_client, embed_client, llm_client, llm_mode
 
 def predict_kbli_label(
     content: str | None,
-    classifier,
+    classifier: KBLIClassifier | None,
     title:  str | None = None,
 ) -> str | None:
     """

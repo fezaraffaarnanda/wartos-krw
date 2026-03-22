@@ -7,9 +7,9 @@ Provider LLM:
 
 """
 
-import os
-
 from openai import OpenAI
+
+from config.settings import get_settings
 
 # ── Konfigurasi provider ───────────────────────────────────────────────────────
 
@@ -31,7 +31,8 @@ def build_chat_client() -> tuple[OpenAI, str]:
       client, model = build_chat_client()
       response = client.chat.completions.create(model=model, messages=[...])
     """
-    gemini_key = os.getenv("GEMINI_API_KEY", "").strip()
+    settings = get_settings()
+    gemini_key = str(settings.GEMINI_API_KEY or "").strip()
     if gemini_key:
         print(f"[LLM] Provider: Gemini ({_GEMINI_MODEL})")
         return (

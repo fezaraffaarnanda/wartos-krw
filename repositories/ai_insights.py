@@ -2,61 +2,90 @@
 Repository AI insights.
 """
 
-from clients.supabase import supabase
+from typing import Any
+
+from repositories.base import BaseRepository
 
 
-def _fetch_period_articles(date_from: str, date_to: str) -> list[dict]:
-    """Ambil berita pada rentang tanggal tertentu dari Supabase."""
-    result = (
-        supabase.table("berita")
-        .select("title, date, url, content, tags, source")
-        .gte("date_parsed", date_from)
-        .lte("date_parsed", date_to)
-        .order("date_parsed", desc=True)
-        .execute()
-    )
-    return result.data or []
+class AIInsightsRepository(BaseRepository):
+    """Akses data ai_insights dan artikel periode."""
 
-
-def _load_insight_from_db(period_key: str) -> dict | None:
-    """Cek apakah ada insight tersimpan di DB untuk period_key ini."""
-    try:
+    def fetch_period_articles(self, date_from: str, date_to: str) -> list[dict[str, Any]]:
         result = (
-            supabase.table("ai_insights")
-            .select("pdrb, kemiskinan, pengangguran, sources_json, article_count, period_label, created_at")
-            .eq("period_key", period_key)
-            .order("created_at", desc=True)
-            .limit(1)
+            self._supabase.table("berita")
+            .select("title, date, url, content, tags, source")
+            .gte("date_parsed", date_from)
+            .lte("date_parsed", date_to)
+            .order("date_parsed", desc=True)
             .execute()
         )
-        if result.data:
-            row = result.data[0]
-            return {
-                "pdrb": row["pdrb"],
-                "kemiskinan": row["kemiskinan"],
-                "pengangguran": row["pengangguran"],
-                "sources": row["sources_json"] or {},
-                "article_count": row["article_count"],
-                "period_label": row["period_label"],
-                "created_at": row["created_at"],
-            }
-    except Exception as exc:
-        print(f"[AI Insights] Gagal baca dari DB: {exc}")
-    return None
+        return result.data or []
+
+    def load_latest_insight(self, period_key: str) -> dict[str, Any] | None:
+        try:
+            result = (
+                self._supabase.table("ai_insights")
+                .select(
+                    "pdrb, kemiskinan, pengangguran, "
+                    "sources_json, article_count, period_label, created_at"
+                )
+                .eq("period_key", period_key)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[AI Insights] Gagal baca dari DB: {exc}")
+            return None
+
+        if not result.data:
+            return None
+
+        row = result.data[0]
+        return {
+            "pdrb": row["pdrb"],
+            "kemiskinan": row["kemiskinan"],
+            "pengangguran": row["pengangguran"],
+            "sources": row["sources_json"] or {},
+            "article_count": row["article_count"],
+            "period_label": row["period_label"],
+            "created_at": row["created_at"],
+        }
+
+    def save_insight(
+        self,
+        period_key: str,
+        period_label: str,
+        insights: dict[str, Any],
+        article_count: int,
+    ) -> None:
+        try:
+            self._supabase.table("ai_insights").insert(
+                {
+                    "period_key": period_key,
+                    "period_label": period_label,
+                    "pdrb": insights.get("pdrb", ""),
+                    "kemiskinan": insights.get("kemiskinan", ""),
+                    "pengangguran": insights.get("pengangguran", ""),
+                    "sources_json": insights.get("sources", {}),
+                    "article_count": article_count,
+                }
+            ).execute()
+            print(f"[AI Insights] Hasil disimpan ke DB (period_key={period_key}).")
+        except Exception as exc:
+            print(f"[AI Insights] Gagal simpan ke DB: {exc}")
 
 
-def _save_insight_to_db(period_key: str, period_label: str, insights: dict, article_count: int) -> None:
+def _fetch_period_articles(date_from: str, date_to: str) -> list[dict[str, Any]]:
+    """Ambil berita pada rentang tanggal tertentu dari Supabase."""
+    return AIInsightsRepository().fetch_period_articles(date_from, date_to)
+
+
+def _load_insight_from_db(period_key: str) -> dict[str, Any] | None:
+    """Cek apakah ada insight tersimpan di DB untuk period_key ini."""
+    return AIInsightsRepository().load_latest_insight(period_key)
+
+
+def _save_insight_to_db(period_key: str, period_label: str, insights: dict[str, Any], article_count: int) -> None:
     """Simpan hasil insight ke tabel ai_insights."""
-    try:
-        supabase.table("ai_insights").insert({
-            "period_key": period_key,
-            "period_label": period_label,
-            "pdrb": insights.get("pdrb", ""),
-            "kemiskinan": insights.get("kemiskinan", ""),
-            "pengangguran": insights.get("pengangguran", ""),
-            "sources_json": insights.get("sources", {}),
-            "article_count": article_count,
-        }).execute()
-        print(f"[AI Insights] Hasil disimpan ke DB (period_key={period_key}).")
-    except Exception as exc:
-        print(f"[AI Insights] Gagal simpan ke DB: {exc}")
+    AIInsightsRepository().save_insight(period_key, period_label, insights, article_count)

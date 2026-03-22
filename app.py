@@ -1,14 +1,11 @@
-import os
 import secrets
 import threading
 from datetime import timedelta
 
-from dotenv import load_dotenv
 from flask import Flask, jsonify, redirect, request, url_for
 
-load_dotenv()
-
 from config.extensions import bcrypt, limiter, login_manager
+from config.settings import get_settings
 from routes.pages       import pages_bp
 from routes.auth        import auth_bp, enforce_must_change_password
 from routes.berita      import berita_bp
@@ -28,8 +25,11 @@ from clients.llm import build_chat_client
 def create_app() -> Flask:
     app = Flask(__name__, static_folder="static", static_url_path="/static", template_folder="templates")
 
-    _secret_key = os.getenv("FLASK_SECRET_KEY") or secrets.token_hex(32)
-    if not os.getenv("FLASK_SECRET_KEY"):
+    settings = get_settings()
+    configured_secret = str(settings.FLASK_SECRET_KEY or "").strip()
+
+    _secret_key = configured_secret or secrets.token_hex(32)
+    if not configured_secret:
         print("[PERINGATAN] FLASK_SECRET_KEY tidak ditemukan di .env — menggunakan kunci acak sementara.")
 
     app.secret_key = _secret_key

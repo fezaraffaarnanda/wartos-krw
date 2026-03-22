@@ -11,11 +11,12 @@ Arsitektur:
 - RAG Chat   → Gemini (ai/chat.py)
 """
 
-import os
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from openai import OpenAI
+
+from config.settings import get_settings
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
@@ -39,9 +40,10 @@ _BATCH_SLEEP = 0.3
 
 def _build_embedding_client() -> OpenAI:
     """Generate client ke Google Gemini embedding API menggunakan GEMINI_API_KEY."""
-    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    settings = get_settings()
+    api_key = str(settings.GEMINI_API_KEY or "").strip()
     if not api_key:
-        raise ValueError("GEMINI_API_KEY tidak ditemukan di environment variables.")
+        raise ValueError("GEMINI_API_KEY tidak ditemukan di environment/.env.")
     return OpenAI(api_key=api_key, base_url=_GEMINI_EMBED_BASE_URL)
 
 
