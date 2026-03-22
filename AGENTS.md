@@ -190,6 +190,6 @@ Minimal field artikel: `title`, `date`, `url`, `content`, `tags`, `source`.
 
 - Jangan commit `.env` atau kredensial.
 - Hindari refactor lintas modul besar tanpa permintaan eksplisit user.
-- Saat mengubah route/API, cek dampaknya ke `static/js/script.js` dan template.
+- Saat mengubah route/API, cek dampaknya ke `static/js/dashboard/`, script halaman terkait, dan template.
 - Saat menambah fitur AI, sediakan fallback aman jika `GEMINI_API_KEY` tidak tersedia.
 - Jaga kompatibilitas deployment Vercel (hindari pekerjaan berat sinkron di request path biasa).

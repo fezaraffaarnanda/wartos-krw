@@ -1,30 +1,3 @@
-const KBLI_KEY_MAPPING = {
-  A: "Pertanian, Kehutanan, dan Perikanan",
-  B: "Pertambangan dan Penggalian",
-  C: "Industri",
-  D: "Penyediaan Listrik, Gas, Uap/Air Panas, dan Udara Dingin",
-  E: "Penyediaan Air; Pengelolaan Air Limbah, Penanganan Limbah, dan Remediasi",
-  F: "Konstruksi",
-  G: "Perdagangan Besar dan Eceran",
-  H: "Transportasi dan Penyimpanan",
-  I: "Aktivitas Penyediaan Akomodasi dan Makan Minum",
-  J: "Aktivitas Penerbitan, Penyiaran, serta Produksi dan Distribusi Konten",
-  K: "Aktivitas Telekomunikasi, Pemrograman Komputer, Konsultansi, dan Jasa Informasi",
-  L: "Aktivitas Keuangan dan Asuransi",
-  M: "Aktivitas Real Estat",
-  N: "Aktivitas Profesional, Ilmiah, dan Teknis",
-  O: "Aktivitas Administratif dan Penunjang Usaha",
-  P: "Administrasi Pemerintahan dan Pertahanan, Serta Jaminan Sosial Wajib",
-  Q: "Pendidikan",
-  R: "Aktivitas Kesehatan Manusia dan Aktivitas Sosial",
-  S: "Kesenian, Olahraga, dan Rekreasi",
-  T: "Aktivitas Jasa Lainnya",
-  U: "Aktivitas Rumah Tangga sebagai Pemberi Kerja",
-  V: "Aktivitas Badan Internasional dan Badan Ekstra Internasional Lainnya",
-  KE: "Kemiskinan",
-  PG: "Pengangguran",
-};
-
 document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initAppShell === "function") {
     initAppShell();
@@ -179,10 +152,4 @@ function renderClassification(kbliRaw, aktivitasRaw) {
 function showError(msg) {
   document.getElementById("errorMsg").textContent = msg;
   document.getElementById("errorState").classList.remove("is-hidden");
-}
-
-function escapeHtml(str) {
-  const div = document.createElement("div");
-  div.textContent = str;
-  return div.innerHTML;
 }
