@@ -15,71 +15,91 @@
     <link rel="icon" href="../static/favicon.png">
 </head>
 
-<body class="login-body">
-    <div class="login-wrapper">
-        <!-- Card -->
-        <div class="login-card">
-            <!-- Brand -->
-            <div class="login-brand">
-                <img src="../static/bps.svg" alt="BPS Logo" height="56">
-                <div class="login-brand-text">
-                    <h1>KABARE</h1>
-                    <p>Kanal Berita & Rekomendasi Ekonomi</p>
-                </div>
-            </div>
+<body class="login-body login-body-split">
+    <div class="login-wrapper login-wrapper-split">
+        <div class="login-shell">
+            <section class="login-showcase" aria-label="Informasi aplikasi KABARE">
+                <div class="login-showcase-glow login-showcase-glow-top"></div>
+                <div class="login-showcase-glow login-showcase-glow-bottom"></div>
 
-            <div class="login-divider"></div>
+                <div class="login-showcase-inner">
+                    <div class="login-showcase-brand">
+                        <span class="login-showcase-badge">BPS Kabupaten Tegal</span>
+                        <div class="login-showcase-wordmark">
+                            <img src="../static/bps.svg" alt="BPS Logo" height="58">
+                            <div>
+                                <p class="login-showcase-kicker">Platform Analisis Internal</p>
+                                <h1>KABARE</h1>
+                            </div>
+                        </div>
+                    </div>
 
-            <!-- Form -->
-            <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="on" novalidate>
-                <div class="form-group">
-                    <label class="form-label" for="username">Username</label>
-                    <input
-                        type="text"
-                        id="username"
-                        name="username"
-                        class="form-input"
-                        placeholder="Masukkan username"
-                        autocomplete="username"
-                        maxlength="100"
-                        required>
-                </div>
-
-                <div class="form-group">
-                    <label class="form-label" for="password">Password</label>
-                    <div class="input-password-wrapper">
-                        <input
-                            type="password"
-                            id="password"
-                            name="password"
-                            class="form-input"
-                            placeholder="Masukkan password"
-                            autocomplete="current-password"
-                            maxlength="200"
-                            required>
-                        <button type="button" class="btn-toggle-pw" onclick="togglePassword()" tabindex="-1"
-                            aria-label="Tampilkan/sembunyikan password">
-                            <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
-                                stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                        </button>
+                    <div class="login-showcase-copy">
+                        <p class="login-showcase-lead">Kanal Berita & Rekomendasi Ekonomi untuk pemantauan isu daerah secara lebih cepat, terarah, dan nyaman digunakan.</p>
+                        <div class="login-showcase-feature">
+                            <span class="login-showcase-feature-label">Fitur Utama</span>
+                            <p>Monitoring Berita, Insight Ekonomi, dan AI Chatbot</p>
+                        </div>
                     </div>
                 </div>
+            </section>
 
-                <!-- Error message -->
-                <div class="form-error is-hidden" id="loginError" role="alert" aria-live="polite"></div>
-
-                <button type="submit" class="btn-login" id="btnLogin">
-                    <span class="btn-text">Masuk</span>
-                    <span class="btn-loader" id="loginLoader"></span>
-                </button>
-
-                <div class="login-help-link-wrap">
-                    <a class="login-help-link" href="/reset-password">Lupa password? Reset via kode autentikasi admin</a>
+            <section class="login-card login-form-panel" aria-label="Form login">
+                <div class="login-panel-header">
+                    <p class="login-panel-kicker">Selamat datang</p>
+                    <h2>Masuk ke akun Anda</h2>
+                    <p class="login-panel-subtitle">Lanjutkan ke dashboard KABARE untuk memantau berita dan analisis ekonomi Kabupaten Tegal.</p>
                 </div>
-            </form>
+
+                <form id="loginForm" onsubmit="handleLogin(event)" autocomplete="on" novalidate>
+                    <div class="form-group">
+                        <label class="form-label" for="username">Username</label>
+                        <input
+                            type="text"
+                            id="username"
+                            name="username"
+                            class="form-input"
+                            placeholder="Masukkan username"
+                            autocomplete="username"
+                            maxlength="100"
+                            required>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label" for="password">Password</label>
+                        <div class="input-password-wrapper">
+                            <input
+                                type="password"
+                                id="password"
+                                name="password"
+                                class="form-input"
+                                placeholder="Masukkan password"
+                                autocomplete="current-password"
+                                maxlength="200"
+                                required>
+                            <button type="button" class="btn-toggle-pw" onclick="togglePassword()" tabindex="-1"
+                                aria-label="Tampilkan/sembunyikan password">
+                                <svg id="eyeIcon" width="18" height="18" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                                    <circle cx="12" cy="12" r="3" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-error is-hidden" id="loginError" role="alert" aria-live="polite"></div>
+
+                    <button type="submit" class="btn-login" id="btnLogin">
+                        <span class="btn-text">Masuk</span>
+                        <span class="btn-loader" id="loginLoader"></span>
+                    </button>
+
+                    <div class="login-help-link-wrap">
+                        <a class="login-help-link" href="/reset-password">Lupa password? Reset via kode autentikasi admin</a>
+                    </div>
+                </form>
+            </section>
         </div>
 
         <p class="login-footer">© 2026 KABARE - BPS Kabupaten Tegal</p>
