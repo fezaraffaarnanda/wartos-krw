@@ -70,8 +70,6 @@ function renderKbliCell(kbliStr, aktivitasStr) {
 }
 
 // Elemen tooltip floating (satu, di-append ke body saat pertama dipakai)
-let _kbliTooltipEl = null;
-let _kbliTooltipArrow = null;
 
 function _ensureKbliTooltip() {
   if (!_kbliTooltipEl) {

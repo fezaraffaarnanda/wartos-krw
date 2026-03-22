@@ -317,8 +317,6 @@ function renderChart() {
 
 // ── KBLI Chart (Top 5, 30 hari terakhir) ──────────────────────────────────────
 
-let kbliChartInstance = null;
-
 function renderKbliChart() {
   const sorted = (_overviewSummary?.top_kbli || [])
     .map((item) => [item.code, item.count]);

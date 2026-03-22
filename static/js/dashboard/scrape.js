@@ -72,14 +72,6 @@ async function fetchProgress() {
   }
 }
 
-const SOURCE_KEYS = [
-  "radartegal",
-  "panturapost",
-  "tribunjateng",
-  "kompas",
-  "setdategal",
-];
-
 function resetProgressBars() {
   document.getElementById("progressSubtitle").textContent = "Memulai...";
   SOURCE_KEYS.forEach((key) => {
