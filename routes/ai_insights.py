@@ -10,7 +10,7 @@ from time import perf_counter
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 from flask_login import login_required
 
-from core.ai_insights import (
+from ai.insights import (
     build_stream_category_context,
     extract_sources_from_markers,
     generate_insights,
@@ -20,15 +20,15 @@ from core.ai_insights import (
     _ACTOR_PROMPTS,
     _SYSTEM_PROMPT_BPS,
 )
-from core.db_helpers import (
+from repositories.ai_insights import (
     _fetch_period_articles,
     _load_insight_from_db,
     _save_insight_to_db,
-    WIB,
 )
-from core.llm_client import build_chat_client
-from core.state import _INSIGHTS_CACHE, _INSIGHTS_GENERATING
-from extensions import limiter
+from clients.llm import build_chat_client
+from state.insights import _INSIGHTS_CACHE, _INSIGHTS_GENERATING
+from config.extensions import limiter
+from utils.date import WIB
 
 ai_insights_bp = Blueprint("ai_insights", __name__)
 
@@ -88,7 +88,7 @@ def _generate_insights_worker(
     import time as _time
     print(f"[AI Insights] Worker thread dimulai untuk {period_key} ({len(articles)} artikel).")
     try:
-        from core.db import supabase as _supabase
+        from clients.supabase import supabase as _supabase
         insights = generate_insights(
             period_label    = period_label,
             date_from       = date_from,
@@ -313,7 +313,7 @@ def stream_ai_insights():
                 yield _sse_payload({"type": "done", **done_payload})
                 return
 
-            from core.db import supabase as _supabase
+            from clients.supabase import supabase as _supabase
             prepared = prepare_insight_articles(
                 period_label    = period_label,
                 date_from       = date_from,

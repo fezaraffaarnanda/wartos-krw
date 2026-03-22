@@ -8,18 +8,18 @@ import threading
 from flask import Blueprint, jsonify, request
 from flask_login import current_user, login_required
 
-from core.article_pipeline import (
+from services.article_pipeline import (
     _run_kbli_backfill,
     _scrape_sync,
     _scrape_worker,
 )
-from core.state import (
+from state.scraping import (
     _scrape_progress,
     _scrape_overall,
     _scraping_lock,
     _reset_progress,
 )
-from extensions import limiter
+from config.extensions import limiter
 
 scraping_bp = Blueprint("scraping", __name__)
 
@@ -47,7 +47,7 @@ def get_last_scrape():
       - last_scrape : timestamp terakhir scraping berjalan (dari scrape_log)
       - new_count   : jumlah berita yang masuk hari ini (sejak 00:00 WIB)
     """
-    from core.db_helpers import _fetch_last_scrape_timestamp, _count_todays_articles
+    from repositories.scrape_log import _fetch_last_scrape_timestamp, _count_todays_articles
     try:
         last_scrape = _fetch_last_scrape_timestamp()
         new_count   = _count_todays_articles()
@@ -95,7 +95,7 @@ def api_backfill_kbli():
     if current_user.role != "admin":
         return jsonify({"status": "error", "message": "Akses ditolak. Hanya admin."}), 403
 
-    from core.article_pipeline import _classifiers
+    from services.article_pipeline import _classifiers
     if _classifiers["kbli_predictor"] is None:
         return jsonify({
             "status":  "error",

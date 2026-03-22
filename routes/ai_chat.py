@@ -8,15 +8,15 @@ from time import perf_counter
 from flask import Blueprint, Response, jsonify, request, stream_with_context
 from flask_login import current_user, login_required
 
-from core.db_helpers import (
+from repositories.ai_chat import (
     _create_chat_session,
     _get_or_create_chat_session,
     _get_chat_session_owned,
     _load_chat_history,
     _save_chat_message,
 )
-from core.db import supabase
-from core.rag_chat import (
+from clients.supabase import supabase
+from ai.chat import (
     extract_followup_questions,
     finalize_citations,
     generate_rag_answer,
@@ -25,7 +25,7 @@ from core.rag_chat import (
     sanitize_answer_citation_tokens,
     stream_gemini_answer,
 )
-from extensions import limiter
+from config.extensions import limiter
 
 ai_chat_bp = Blueprint("ai_chat", __name__)
 

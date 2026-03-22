@@ -8,7 +8,7 @@ from flask import Flask, jsonify, redirect, request, url_for
 
 load_dotenv()
 
-from extensions import bcrypt, limiter, login_manager
+from config.extensions import bcrypt, limiter, login_manager
 from routes.pages       import pages_bp
 from routes.auth        import auth_bp, enforce_must_change_password
 from routes.berita      import berita_bp
@@ -17,10 +17,10 @@ from routes.ai_chat     import ai_chat_bp
 from routes.scraping    import scraping_bp
 from routes.admin       import admin_bp
 
-from core.article_pipeline import set_classifiers, _run_kbli_backfill, _run_aktivitas_backfill, _run_embedding_backfill
-from core.embeddings   import _build_embedding_client
-from core.kbli_utils   import load_kbli_llm_classifier
-from core.llm_client   import build_chat_client
+from services.article_pipeline import set_classifiers, _run_kbli_backfill, _run_aktivitas_backfill, _run_embedding_backfill
+from ai.embeddings import _build_embedding_client
+from ai.kbli import load_kbli_llm_classifier
+from clients.llm import build_chat_client
 
 
 # ── App factory ────────────────────────────────────────────────────────────
@@ -75,7 +75,7 @@ app = create_app()
 
 # ── Inisialisasi classifier KBLI ───────────────────────────────────────────
 
-from core.db import supabase
+from clients.supabase import supabase
 
 _kbli_embed_client = None
 try:

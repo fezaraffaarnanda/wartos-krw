@@ -8,8 +8,8 @@ from datetime import datetime, timedelta, timezone
 from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
-from core.db import supabase
-from extensions import bcrypt
+from clients.supabase import supabase
+from config.extensions import bcrypt
 from routes.auth import (
     admin_required,
     _USERNAME_ALLOWED,

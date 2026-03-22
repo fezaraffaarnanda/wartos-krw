@@ -50,17 +50,17 @@ Perintah operasional utama:
 python app.py
 
 # Jalankan scraper per sumber (standalone)
-python -m scrapers.scrape_radartegal_bs4
-python -m scrapers.scraping_panturapost
-python -m scrapers.scrape_tribunjateng_v2
-python -m scrapers.scrape_kompas
-python -m scrapers.scraping_tegal
+python -m scrapers.radartegal
+python -m scrapers.panturapost
+python -m scrapers.tribunjateng
+python -m scrapers.kompas
+python -m scrapers.setda_tegal
 
 # Utility data/user
-python tools/create_user.py <username> <password> [role]
-python tools/backfill_kbli.py
-python tools/backfill_embeddings.py
-python tools/trigger_scrape.py --max-articles 150
+python -m scripts.users.create_user <username> <password> [role]
+python -m scripts.backfill.backfill_kbli
+python -m scripts.backfill.backfill_embeddings
+python -m scripts.scraping.trigger_scrape --max-articles 150
 ```
 
 ### Test Commands (terutama single test)
@@ -93,9 +93,14 @@ python -m unittest tests.test_something.TestClass.test_method
 
 - `app.py`: app factory, registrasi blueprint, init classifier/client, startup background thread.
 - `routes/`: endpoint per domain (`auth`, `berita`, `scraping`, `admin`, `ai_insights`, `ai_chat`, `pages`).
-- `core/`: logika pipeline artikel, state, util tanggal/tag, helper DB, client LLM/embedding.
+- `services/`: orchestration pipeline artikel dan worker scraping.
+- `ai/`: logika insight, chat, KBLI, aktivitas ekonomi, dan embedding.
+- `repositories/`: helper akses data Supabase per domain.
+- `clients/`: inisialisasi client eksternal seperti Supabase dan LLM.
+- `utils/`: utilitas umum seperti tanggal dan pembersihan tag.
+- `state/`: shared runtime state untuk scraping dan cache insight.
 - `scrapers/`: scraper per media dengan kontrak output yang konsisten.
-- `tools/`: script utilitas maintenance dan backfill.
+- `scripts/`: script utilitas maintenance, backfill, scraping, dan user management.
 
 ## Kontrak Penting
 
@@ -112,14 +117,14 @@ Minimal field artikel: `title`, `date`, `url`, `content`, `tags`, `source`.
 
 ### Date Handling
 
-- Semua tanggal dinormalisasi via `core/utils.py` (`normalize_date`).
+- Semua tanggal dinormalisasi via `utils/date.py` (`normalize_date`).
 - Format target: `DD MMMM YYYY, HH:MM WIB`.
 - Simpan versi ISO menggunakan `parse_date_to_iso()` ke kolom `date_parsed`.
 
 ### Duplicate & Concurrency
 
 - Duplicate dicegah berbasis URL (`_fetch_existing_urls` + UNIQUE `berita.url`).
-- Shared state scraping berada di `core/state.py`.
+- Shared state scraping berada di `state/scraping.py`.
 - Gunakan `_scraping_lock` untuk mencegah scrape paralel yang bentrok.
 - Endpoint `/api/scrape` mendukung dual auth: session admin dan bearer `CRON_SECRET`.
 

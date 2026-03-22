@@ -8,8 +8,8 @@ from typing import Any, cast
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
-from core.db import supabase
-from core.db_helpers import BERITA_EXPORT_COLUMNS, BERITA_LIST_COLUMNS
+from clients.supabase import supabase
+from repositories.berita import BERITA_EXPORT_COLUMNS, BERITA_LIST_COLUMNS
 
 berita_bp = Blueprint("berita", __name__)
 

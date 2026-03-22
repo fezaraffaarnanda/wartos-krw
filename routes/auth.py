@@ -14,8 +14,8 @@ from flask_login import (
     login_required, login_user, logout_user,
 )
 
-from core.db import supabase
-from extensions import bcrypt, limiter, login_manager
+from clients.supabase import supabase
+from config.extensions import bcrypt, limiter, login_manager
 
 auth_bp = Blueprint("auth", __name__)
 
