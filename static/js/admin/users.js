@@ -1,10 +1,12 @@
 let currentMe = null;
 let usersData = [];
+let adminDialogResolver = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initAppShell === "function") {
     initAppShell();
   }
+  initDialogModal();
   bindEvents();
   await loadMe();
   await loadUsers();
@@ -150,7 +152,15 @@ async function onCreateUser(e) {
 }
 
 async function deleteUser(userId, username) {
-  if (!confirm(`Yakin ingin menghapus pengguna '${username}'?`)) return;
+  const confirmed = await showDialog({
+    title: "Hapus Pengguna?",
+    message: `Pengguna '${username}' akan dihapus permanen. Tindakan ini tidak bisa dibatalkan.`,
+    confirmText: "Ya, Hapus",
+    cancelText: "Batal",
+    showCancel: true,
+    danger: true,
+  });
+  if (!confirmed) return;
 
   try {
     const res = await fetch(`/api/admin/users/${userId}`, {
@@ -158,18 +168,33 @@ async function deleteUser(userId, username) {
     });
     const json = await res.json();
     if (!res.ok || json.status !== "ok") {
-      alert(json.message || "Gagal menghapus pengguna.");
+      await showDialog({
+        title: "Gagal Menghapus",
+        message: json.message || "Gagal menghapus pengguna.",
+        confirmText: "Tutup",
+      });
       return;
     }
     await loadUsers();
     setCreateMessage(json.message || "Pengguna berhasil dihapus.", "success");
   } catch (_) {
-    alert("Gagal terhubung ke server.");
+    await showDialog({
+      title: "Koneksi Gagal",
+      message: "Gagal terhubung ke server.",
+      confirmText: "Tutup",
+    });
   }
 }
 
 async function generateCode(userId, username) {
-  if (!confirm(`Generate kode autentikasi baru untuk '${username}'? Kode lama akan tidak berlaku.`)) {
+  const confirmed = await showDialog({
+    title: "Generate Kode Baru?",
+    message: `Kode autentikasi baru untuk '${username}' akan dibuat dan kode lama otomatis tidak berlaku.`,
+    confirmText: "Generate",
+    cancelText: "Batal",
+    showCancel: true,
+  });
+  if (!confirmed) {
     return;
   }
 
@@ -179,14 +204,89 @@ async function generateCode(userId, username) {
     });
     const json = await res.json();
     if (!res.ok || json.status !== "ok") {
-      alert(json.message || "Gagal membuat kode autentikasi.");
+      await showDialog({
+        title: "Gagal Generate Kode",
+        message: json.message || "Gagal membuat kode autentikasi.",
+        confirmText: "Tutup",
+      });
       return;
     }
     showCodeModal(json.username || username, json.code || "", json.expires_at || "");
     await loadUsers();
   } catch (_) {
-    alert("Gagal terhubung ke server.");
+    await showDialog({
+      title: "Koneksi Gagal",
+      message: "Gagal terhubung ke server.",
+      confirmText: "Tutup",
+    });
   }
+}
+
+function getDialogElements() {
+  return {
+    backdrop: document.getElementById("adminDialogBackdrop"),
+    title: document.getElementById("adminDialogTitle"),
+    message: document.getElementById("adminDialogMessage"),
+    cancelBtn: document.getElementById("adminDialogCancelBtn"),
+    confirmBtn: document.getElementById("adminDialogConfirmBtn"),
+  };
+}
+
+function initDialogModal() {
+  const { backdrop, cancelBtn, confirmBtn } = getDialogElements();
+  if (!backdrop || backdrop.dataset.init === "1") return;
+
+  const close = (result) => {
+    backdrop.classList.remove("open");
+    document.body.style.overflow = "";
+    const resolver = adminDialogResolver;
+    adminDialogResolver = null;
+    if (resolver) resolver(result);
+  };
+
+  cancelBtn?.addEventListener("click", () => close(false));
+  confirmBtn?.addEventListener("click", () => close(true));
+  backdrop.addEventListener("click", (e) => {
+    if (e.target === backdrop) close(false);
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && backdrop.classList.contains("open")) {
+      close(false);
+    }
+  });
+
+  backdrop.dataset.init = "1";
+}
+
+function showDialog({
+  title = "Informasi",
+  message = "",
+  confirmText = "Oke",
+  cancelText = "Batal",
+  showCancel = false,
+  danger = false,
+} = {}) {
+  const { backdrop, title: titleEl, message: messageEl, cancelBtn, confirmBtn } = getDialogElements();
+  if (!backdrop || !titleEl || !messageEl || !confirmBtn) {
+    return Promise.resolve(false);
+  }
+
+  titleEl.textContent = title;
+  messageEl.textContent = message;
+  confirmBtn.textContent = confirmText;
+  confirmBtn.classList.toggle("warn", danger);
+
+  if (cancelBtn) {
+    cancelBtn.textContent = cancelText;
+    cancelBtn.style.display = showCancel ? "" : "none";
+  }
+
+  backdrop.classList.add("open");
+  document.body.style.overflow = "hidden";
+
+  return new Promise((resolve) => {
+    adminDialogResolver = resolve;
+  });
 }
 
 function showPasswordModal(username, password) {
@@ -214,11 +314,19 @@ async function copySecret(inputId) {
   if (!text) return;
   try {
     await navigator.clipboard.writeText(text);
-    alert("Berhasil disalin.");
+    await showDialog({
+      title: "Berhasil Disalin",
+      message: "Teks berhasil disalin ke clipboard.",
+      confirmText: "Oke",
+    });
   } catch (_) {
     input.select();
     document.execCommand("copy");
-    alert("Berhasil disalin.");
+    await showDialog({
+      title: "Berhasil Disalin",
+      message: "Teks berhasil disalin ke clipboard.",
+      confirmText: "Oke",
+    });
   }
 }
 

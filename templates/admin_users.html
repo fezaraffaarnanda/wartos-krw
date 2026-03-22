@@ -201,6 +201,30 @@
         </div>
     </div>
 
+    <!-- Modal: Dialog konfirmasi / alert admin -->
+    <div class="admin-modal-backdrop" id="adminDialogBackdrop" role="dialog" aria-modal="true" aria-labelledby="adminDialogTitle">
+        <div class="admin-modal admin-dialog-modal">
+            <div class="admin-dialog-head">
+                <div class="admin-dialog-icon" aria-hidden="true">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <path d="M12 8v4" />
+                        <path d="M12 16h.01" />
+                    </svg>
+                </div>
+                <div>
+                    <h3 id="adminDialogTitle">Informasi</h3>
+                    <p id="adminDialogMessage">Pesan dialog.</p>
+                </div>
+            </div>
+
+            <div class="modal-actions admin-dialog-actions">
+                <button class="btn-admin ghost" type="button" id="adminDialogCancelBtn">Batal</button>
+                <button class="btn-admin" type="button" id="adminDialogConfirmBtn">Oke</button>
+            </div>
+        </div>
+    </div>
+
             <script src="../static/js/layout/shell.js"></script>
             <script src="../static/js/shared/html.js"></script>
             <script src="../static/js/admin/users.js"></script>

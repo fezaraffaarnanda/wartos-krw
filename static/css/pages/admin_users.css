@@ -352,6 +352,41 @@
   line-height: 1.5;
 }
 
+.admin-dialog-modal {
+  width: min(440px, 100%);
+}
+
+.admin-dialog-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.admin-dialog-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 12px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #fff2df 0%, #ffe4bf 100%);
+  color: var(--accent);
+  border: 1px solid var(--orange-200);
+  flex-shrink: 0;
+}
+
+.admin-dialog-head h3 {
+  margin: 0;
+}
+
+.admin-dialog-head p {
+  margin-top: 4px;
+}
+
+.admin-dialog-actions {
+  margin-top: 18px;
+}
+
 .secret-box {
   margin-top: 14px;
   border: 1px solid var(--border);
