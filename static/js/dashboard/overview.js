@@ -134,11 +134,9 @@ async function loadUserInfo() {
       const guideUserCard = document.getElementById("guideUserCard");
       const guideAdminCard = document.getElementById("guideAdminCard");
 
-      // Admin: sembunyikan info bar (sudah ada di scrape card)
-      // Non-admin: sembunyikan scrape section
+      // Info ringkasan scraping tetap tampil di overview untuk semua role.
+      // Non-admin hanya tidak mendapat akses ke scrape section.
       if (json.role === "admin") {
-        const infoBar = document.getElementById("scrapeInfoBar");
-        if (infoBar) infoBar.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
         if (guideAdminCard) guideAdminCard.style.display = "block";
         if (guideUserCard) guideUserCard.style.display = "none";

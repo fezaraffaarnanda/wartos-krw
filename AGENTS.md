@@ -1,195 +1,177 @@
 # AGENTS.md
 
-Panduan ini ditujukan untuk coding agent yang bekerja di repository ini.
-Tujuan utamanya: menjaga konsistensi arsitektur Flask, alur scraping, dan gaya kode yang sudah ada.
+Panduan ini ditujukan untuk agent coding yang bekerja di repo ini.
+Fokus utamanya: menjaga konsistensi arsitektur Flask + Supabase + scraper + vanilla JS,
+serta menghindari technical debt saat menambah fitur atau refactor.
 
-## Project Overview
-
-- Aplikasi Flask untuk scraping berita wilayah Tegal dari beberapa sumber:
-  Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal.
-- Data disimpan ke Supabase Postgres (tanpa ORM), terutama pada tabel `berita`, `scrape_log`, dan `users`.
-- Fitur AI meliputi insight indikator, klasifikasi KBLI, aktivitas ekonomi, embedding, dan AI chat.
-- Teks user-facing, pesan API, log, komentar, dan docstring menggunakan Bahasa Indonesia.
+## Project Summary
+- Aplikasi Flask untuk pemantauan berita ekonomi lokal Kabupaten Tegal.
+- Sumber berita: Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal.
+- Backend memakai Supabase Postgres via Python client, tanpa ORM.
+- Fitur AI: KBLI, aktivitas ekonomi, embedding, AI insights, AI chat.
+- Frontend memakai HTML template, CSS, dan vanilla JS modular di `static/js/`.
 
 ## Rule Files Discovery
-
-Hasil pengecekan file aturan tambahan:
-
-- `.cursorrules`: tidak ditemukan.
-- `.cursor/rules/`: tidak ditemukan.
-- `.github/copilot-instructions.md`: tidak ditemukan.
-
-Karena tidak ada rule file lain, ikuti AGENTS.md ini dan pola dari kode existing.
+- `.cursorrules`: tidak ada
+- `.cursor/rules/`: tidak ada
+- `.github/copilot-instructions.md`: tidak ada
+- Ikuti file ini dan pola kode existing sebagai source of truth.
 
 ## Environment Setup
-
 ```bash
 python -m venv venv
-source venv/bin/activate              # macOS/Linux
-# venv\Scripts\activate              # Windows
+source venv/bin/activate
 pip install -r requirements.txt
 ```
 
-Variabel `.env` minimum:
-
+Variabel `.env` yang umum dipakai:
 - `SUPABASE_URL`
 - `SUPABASE_KEY`
 - `FLASK_SECRET_KEY`
 - `CRON_SECRET`
-- `GEMINI_API_KEY` (wajib untuk fitur AI, opsional untuk boot dasar)
+- `GEMINI_API_KEY`
 
 ## Build / Run / Lint / Test Commands
+Repo ini belum punya tool build formal, config linter formal, atau suite test bawaan.
+File seperti `pyproject.toml`, `pytest.ini`, `tox.ini`, `.flake8`, `.pylintrc`, `package.json` tidak ditemukan.
 
-Repository ini saat ini **tidak memiliki** tool build formal, linter wajib, atau test suite bawaan.
-File seperti `pyproject.toml`, `pytest.ini`, `tox.ini`, `.flake8`, `.pylintrc` tidak ditemukan.
-
-Perintah operasional utama:
-
+### Run app
 ```bash
-# Jalankan aplikasi Flask (dev)
 python app.py
+```
 
-# Jalankan scraper per sumber (standalone)
+### Run scrapers
+```bash
 python -m scrapers.radartegal
 python -m scrapers.panturapost
 python -m scrapers.tribunjateng
 python -m scrapers.kompas
 python -m scrapers.setda_tegal
+```
 
-# Utility data/user
+### Run operational scripts
+```bash
 python -m scripts.users.create_user <username> <password> [role]
 python -m scripts.backfill.backfill_kbli
 python -m scripts.backfill.backfill_embeddings
 python -m scripts.scraping.trigger_scrape --max-articles 150
+python -m scripts.reference_data.build_kbli_embeddings
+python -m scripts.maintenance.clean_tags_db
 ```
 
-### Test Commands (terutama single test)
-
-- Belum ada file test bawaan (`test_*.py` / `*_test.py` tidak ditemukan).
-- Jika menambahkan test, gunakan konvensi ini:
-
+### Smoke checks
 ```bash
-# Semua test (pytest)
+python -m compileall .
+node --check static/js/dashboard/bootstrap.js
+node --check static/js/auth/login.js
+```
+
+### Test commands
+Belum ada test aktif. Jika agent menambah test, default gunakan `pytest`.
+```bash
 python -m pytest
-
-# Satu file test
 python -m pytest tests/test_something.py
-
-# Single test case (penting)
 python -m pytest tests/test_something.py::test_case_name
+python -m pytest tests/test_something.py -k partial_name
 ```
 
-Jika menggunakan `unittest`:
-
+Alternatif `unittest`:
 ```bash
-# Semua unittest
 python -m unittest discover -s tests -p "test_*.py"
-
-# Single unittest
-python -m unittest tests.test_something.TestClass.test_method
+python -m unittest tests.test_module.TestClass.test_method
 ```
 
-## Arsitektur Singkat
+## Repository Layout
+- `app.py`: bootstrap Flask app dan init startup.
+- `routes/`: endpoint HTTP per domain.
+- `services/`: orchestration aplikasi dan pipeline artikel.
+- `ai/`: logic AI, embedding, KBLI, aktivitas, insight, chat.
+- `repositories/`: akses data Supabase per domain.
+- `clients/`: client eksternal seperti Supabase dan LLM.
+- `config/`: Flask extensions dan bootstrap config.
+- `utils/`: helper Python kecil dan murni.
+- `state/`: shared runtime state.
+- `scrapers/`: scraper per sumber berita.
+- `scripts/`: utility CLI dan backfill.
+- `static/js/`: JS frontend modular per domain.
+- `templates/`: halaman HTML Flask.
 
-- `app.py`: app factory, registrasi blueprint, init classifier/client, startup background thread.
-- `routes/`: endpoint per domain (`auth`, `berita`, `scraping`, `admin`, `ai_insights`, `ai_chat`, `pages`).
-- `services/`: orchestration pipeline artikel dan worker scraping.
-- `ai/`: logika insight, chat, KBLI, aktivitas ekonomi, dan embedding.
-- `repositories/`: helper akses data Supabase per domain.
-- `clients/`: inisialisasi client eksternal seperti Supabase dan LLM.
-- `utils/`: utilitas umum seperti tanggal dan pembersihan tag.
-- `state/`: shared runtime state untuk scraping dan cache insight.
-- `scrapers/`: scraper per media dengan kontrak output yang konsisten.
-- `scripts/`: script utilitas maintenance, backfill, scraping, dan user management.
+## Core Contracts
 
-## Kontrak Penting
-
-### Scraper Contract
-
-Semua module scraper wajib menyediakan:
-
+### Scraper contract
+Setiap scraper wajib mempertahankan kontrak berikut:
 ```python
 def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]:
     ...
 ```
+Minimal field hasil artikel: `title`, `date`, `url`, `content`, `tags`, `source`.
 
-Minimal field artikel: `title`, `date`, `url`, `content`, `tags`, `source`.
+### API response contract
+- sukses: `{"status": "ok", ...}`
+- gagal: `{"status": "error", "message": "..."}`
 
-### Date Handling
+### Date contract
+- Format tampilan target: `DD MMMM YYYY, HH:MM WIB`
+- Normalisasi tanggal Python ada di `utils/date.py`
+- Frontend parsing tanggal harus tetap kompatibel dengan format itu.
 
-- Semua tanggal dinormalisasi via `utils/date.py` (`normalize_date`).
-- Format target: `DD MMMM YYYY, HH:MM WIB`.
-- Simpan versi ISO menggunakan `parse_date_to_iso()` ke kolom `date_parsed`.
-
-### Duplicate & Concurrency
-
-- Duplicate dicegah berbasis URL (`_fetch_existing_urls` + UNIQUE `berita.url`).
-- Shared state scraping berada di `state/scraping.py`.
-- Gunakan `_scraping_lock` untuk mencegah scrape paralel yang bentrok.
-- Endpoint `/api/scrape` mendukung dual auth: session admin dan bearer `CRON_SECRET`.
-
-## Code Style Guidelines
-
-### Language & Messaging
-
-- Semua teks user-facing, log, komentar, dan docstring harus Bahasa Indonesia.
-- Error autentikasi harus generik (jangan bocorkan detail kredensial yang salah).
+## Python Style Guide
 
 ### Imports
-
-- Urutan import: standard library -> third-party -> local.
-- Pisahkan grup import dengan satu baris kosong.
-- Untuk import panjang di Flask route/module, gunakan multi-line import bertanda kurung.
+- Urutan import: standard library -> third-party -> local
+- Pisahkan tiap grup import dengan satu baris kosong
+- Gunakan multi-line import bertanda kurung untuk import panjang
 
 ### Formatting
+- Indent 4 spasi, tanpa tab
+- Target line length sekitar 100 karakter
+- Gunakan trailing comma pada struktur multiline
+- Pertahankan comment section yang memang membantu navigasi file
 
-- Indent 4 spasi, tanpa tab.
-- Soft line length sekitar 100 karakter.
-- Pertahankan gaya section header existing:
-  `# ── Nama Section ─────────────────────────`
-- Gunakan trailing comma pada struktur multiline.
-- Alignment spasi antar assignment boleh dipakai jika konsisten dalam blok yang sama.
+### Types
+- Gunakan type hints pada fungsi penting, terutama service, repository, scraper, helper shared
+- Pakai syntax modern Python 3.10+: `X | Y`, `list[str]`, `dict[str, Any]`
 
-### Naming Conventions
+### Naming
+- fungsi/variabel: `snake_case`
+- class: `PascalCase`
+- konstanta: `UPPER_SNAKE_CASE`
+- helper internal/private: prefix `_`
+- nama file/folder harus berbasis domain/tujuan, hindari `misc`, `helpers`, `new`, `v2`
 
-- Fungsi/variabel: `snake_case`.
-- Class: `PascalCase`.
-- Konstanta module-level: `UPPER_SNAKE_CASE`.
-- Helper private/internal: prefix underscore (`_helper_name`).
-- Regex compiled di module-level mengikuti pola `_UPPER_SNAKE_CASE`.
+### Error handling
+- Tangani boundary I/O dengan `try/except Exception`
+- Gunakan log sederhana dengan prefix jelas, mis. `[SCRAPE]`, `[AUTH]`, `[AI]`
+- Error ke user harus ringkas dan aman; jangan bocorkan detail sensitif
+- Operasi non-kritis boleh fail-soft, operasi kritis harus return error eksplisit
 
-### Typing
+## Frontend JavaScript Style
+- Pertahankan modularisasi per domain di `static/js/`
+- Shared helper hanya untuk logic yang benar-benar dipakai lintas halaman
+- fungsi/variabel: `camelCase`
+- konstanta module-level: `UPPER_SNAKE_CASE`
+- helper internal boleh prefix `_`
+- Jangan ubah nama fungsi global yang masih dipakai inline HTML tanpa update template
+- Jangan ubah urutan load script di template secara sembarangan
+- Jika memecah file JS, pastikan state shared tidak terduplikasi
 
-- Gunakan type hints pada signature fungsi penting (publik/internal).
-- Gunakan syntax union modern `X | Y` (Python 3.10+), bukan `Optional[X]`.
-- Gunakan generic builtin (`list[dict]`, `set[str]`) dibanding typing legacy.
+## Database / Data Guidance
+- Gunakan Supabase Python client fluent API, bukan ORM tambahan
+- Jangan ubah schema database dari runtime code
+- Perubahan schema harus lewat migration SQL terpisah
+- Jika menambah field artikel, sinkronkan pipeline insert, export, AI, dan frontend
 
-### Error Handling
+## Scraper Guidance
+- Gunakan `requests` + `BeautifulSoup` sesuai pola existing
+- Gunakan header browser-like dan retry/delay yang masuk akal
+- Filter boilerplate konten dengan regex dan cleaning per baris
+- Jaga mode standalone scraper tetap bisa dijalankan dengan `python -m ...`
 
-- Tangani boundary I/O (HTTP scraper, DB, client AI) dengan `try/except Exception`.
-- Log sederhana dengan `print` dan prefix tag (contoh: `[SCRAPE]`, `[DB ERROR]`, `[AUTH]`).
-- Response API Flask konsisten:
-  - sukses: `{"status": "ok", ...}`
-  - gagal: `{"status": "error", "message": "..."}` + HTTP status relevan
-- Operasi non-kritis boleh fail-soft; operasi kritis wajib return error eksplisit.
-
-### Data & DB
-
-- Gunakan Supabase Python client fluent API untuk query DB.
-- Jangan ubah schema dari runtime code; lakukan melalui migration SQL terpisah.
-- Jika menambah field artikel, pastikan kompatibel dengan insert pipeline + backfill.
-
-### Scraper Conventions
-
-- Gunakan `requests` + `BeautifulSoup` dengan header browser-like.
-- Terapkan retry/backoff + delay acak antar request.
-- Bersihkan boilerplate konten dengan regex + filter per baris.
-- Pertahankan mode standalone tiap scraper (`if __name__ == "__main__":`).
-
-## Operational Notes
-
-- Jangan commit `.env` atau kredensial.
-- Hindari refactor lintas modul besar tanpa permintaan eksplisit user.
-- Saat mengubah route/API, cek dampaknya ke `static/js/dashboard/`, script halaman terkait, dan template.
-- Saat menambah fitur AI, sediakan fallback aman jika `GEMINI_API_KEY` tidak tersedia.
-- Jaga kompatibilitas deployment Vercel (hindari pekerjaan berat sinkron di request path biasa).
+## Working Rules for Agents
+- Bahasa untuk teks user-facing, log, komentar, dan docstring: Bahasa Indonesia
+- Jangan commit `.env`, token, kredensial, atau data sensitif
+- Jangan ubah behavior UI/API/output tanpa permintaan eksplisit user
+- Untuk refactor besar, prioritaskan perubahan bertahap dan backward-compatible
+- Sebelum menghapus file lama, pastikan semua template/import sudah pindah ke path baru
+- Saat mengubah route/API, cek dampaknya ke `static/js/dashboard/`, script halaman terkait, dan template
+- Setelah perubahan Python atau JS, lakukan minimal satu smoke check yang relevan
