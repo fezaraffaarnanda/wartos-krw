@@ -82,6 +82,7 @@ function renderArticle(d) {
   }
 
   renderClassification(d.kbli, d.aktivitas_ekonomi);
+  renderArchiveStatus(d.is_archived, d.archived_at);
 
   const bodyEl = document.getElementById("articleBody");
   const paragraphs = (d.content || "Isi berita tidak tersedia.")
@@ -147,6 +148,39 @@ function renderClassification(kbliRaw, aktivitasRaw) {
   if (hasContent) {
     section.classList.remove("is-hidden");
   }
+}
+
+function renderArchiveStatus(isArchived, archivedAt) {
+  const row = document.getElementById("articleStatusRow");
+  const badge = document.getElementById("articleStatusBadge");
+  const note = document.getElementById("articleStatusNote");
+  if (!row || !badge || !note) return;
+
+  row.classList.remove("is-hidden");
+  badge.className = `article-status-chip ${isArchived ? "archived" : "active"}`;
+  badge.textContent = isArchived ? "Diarsipkan" : "Aktif";
+
+  if (isArchived && archivedAt) {
+    const formatted = formatArchiveDate(archivedAt);
+    note.textContent = formatted
+      ? `Berita ini sedang disembunyikan dari tabel utama sejak ${formatted}.`
+      : "Berita ini sedang disembunyikan dari tabel utama.";
+    return;
+  }
+
+  note.textContent = "Berita ini tampil di tabel utama dashboard.";
+}
+
+function formatArchiveDate(value) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleString("id-ID", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function showError(msg) {

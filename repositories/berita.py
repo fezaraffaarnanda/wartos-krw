@@ -2,15 +2,18 @@
 Repository berita.
 """
 
+from datetime import datetime, timezone
 from typing import Any
 
 from repositories.base import BaseRepository
 
 BERITA_LIST_COLUMNS = (
-    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, created_at"
+    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, "
+    "created_at, is_archived, archived_at"
 )
 BERITA_EXPORT_COLUMNS = (
-    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, content"
+    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, content, "
+    "is_archived, archived_at"
 )
 
 
@@ -29,6 +32,7 @@ class BeritaRepository(BaseRepository):
         sort_desc: bool,
         page: int,
         per_page: int,
+        archive_status: str = "active",
     ) -> dict[str, Any]:
         start = (page - 1) * per_page
         end = start + per_page - 1
@@ -45,6 +49,7 @@ class BeritaRepository(BaseRepository):
             date_to=date_to,
             kbli_code=kbli_code,
             aktivitas_code=aktivitas_code,
+            archive_status=archive_status,
         )
         result = query.range(start, end).execute()
 
@@ -61,6 +66,7 @@ class BeritaRepository(BaseRepository):
         date_to: str,
         kbli_code: str,
         aktivitas_code: str,
+        archive_status: str = "active",
     ) -> list[dict[str, Any]]:
         query = self._supabase.table("berita").select(BERITA_EXPORT_COLUMNS).order(
             "date_parsed", desc=True, nullsfirst=False
@@ -72,9 +78,56 @@ class BeritaRepository(BaseRepository):
             date_to=date_to,
             kbli_code=kbli_code,
             aktivitas_code=aktivitas_code,
+            archive_status=archive_status,
         )
         result = query.execute()
         return result.data or []
+
+    def set_archive_status(self, berita_id: int, *, is_archived: bool) -> dict[str, Any] | None:
+        archived_at = datetime.now(timezone.utc).isoformat() if is_archived else None
+
+        try:
+            result = (
+                self._supabase.table("berita")
+                .update(
+                    {
+                        "is_archived": is_archived,
+                        "archived_at": archived_at,
+                    }
+                )
+                .eq("id", berita_id)
+                .select("id, is_archived, archived_at")
+                .single()
+                .execute()
+            )
+            return result.data
+        except Exception:
+            return None
+
+    def update_classification(
+        self,
+        berita_id: int,
+        *,
+        kbli: str,
+        aktivitas_ekonomi: str,
+    ) -> dict[str, Any] | None:
+        try:
+            result = (
+                self._supabase.table("berita")
+                .update(
+                    {
+                        "kbli": kbli,
+                        "aktivitas_ekonomi": aktivitas_ekonomi,
+                    }
+                )
+                .eq("id", berita_id)
+                .select("id, kbli, aktivitas_ekonomi")
+                .single()
+                .execute()
+            )
+            return result.data
+        except Exception:
+            return None
 
     def get_berita_by_id(self, berita_id: int) -> dict[str, Any] | None:
         try:
@@ -93,6 +146,7 @@ class BeritaRepository(BaseRepository):
         result = (
             self._supabase.table("berita")
             .select("id, date, date_parsed, tags, kbli")
+            .eq("is_archived", False)
             .gte("date_parsed", cutoff)
             .order("date_parsed", desc=True, nullsfirst=False)
             .execute()
@@ -100,13 +154,19 @@ class BeritaRepository(BaseRepository):
         return result.data or []
 
     def list_filter_option_rows(self) -> list[dict[str, Any]]:
-        result = self._supabase.table("berita").select("kbli, aktivitas_ekonomi").execute()
+        result = (
+            self._supabase.table("berita")
+            .select("kbli, aktivitas_ekonomi")
+            .eq("is_archived", False)
+            .execute()
+        )
         return result.data or []
 
     def list_year_rows(self) -> list[dict[str, Any]]:
         result = (
             self._supabase.table("berita")
             .select("date_parsed")
+            .eq("is_archived", False)
             .not_.is_("date_parsed", "null")
             .execute()
         )
@@ -125,7 +185,13 @@ class BeritaRepository(BaseRepository):
         date_to: str,
         kbli_code: str,
         aktivitas_code: str,
+        archive_status: str,
     ) -> Any:
+        if archive_status == "archived":
+            query = query.eq("is_archived", True)
+        elif archive_status != "all":
+            query = query.eq("is_archived", False)
+
         if search:
             query = query.or_(
                 f"title.ilike.%{search}%,tags.ilike.%{search}%,kbli.ilike.%{search}%"

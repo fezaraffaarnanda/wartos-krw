@@ -5,6 +5,8 @@ Service layer untuk domain berita.
 from datetime import datetime, timedelta
 from typing import Any
 
+from ai.aktivitas import AKTIVITAS_LABELS
+from ai.kbli import format_kbli_hasil
 from repositories.berita import BeritaRepository
 from schemas.berita import BeritaFilterQuery
 
@@ -27,6 +29,7 @@ class BeritaService:
             sort_desc=sort_desc,
             page=query.page,
             per_page=query.per_page,
+            archive_status=query.archive_status,
         )
 
         total_items = int(result.get("total_items", 0))
@@ -51,6 +54,7 @@ class BeritaService:
                 "sort_dir": sort_dir,
                 "kbli_code": query.kbli_code,
                 "aktivitas_code": query.aktivitas_code,
+                "archive_status": query.archive_status,
             },
         }
 
@@ -61,8 +65,65 @@ class BeritaService:
             date_to=query.date_to,
             kbli_code=query.kbli_code,
             aktivitas_code=query.aktivitas_code,
+            archive_status=query.archive_status,
         )
         return {"status": "ok", "data": rows}
+
+    def update_archive_status(self, berita_id: int, *, is_archived: bool) -> tuple[dict[str, Any], int]:
+        if berita_id <= 0:
+            return {"status": "error", "message": "ID berita tidak valid."}, 400
+
+        berita = self._repo.get_berita_by_id(berita_id)
+        if not berita:
+            return {"status": "error", "message": "Berita tidak ditemukan."}, 404
+
+        updated = self._repo.set_archive_status(berita_id, is_archived=is_archived)
+        if not updated:
+            return {"status": "error", "message": "Gagal memperbarui status arsip."}, 500
+
+        action_label = "diarsipkan" if is_archived else "dipulihkan"
+        return {
+            "status": "ok",
+            "message": f"Berita berhasil {action_label}.",
+            "data": updated,
+        }, 200
+
+    def update_classification(
+        self,
+        berita_id: int,
+        *,
+        kbli_code: str,
+        aktivitas_code: str,
+    ) -> tuple[dict[str, Any], int]:
+        if berita_id <= 0:
+            return {"status": "error", "message": "ID berita tidak valid."}, 400
+
+        berita = self._repo.get_berita_by_id(berita_id)
+        if not berita:
+            return {"status": "error", "message": "Berita tidak ditemukan."}, 404
+
+        kbli_value = self._normalize_kbli_value(kbli_code)
+        aktivitas_value = self._normalize_aktivitas_value(aktivitas_code)
+
+        if kbli_value is None:
+            return {"status": "error", "message": "Kode KBLI tidak valid."}, 400
+
+        if aktivitas_value is None:
+            return {"status": "error", "message": "Kode aktivitas ekonomi tidak valid."}, 400
+
+        updated = self._repo.update_classification(
+            berita_id,
+            kbli=kbli_value,
+            aktivitas_ekonomi=aktivitas_value,
+        )
+        if not updated:
+            return {"status": "error", "message": "Gagal menyimpan klasifikasi."}, 500
+
+        return {
+            "status": "ok",
+            "message": "Klasifikasi berita berhasil diperbarui.",
+            "data": updated,
+        }, 200
 
     def get_dashboard_overview_summary(self) -> dict[str, Any]:
         now = datetime.now()
@@ -158,3 +219,34 @@ class BeritaService:
         if berita_id <= 0:
             return None
         return self._repo.get_berita_by_id(berita_id)
+
+    @staticmethod
+    def _normalize_kbli_value(kbli_code: str) -> str | None:
+        normalized = str(kbli_code or "").strip().upper()
+        if not normalized:
+            return None
+
+        if normalized == "TIDAK RELEVAN":
+            return "Tidak Relevan"
+
+        formatted = format_kbli_hasil(normalized)
+        return formatted if formatted and "/" in formatted else None
+
+    @staticmethod
+    def _normalize_aktivitas_value(aktivitas_code: str) -> str | None:
+        normalized = str(aktivitas_code or "").strip()
+        if not normalized:
+            return None
+
+        if normalized.lower() == "tidak relevan":
+            return "Tidak Relevan"
+
+        if not normalized.isdigit():
+            return None
+
+        nomor = int(normalized)
+        label = AKTIVITAS_LABELS.get(nomor)
+        if not label:
+            return None
+
+        return f"{nomor}/{label}"

@@ -16,6 +16,7 @@ const _tableFilterState = {
   date_to: "",
   kbli_code: "",
   aktivitas_code: "",
+  archive_status: "active",
 };
 
 const _tablePaginationState = {
@@ -99,6 +100,7 @@ const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 let _selectedKbli = "";
 let _selectedAktivitas = "";
+let _selectedArchiveStatus = "active";
 let _filterDebounce = null;
 
 let _kbliTooltipEl = null;
@@ -136,3 +138,12 @@ let _chatLoading = false;
 let _chatSessionId = "";
 let _chatModalResolver = null;
 let _chatReady = false;
+
+let _articleEditorState = {
+  beritaId: null,
+  title: "",
+  source: "",
+  kbliCode: "",
+  aktivitasCode: "",
+  isArchived: false,
+};

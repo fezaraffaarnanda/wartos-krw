@@ -15,6 +15,8 @@ _SORT_MAP = {
     "created_at": "created_at",
 }
 
+_ARCHIVE_STATUS_VALUES = {"active", "archived", "all"}
+
 
 def _safe_int(raw: str, *, default: int, min_value: int, max_value: int) -> int:
     value = str(raw or "").strip()
@@ -31,6 +33,7 @@ class BeritaFilterQuery(BaseModel):
     date_to: str = Field(default="")
     kbli_code: str = Field(default="")
     aktivitas_code: str = Field(default="")
+    archive_status: str = Field(default="active")
     page: int = Field(default=1, ge=1, le=50000)
     per_page: int = Field(default=15, ge=1, le=100)
     sort_by: str = Field(default="date_parsed")
@@ -44,6 +47,7 @@ class BeritaFilterQuery(BaseModel):
             "date_to": str(args.get("date_to", "")).strip(),
             "kbli_code": str(args.get("kbli_code", "")).strip().upper(),
             "aktivitas_code": str(args.get("aktivitas_code", "")).strip(),
+            "archive_status": _normalize_archive_status(args.get("archive_status", "active")),
             "page": _safe_int(
                 str(args.get("page", "")),
                 default=1,
@@ -66,3 +70,34 @@ class BeritaFilterQuery(BaseModel):
         sort_desc = self.sort_dir != "asc"
         normalized_dir = "desc" if sort_desc else "asc"
         return sort_col, sort_desc, normalized_dir
+
+
+class BeritaArchivePayload(BaseModel):
+    is_archived: bool = Field(default=False)
+
+    @classmethod
+    def from_body(cls, body: Mapping[str, Any]) -> "BeritaArchivePayload":
+        return cls.model_validate({
+            "is_archived": bool(body.get("is_archived", False)),
+        })
+
+
+class BeritaClassificationPayload(BaseModel):
+    kbli_code: str = Field(default="")
+    aktivitas_code: str = Field(default="")
+
+    @classmethod
+    def from_body(cls, body: Mapping[str, Any]) -> "BeritaClassificationPayload":
+        return cls.model_validate(
+            {
+                "kbli_code": str(body.get("kbli_code", "")).strip().upper(),
+                "aktivitas_code": str(body.get("aktivitas_code", "")).strip(),
+            }
+        )
+
+
+def _normalize_archive_status(raw: Any) -> str:
+    value = str(raw or "active").strip().lower()
+    if value in _ARCHIVE_STATUS_VALUES:
+        return value
+    return "active"

@@ -1141,6 +1141,10 @@ a:hover {
     width: 260px;
 }
 
+.th-actions {
+    width: 150px;
+}
+
 .data-table td {
     padding: 13px 16px;
     border-bottom: 1px solid var(--gray-100);
@@ -1177,6 +1181,13 @@ a:hover {
     line-height: 1.5;
 }
 
+.td-judul-stack {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
 .td-source {
     white-space: nowrap;
     color: var(--text-secondary);
@@ -1201,6 +1212,82 @@ a:hover {
     line-height: 1.5;
     color: var(--text-secondary);
     font-size: 0.82rem;
+}
+
+.td-actions {
+    min-width: 132px;
+}
+
+.table-action-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.table-action-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    min-height: 34px;
+    border-radius: 10px;
+    border: 1px solid transparent;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.table-action-btn.secondary {
+    background: var(--gray-100);
+    color: var(--text-primary);
+    border-color: var(--gray-200);
+}
+
+.table-action-btn.secondary:hover {
+    background: var(--gray-200);
+}
+
+.table-action-btn.warn {
+    background: var(--orange-100);
+    color: var(--orange-700);
+    border-color: var(--orange-200);
+}
+
+.table-action-btn.warn:hover {
+    background: var(--orange-200);
+}
+
+.archive-filter-group {
+    display: inline-flex;
+    align-items: center;
+    padding: 4px;
+    gap: 4px;
+    background: var(--gray-100);
+    border: 1px solid var(--gray-200);
+    border-radius: 14px;
+}
+
+.archive-filter-btn {
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 700;
+    padding: 8px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+}
+
+.archive-filter-btn:hover {
+    color: var(--text-primary);
+}
+
+.archive-filter-btn.active {
+    background: var(--white);
+    color: var(--accent);
+    box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
 }
 
 /* ── KBLI: Badge berwarna per kategori ──────────────────────────────────────── */
@@ -2267,6 +2354,42 @@ a:hover {
     margin-bottom: 4px;
 }
 
+.article-status-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 6px;
+}
+
+.article-status-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 28px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.76rem;
+    font-weight: 800;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.article-status-chip.active {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.article-status-chip.archived {
+    background: #fff7ed;
+    color: #c2410c;
+}
+
+.article-status-note {
+    color: var(--text-secondary);
+    font-size: 0.86rem;
+}
+
 /* ── Klasifikasi KBLI & Aktivitas Ekonomi ── */
 .article-classification {
     display: flex;
@@ -2326,6 +2449,158 @@ a:hover {
     font-style: italic;
 }
 
+.article-editor-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 1300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: rgba(15, 23, 42, 0.42);
+    backdrop-filter: blur(6px);
+}
+
+.article-editor-backdrop[hidden] {
+    display: none;
+}
+
+.article-editor-modal {
+    width: min(640px, 100%);
+    background: linear-gradient(180deg, #fffaf5 0%, #ffffff 100%);
+    border: 1px solid rgba(249, 115, 22, 0.14);
+    border-radius: 24px;
+    box-shadow: 0 24px 80px rgba(15, 23, 42, 0.18);
+    padding: 24px;
+}
+
+.article-editor-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+}
+
+.article-editor-eyebrow {
+    margin: 0 0 6px;
+    color: var(--accent);
+    font-size: 0.74rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.article-editor-title {
+    margin: 0;
+    font-size: 1.2rem;
+    color: var(--text-primary);
+}
+
+.article-editor-subtitle {
+    margin: 8px 0 0;
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.article-editor-close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 12px;
+    background: var(--gray-100);
+    color: var(--text-secondary);
+    cursor: pointer;
+}
+
+.article-editor-close:hover {
+    background: var(--gray-200);
+    color: var(--text-primary);
+}
+
+.article-editor-summary {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: rgba(255, 237, 213, 0.5);
+    border: 1px solid rgba(251, 146, 60, 0.18);
+}
+
+.article-editor-summary strong {
+    color: var(--text-primary);
+    line-height: 1.5;
+}
+
+.article-editor-summary span {
+    color: var(--text-secondary);
+    font-size: 0.88rem;
+}
+
+.article-editor-form {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 18px;
+}
+
+.article-editor-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.article-editor-label {
+    color: var(--text-primary);
+    font-size: 0.84rem;
+    font-weight: 700;
+}
+
+.article-editor-select {
+    width: 100%;
+    min-height: 46px;
+    border-radius: 14px;
+    border: 1px solid var(--gray-200);
+    background: var(--white);
+    color: var(--text-primary);
+    padding: 0 14px;
+    font-size: 0.92rem;
+}
+
+.article-editor-select:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px rgba(249, 115, 22, 0.12);
+}
+
+.article-editor-message {
+    min-height: 22px;
+    font-size: 0.86rem;
+    color: var(--text-secondary);
+}
+
+.article-editor-message.success {
+    color: #166534;
+}
+
+.article-editor-message.error {
+    color: #b91c1c;
+}
+
+.article-editor-message.info {
+    color: var(--accent);
+}
+
+.article-editor-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+}
+
 @media (max-width: 600px) {
     .classification-item {
         flex-direction: column;
@@ -2333,6 +2608,19 @@ a:hover {
     }
     .classification-label {
         min-width: unset;
+    }
+
+    .article-editor-modal {
+        padding: 20px;
+        border-radius: 20px;
+    }
+
+    .article-editor-actions {
+        flex-direction: column-reverse;
+    }
+
+    .article-editor-actions .chat-modal-btn {
+        width: 100%;
     }
 }
 

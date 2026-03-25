@@ -10,6 +10,7 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
     if (_tableFilterState.date_to) params.set("date_to", _tableFilterState.date_to);
     if (_selectedKbli) params.set("kbli_code", _selectedKbli);
     if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
+    if (_selectedArchiveStatus) params.set("archive_status", _selectedArchiveStatus);
 
     params.set("page", String(currentPage));
     params.set("per_page", String(_tablePaginationState.per_page));
@@ -34,6 +35,12 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
       _tablePaginationState.has_prev = Boolean(pg.has_prev);
       _tablePaginationState.has_next = Boolean(pg.has_next);
 
+      if (_tablePaginationState.page > _tablePaginationState.total_pages) {
+        currentPage = _tablePaginationState.total_pages;
+        await loadBerita();
+        return;
+      }
+
       currentPage = _tablePaginationState.page;
 
       renderTable();
@@ -48,15 +55,16 @@ function renderTable() {
   const pageData = filteredData;
 
   if (pageData.length === 0) {
+    const emptyMessage = getArchiveEmptyMessage();
     tbody.innerHTML = `
-            <tr class="empty-row"><td colspan="7">
+            <tr class="empty-row"><td colspan="8">
                 <div class="empty-state">
                     <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc"
                         stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/>
                         <polyline points="14 2 14 8 20 8"/>
                     </svg>
-                    <p>Belum ada data. Klik <strong>"Scrape Berita"</strong> untuk memulai.</p>
+                    <p>${emptyMessage}</p>
                 </div>
             </td></tr>`;
     document.getElementById("pagination").innerHTML = "";
@@ -72,16 +80,21 @@ function renderTable() {
       const source = escapeHtml(item.source || "—");
       const date = escapeHtml(item.date || "—");
       const kbli = renderKbliCell(item.kbli || "", item.aktivitas_ekonomi || "");
+      const titleBadge = item.is_archived
+        ? '<span class="article-status-chip archived">Arsip</span>'
+        : '<span class="article-status-chip active">Aktif</span>';
+      const actions = renderArticleActionButtons(item);
       const internalLink = item.id ? `/berita/${item.id}` : "#";
       const externalLink = escapeHtml(item.url || "#");
       return `
         <tr>
             <td class="td-no">${no}</td>
-            <td class="td-judul">${escapeHtml(item.title || "")}</td>
+            <td class="td-judul"><div class="td-judul-stack"><span>${escapeHtml(item.title || "")}</span>${titleBadge}</div></td>
             <td class="td-source">${source}</td>
             <td class="td-date">${date}</td>
             <td class="td-tags">${tags || "—"}</td>
             <td class="td-kbli">${kbli}</td>
+            <td class="td-actions">${actions}</td>
             <td class="td-link">
                 <div class="td-link-inner">
                     <a href="${internalLink}" class="link-btn">Buka</a>
@@ -161,6 +174,7 @@ function applyFilters() {
   _tableFilterState.date_to = date_to;
   _tableFilterState.kbli_code = _selectedKbli;
   _tableFilterState.aktivitas_code = _selectedAktivitas;
+  _tableFilterState.archive_status = _selectedArchiveStatus;
 
   // Toggle reset button visibility
   const resetBtn = document.getElementById("btnResetDate");
@@ -250,6 +264,7 @@ async function downloadExcel() {
     if (date_to) params.set("date_to", date_to);
     if (_selectedKbli) params.set("kbli_code", _selectedKbli);
     if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
+    if (_selectedArchiveStatus) params.set("archive_status", _selectedArchiveStatus);
     params.set("with_content", "1");
 
     const res = await fetch("/api/berita/export?" + params.toString());
@@ -290,4 +305,56 @@ async function downloadExcel() {
   ];
 
   XLSX.writeFile(wb, "berita_lokal_tegal.xlsx");
+}
+
+function renderArticleActionButtons(item) {
+  const beritaId = Number(item.id || 0);
+  if (!beritaId) return "—";
+
+  const isArchived = Boolean(item.is_archived);
+  const archiveLabel = isArchived ? "Pulihkan" : "Arsipkan";
+  const archiveToneClass = isArchived ? "secondary" : "warn";
+
+  return `
+    <div class="table-action-stack">
+      <button
+        type="button"
+        class="table-action-btn secondary"
+        onclick="openArticleEditorById(${beritaId})"
+      >Edit</button>
+      <button
+        type="button"
+        class="table-action-btn ${archiveToneClass}"
+        onclick="toggleArticleArchive(${beritaId}, ${isArchived ? "false" : "true"})"
+      >${archiveLabel}</button>
+    </div>
+  `;
+}
+
+function getArchiveEmptyMessage() {
+  if (_selectedArchiveStatus === "archived") {
+    return "Belum ada berita yang diarsipkan.";
+  }
+
+  if (_selectedArchiveStatus === "all") {
+    return 'Belum ada data. Klik <strong>"Scrape Berita"</strong> untuk memulai.';
+  }
+
+  return 'Belum ada berita aktif. Klik <strong>"Scrape Berita"</strong> untuk memulai atau buka filter <strong>Arsip</strong>.';
+}
+
+function getKbliCode(kbliValue) {
+  const raw = String(kbliValue || "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "tidak relevan") return "TIDAK RELEVAN";
+  const slashIndex = raw.indexOf("/");
+  return (slashIndex === -1 ? raw : raw.slice(0, slashIndex)).trim().toUpperCase();
+}
+
+function getAktivitasCode(aktivitasValue) {
+  const raw = String(aktivitasValue || "").trim();
+  if (!raw) return "";
+  if (raw.toLowerCase() === "tidak relevan") return "Tidak Relevan";
+  const slashIndex = raw.indexOf("/");
+  return (slashIndex === -1 ? raw : raw.slice(0, slashIndex)).trim();
 }

@@ -1255,6 +1255,26 @@
                 </button>
                 <div class="kbli-filter-menu" id="aktivitasFilterMenu"></div>
               </div>
+              <div class="archive-filter-group" role="group" aria-label="Filter arsip berita">
+                <button
+                  class="archive-filter-btn active"
+                  id="archiveFilterActive"
+                  type="button"
+                  onclick="selectArchiveFilter('active')"
+                >Aktif</button>
+                <button
+                  class="archive-filter-btn"
+                  id="archiveFilterArchived"
+                  type="button"
+                  onclick="selectArchiveFilter('archived')"
+                >Arsip</button>
+                <button
+                  class="archive-filter-btn"
+                  id="archiveFilterAll"
+                  type="button"
+                  onclick="selectArchiveFilter('all')"
+                >Semua</button>
+              </div>
               <button
                 class="btn-download"
                 id="btnDownload"
@@ -1297,12 +1317,13 @@
                     <span class="sort-icon" id="sort-tags">↕</span>
                   </th>
                   <th class="th-kbli">KBLI dan Aktivitas Ekonomi</th>
+                  <th class="th-actions">Aksi</th>
                   <th class="th-link">Link Berita</th>
                 </tr>
               </thead>
               <tbody id="tableBody">
                 <tr class="empty-row">
-                  <td colspan="7">
+                  <td colspan="8">
                     <div class="empty-state">
                       <svg
                         width="48"
@@ -1424,6 +1445,58 @@
       </div>
     </div>
 
+    <div class="article-editor-backdrop" id="articleEditorBackdrop" hidden>
+      <div
+        class="article-editor-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="articleEditorTitle"
+      >
+        <div class="article-editor-head">
+          <div>
+            <p class="article-editor-eyebrow">Koreksi Manual</p>
+            <h3 class="article-editor-title" id="articleEditorTitle">Edit klasifikasi berita</h3>
+            <p class="article-editor-subtitle" id="articleEditorSubtitle">Perbarui KBLI dan aktivitas ekonomi dengan pilihan yang paling sesuai.</p>
+          </div>
+          <button
+            type="button"
+            class="article-editor-close"
+            aria-label="Tutup editor"
+            onclick="closeArticleEditor()"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div class="article-editor-summary">
+          <strong id="articleEditorArticleTitle">-</strong>
+          <span id="articleEditorArticleMeta">-</span>
+        </div>
+
+        <form class="article-editor-form" id="articleEditorForm">
+          <label class="article-editor-field">
+            <span class="article-editor-label">Kategori KBLI</span>
+            <select id="articleEditorKbli" class="article-editor-select" required></select>
+          </label>
+
+          <label class="article-editor-field">
+            <span class="article-editor-label">Aktivitas Ekonomi</span>
+            <select id="articleEditorAktivitas" class="article-editor-select" required></select>
+          </label>
+
+          <div class="article-editor-message" id="articleEditorMessage" aria-live="polite"></div>
+
+          <div class="article-editor-actions">
+            <button type="button" class="chat-modal-btn secondary" onclick="closeArticleEditor()">Batal</button>
+            <button type="submit" class="chat-modal-btn primary" id="articleEditorSubmitBtn">Simpan Perubahan</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
     <!-- Footer -->
     <footer class="footer">
       <p>
@@ -1444,6 +1517,7 @@
     <script src="../static/js/dashboard/kbli_ui.js"></script>
     <script src="../static/js/dashboard/table.js"></script>
     <script src="../static/js/dashboard/table_filters.js"></script>
+    <script src="../static/js/dashboard/article_editor.js"></script>
     <script src="../static/js/dashboard/scrape.js"></script>
     <script src="../static/js/dashboard/ai_insights.js"></script>
     <script src="../static/js/dashboard/chat.js"></script>

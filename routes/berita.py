@@ -5,7 +5,7 @@ Blueprint: API data berita + data dashboard overview.
 from flask import Blueprint, jsonify, request
 from flask_login import login_required
 
-from schemas.berita import BeritaFilterQuery
+from schemas.berita import BeritaArchivePayload, BeritaClassificationPayload, BeritaFilterQuery
 from services.berita_service import BeritaService
 
 berita_bp = Blueprint("berita", __name__)
@@ -85,3 +85,36 @@ def get_berita_by_id(berita_id: int):
         return jsonify({"status": "ok", "data": row})
     except Exception:
         return jsonify({"status": "error", "message": "Berita tidak ditemukan."}), 404
+
+
+@berita_bp.route("/api/berita/<int:berita_id>/archive", methods=["PATCH"])
+@login_required
+def update_berita_archive_status(berita_id: int):
+    body = request.get_json(silent=True) or {}
+    payload = BeritaArchivePayload.from_body(body)
+
+    try:
+        response, status_code = _berita_service.update_archive_status(
+            berita_id,
+            is_archived=payload.is_archived,
+        )
+        return jsonify(response), status_code
+    except Exception:
+        return jsonify({"status": "error", "message": "Gagal memperbarui status arsip."}), 500
+
+
+@berita_bp.route("/api/berita/<int:berita_id>/classification", methods=["PATCH"])
+@login_required
+def update_berita_classification(berita_id: int):
+    body = request.get_json(silent=True) or {}
+    payload = BeritaClassificationPayload.from_body(body)
+
+    try:
+        response, status_code = _berita_service.update_classification(
+            berita_id,
+            kbli_code=payload.kbli_code,
+            aktivitas_code=payload.aktivitas_code,
+        )
+        return jsonify(response), status_code
+    except Exception:
+        return jsonify({"status": "error", "message": "Gagal memperbarui klasifikasi."}), 500
