@@ -12,11 +12,25 @@ document.addEventListener("DOMContentLoaded", async () => {
     initAppShell();
   }
 
+  if (typeof showPageLoadingOverlay === "function") {
+    showPageLoadingOverlay({
+      title: "Menyiapkan manajemen pengguna...",
+      subtitle: "Data akun dan status keamanan sedang dimuat.",
+    });
+  }
+
   initDialogModal();
   bindEvents();
   renderPendingUsernames();
-  await loadMe();
-  await loadUsers();
+
+  try {
+    await loadMe();
+    await loadUsers();
+  } finally {
+    if (typeof hidePageLoadingOverlay === "function") {
+      hidePageLoadingOverlay();
+    }
+  }
 });
 
 const bindEvents = () => {

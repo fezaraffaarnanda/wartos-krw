@@ -10,6 +10,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field
 
+# pemisahnya adalah spasi atau koma
 _USERNAME_SPLIT_PATTERN = re.compile(r"[\s,]+")
 
 

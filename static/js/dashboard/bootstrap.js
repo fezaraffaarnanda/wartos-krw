@@ -1,22 +1,36 @@
-// ── Init ──────────────────────────────────────────────────────────────────────
-
-document.addEventListener("DOMContentLoaded", async () => {
+async function bootstrapDashboard() {
   if (typeof initAppShell === "function") {
     initAppShell();
   }
-  startRealtimeClock();
-  await loadUserInfo();
-  initSidebarNavigation();
-  initFloatingChat();
-  _filterOptions = buildMasterFilterOptions();
-  await loadOverviewSummary();
-  await loadBerita();
-  loadLastScrape();
-  loadAIInsights();
-  animateCards();
-  startAutoRefresh();
 
-  // ── Tooltip KBLI: delegasi event ke dokumen ───────────────────────────────
+  if (typeof showPageLoadingOverlay === "function") {
+    showPageLoadingOverlay({
+      title: "Menyiapkan dashboard...",
+      subtitle: "Ringkasan dan data berita sedang dimuat agar tampilan siap digunakan.",
+    });
+  }
+
+  startRealtimeClock();
+
+  try {
+    await loadUserInfo();
+    initSidebarNavigation();
+    initFloatingChat();
+    _filterOptions = buildMasterFilterOptions();
+    await loadOverviewSummary();
+    await loadBerita();
+    loadLastScrape();
+    loadAIInsights();
+    animateCards();
+    startAutoRefresh();
+  } finally {
+    if (typeof hidePageLoadingOverlay === "function") {
+      hidePageLoadingOverlay();
+    }
+  }
+}
+
+function registerDashboardTooltipDelegation() {
   document.addEventListener("mouseover", (e) => {
     const btn = e.target.closest(".kbli-info-btn");
     if (btn) _showKbliTooltip(btn);
@@ -25,4 +39,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     const btn = e.target.closest(".kbli-info-btn");
     if (btn) _hideKbliTooltip();
   });
+}
+
+document.addEventListener("DOMContentLoaded", async () => {
+  registerDashboardTooltipDelegation();
+  await bootstrapDashboard();
 });

@@ -2,13 +2,33 @@ document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initAppShell === "function") {
     initAppShell();
   }
-  await loadUserInfo();
-  const id = getArticleId();
-  if (!id) {
-    showError("ID berita tidak valid.");
-    return;
+
+  if (typeof showPageLoadingOverlay === "function") {
+    showPageLoadingOverlay({
+      title: "Memuat detail berita...",
+      subtitle: "Konten lengkap dan metadata berita sedang disiapkan.",
+    });
   }
-  await loadArticle(id);
+
+  const loadingState = document.getElementById("loadingState");
+  if (loadingState && typeof getPageLoadingOverlay === "function" && getPageLoadingOverlay()) {
+    loadingState.classList.add("is-hidden");
+  }
+
+  try {
+    await loadUserInfo();
+    const id = getArticleId();
+    if (!id) {
+      showError("ID berita tidak valid.");
+      return;
+    }
+
+    await loadArticle(id);
+  } finally {
+    if (typeof hidePageLoadingOverlay === "function") {
+      hidePageLoadingOverlay();
+    }
+  }
 });
 
 function getArticleId() {
@@ -42,8 +62,6 @@ async function loadArticle(id) {
     }
     const json = await res.json();
 
-    document.getElementById("loadingState").style.display = "none";
-
     if (json.status !== "ok" || !json.data) {
       showError(json.message || "Berita tidak ditemukan.");
       return;
@@ -51,7 +69,6 @@ async function loadArticle(id) {
 
     renderArticle(json.data);
   } catch (_) {
-    document.getElementById("loadingState").style.display = "none";
     showError("Gagal memuat berita. Coba lagi nanti.");
   }
 }

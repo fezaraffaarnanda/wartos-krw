@@ -1,3 +1,36 @@
+const PAGE_LOADING_OVERLAY_ID = "pageLoadingOverlay";
+
+function getPageLoadingOverlay() {
+  return document.getElementById(PAGE_LOADING_OVERLAY_ID);
+}
+
+function setPageLoadingOverlayVisible(isVisible, options = {}) {
+  const overlay = getPageLoadingOverlay();
+  if (!overlay) return;
+
+  const title = overlay.querySelector(".page-loading-title");
+  const subtitle = overlay.querySelector(".page-loading-subtitle");
+
+  if (typeof options.title === "string" && title) {
+    title.textContent = options.title;
+  }
+
+  if (typeof options.subtitle === "string" && subtitle) {
+    subtitle.textContent = options.subtitle;
+  }
+
+  overlay.hidden = !isVisible;
+  document.body.setAttribute("aria-busy", isVisible ? "true" : "false");
+}
+
+function showPageLoadingOverlay(options = {}) {
+  setPageLoadingOverlayVisible(true, options);
+}
+
+function hidePageLoadingOverlay() {
+  setPageLoadingOverlayVisible(false);
+}
+
 function initAppShell({ storageKey = "bps_sidebar_collapsed" } = {}) {
   const shell = document.getElementById("appShell");
   const toggle = document.getElementById("sidebarToggle");
