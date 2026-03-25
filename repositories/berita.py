@@ -89,19 +89,17 @@ class BeritaRepository(BaseRepository):
         try:
             result = (
                 self._supabase.table("berita")
-                .update(
-                    {
-                        "is_archived": is_archived,
-                        "archived_at": archived_at,
-                    }
-                )
+                .update({
+                    "is_archived": is_archived,
+                    "archived_at": archived_at,
+                })
                 .eq("id", berita_id)
-                .select("id, is_archived, archived_at")
-                .single()
                 .execute()
             )
-            return result.data
-        except Exception:
+            rows = result.data or []
+            return rows[0] if rows else None
+        except Exception as exc:
+            print(f"[BERITA] Gagal update status arsip berita {berita_id}: {exc}")
             return None
 
     def update_classification(
@@ -114,19 +112,17 @@ class BeritaRepository(BaseRepository):
         try:
             result = (
                 self._supabase.table("berita")
-                .update(
-                    {
-                        "kbli": kbli,
-                        "aktivitas_ekonomi": aktivitas_ekonomi,
-                    }
-                )
+                .update({
+                    "kbli": kbli,
+                    "aktivitas_ekonomi": aktivitas_ekonomi,
+                })
                 .eq("id", berita_id)
-                .select("id, kbli, aktivitas_ekonomi")
-                .single()
                 .execute()
             )
-            return result.data
-        except Exception:
+            rows = result.data or []
+            return rows[0] if rows else None
+        except Exception as exc:
+            print(f"[BERITA] Gagal update klasifikasi berita {berita_id}: {exc}")
             return None
 
     def get_berita_by_id(self, berita_id: int) -> dict[str, Any] | None:

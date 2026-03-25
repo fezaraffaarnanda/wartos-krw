@@ -99,7 +99,8 @@ def update_berita_archive_status(berita_id: int):
             is_archived=payload.is_archived,
         )
         return jsonify(response), status_code
-    except Exception:
+    except Exception as exc:
+        print(f"[BERITA] Error endpoint archive berita {berita_id}: {exc}")
         return jsonify({"status": "error", "message": "Gagal memperbarui status arsip."}), 500
 
 
@@ -116,5 +117,6 @@ def update_berita_classification(berita_id: int):
             aktivitas_code=payload.aktivitas_code,
         )
         return jsonify(response), status_code
-    except Exception:
+    except Exception as exc:
+        print(f"[BERITA] Error endpoint klasifikasi berita {berita_id}: {exc}")
         return jsonify({"status": "error", "message": "Gagal memperbarui klasifikasi."}), 500
