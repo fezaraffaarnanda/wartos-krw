@@ -88,22 +88,30 @@
         </div>
 
         <div class="admin-grid">
-            <!-- Card kiri: create user -->
             <section class="admin-card">
                 <h2>Tambah Pengguna Baru</h2>
-                <p>Admin menentukan username, sistem otomatis membuat password sementara yang kuat.</p>
+                <p>Admin dapat menambahkan satu atau beberapa username sekaligus. Pisahkan dengan koma atau spasi untuk membuat chip username.</p>
 
-                <form id="createUserForm" class="admin-inline-form" novalidate>
-                    <input
-                        id="usernameInput"
-                        class="admin-input"
-                        type="text"
-                        maxlength="50"
-                        placeholder="Contoh: bps_tegal_01"
-                        autocomplete="off"
-                        required
-                    />
-                    <button type="submit" class="btn-admin" id="btnCreateUser">Buat User</button>
+                <form id="createUserForm" class="admin-create-form" novalidate>
+                    <div class="admin-field-group">
+                        <label class="admin-field-label" for="usernameInput">Username pengguna</label>
+                        <div class="admin-token-input" id="usernameTokenInput">
+                            <div class="admin-token-list" id="usernameTokenList" aria-live="polite"></div>
+                            <input
+                                id="usernameInput"
+                                class="admin-token-field"
+                                type="text"
+                                maxlength="50"
+                                placeholder="Ketik username lalu tekan koma atau spasi"
+                                autocomplete="off"
+                            />
+                        </div>
+                    </div>
+
+                    <div class="admin-form-actions">
+                        <span class="admin-queue-text" id="queuedUserText">Belum ada username yang siap dibuat.</span>
+                        <button type="submit" class="btn-admin" id="btnCreateUser">Buat Pengguna</button>
+                    </div>
                 </form>
                 <div class="admin-hint">Aturan username: 3–50 karakter, hanya huruf, angka, underscore (_), atau dash (-).</div>
                 <div id="createUserMessage" class="admin-message"></div>
@@ -114,7 +122,6 @@
                 </div>
             </section>
 
-            <!-- Card kanan: daftar user -->
             <section class="admin-card">
                 <h2>Daftar Pengguna</h2>
                 <p>Kelola user aktif dan bantu reset password jika user lupa kredensial terbaru.</p>
@@ -150,22 +157,12 @@
     <div class="admin-modal-backdrop" id="passwordModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
         <div class="admin-modal">
             <h3 id="passwordModalTitle">Pengguna Berhasil Dibuat</h3>
-            <p>Password sementara hanya ditampilkan <strong>sekali</strong>. Simpan dan berikan ke user secara aman.</p>
+            <p id="passwordModalDescription">Password sementara hanya ditampilkan <strong>sekali</strong>. Simpan dan berikan ke user secara aman.</p>
 
-            <div class="secret-box">
-                <div class="secret-label">Username</div>
-                <input id="newUsernameValue" class="secret-value" readonly />
-            </div>
-
-            <div class="secret-box">
-                <div class="secret-label">Password Sementara</div>
-                <div class="secret-row">
-                    <input id="newPasswordValue" class="secret-value" readonly />
-                    <button class="btn-admin ghost" type="button" onclick="copySecret('newPasswordValue')">Salin</button>
-                </div>
-            </div>
+            <div class="secret-list" id="createdUsersList"></div>
 
             <div class="modal-actions">
+                <button class="btn-admin ghost" type="button" id="copyAllCredentialsBtn" onclick="copyAllCredentials()">Salin Semua</button>
                 <button class="btn-admin" type="button" onclick="closeModal('passwordModalBackdrop')">Tutup</button>
             </div>
         </div>

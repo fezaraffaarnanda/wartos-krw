@@ -6,7 +6,7 @@ from flask import Blueprint, jsonify, request
 from flask_login import current_user
 
 from routes.auth import admin_required
-from schemas.admin import CreateUserPayload
+from schemas.admin import CreateUsersPayload
 from services.admin_service import AdminService
 
 admin_bp = Blueprint("admin", __name__)
@@ -29,10 +29,10 @@ def api_create_user():
     User wajib ganti password saat pertama login.
     """
     body = request.get_json(silent=True) or {}
-    data = CreateUserPayload.from_body(body)
+    data = CreateUsersPayload.from_body(body)
 
-    payload, status_code = _admin_service.create_user(
-        username=data.username,
+    payload, status_code = _admin_service.create_users(
+        usernames=data.usernames,
         actor_username=current_user.username,
     )
     return jsonify(payload), status_code

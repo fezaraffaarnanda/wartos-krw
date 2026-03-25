@@ -2,6 +2,8 @@
 Service layer untuk fitur admin users.
 """
 
+from __future__ import annotations
+
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
@@ -49,52 +51,66 @@ class AdminService:
             return {"status": "error", "message": "Gagal mengambil data pengguna."}, 500
 
     def create_user(self, username: str, actor_username: str) -> tuple[dict[str, Any], int]:
-        if len(username) < 3:
-            return {"status": "error", "message": "Username minimal 3 karakter."}, 400
-        if not all(char in USERNAME_ALLOWED for char in username):
+        return self.create_users([username], actor_username)
+
+    def create_users(self, usernames: list[str], actor_username: str) -> tuple[dict[str, Any], int]:
+        if not usernames:
+            return {"status": "error", "message": "Minimal satu username harus diisi."}, 400
+
+        created_users: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        for username in usernames:
+            result, status_code = self._create_single_user(username=username, actor_username=actor_username)
+
+            if status_code in {200, 201} and result.get("status") == "ok":
+                created_users.append(result["user"])
+                continue
+
+            errors.append(
+                {
+                    "username": username,
+                    "message": result.get("message", "Gagal membuat pengguna."),
+                    "status_code": status_code,
+                }
+            )
+
+        if not created_users:
+            if len(errors) == 1:
+                error = errors[0]
+                return {
+                    "status": "error",
+                    "message": error["message"],
+                    "errors": [self._serialize_error(error)],
+                }, int(error["status_code"])
+
             return {
                 "status": "error",
-                "message": (
-                    "Username hanya boleh mengandung huruf, angka, underscore (_), atau dash (-)."
-                ),
+                "message": "Tidak ada pengguna yang berhasil dibuat.",
+                "errors": [self._serialize_error(error) for error in errors],
             }, 400
 
-        try:
-            if self._users.username_exists(username):
-                return {"status": "error", "message": "Username sudah digunakan."}, 409
-        except Exception as exc:
-            print(f"[ADMIN] Gagal cek duplikat username: {exc}")
-            return {"status": "error", "message": "Gagal memvalidasi username."}, 500
-
-        temp_password = generate_temp_password()
-        password_hash = self._bcrypt.generate_password_hash(temp_password, rounds=12).decode("utf-8")
-
-        try:
-            new_user = self._users.create_user(
-                username=username,
-                password_hash=password_hash,
-                role="user",
-                must_change_password=True,
-            )
-        except Exception as exc:
-            print(f"[ADMIN] Gagal buat user: {exc}")
-            return {"status": "error", "message": "Gagal membuat pengguna."}, 500
-
-        if not new_user:
-            return {"status": "error", "message": "Gagal membuat pengguna."}, 500
-
-        print(f"[ADMIN] User baru dibuat: {username} (oleh {actor_username})")
-        return {
+        payload: dict[str, Any] = {
             "status": "ok",
-            "user": {
-                "id": new_user.get("id"),
-                "username": username,
-                "role": "user",
-                "must_change_password": True,
-                "created_at": new_user.get("created_at"),
-            },
-            "generated_password": temp_password,
-        }, 201
+            "message": self._build_create_users_message(
+                created_count=len(created_users),
+                failed_count=len(errors),
+            ),
+            "users": created_users,
+            "created_count": len(created_users),
+            "failed_count": len(errors),
+            "errors": [self._serialize_error(error) for error in errors],
+        }
+
+        if len(created_users) == 1 and not errors:
+            first_user = created_users[0]
+            payload["user"] = self._serialize_legacy_user(first_user)
+            payload["generated_password"] = first_user.get("generated_password", "")
+
+        if errors:
+            return payload, 200
+
+        return payload, 201
 
     def delete_user(
         self,
@@ -160,3 +176,82 @@ class AdminService:
             "code": code_plain,
             "expires_at": expires_at.strftime("%d %b %Y, %H:%M WIB"),
         }, 200
+
+    def _build_created_user(self, new_user: dict[str, Any], username: str, temp_password: str) -> dict[str, Any]:
+        return {
+            "id": new_user.get("id"),
+            "username": username,
+            "role": "user",
+            "must_change_password": True,
+            "created_at": new_user.get("created_at"),
+            "generated_password": temp_password,
+        }
+
+    def _build_create_users_message(self, *, created_count: int, failed_count: int) -> str:
+        if failed_count == 0:
+            return (
+                f"{created_count} pengguna berhasil dibuat."
+                if created_count > 1
+                else "Pengguna berhasil dibuat."
+            )
+
+        return (
+            f"{created_count} pengguna berhasil dibuat, {failed_count} username gagal diproses."
+        )
+
+    def _create_single_user(self, *, username: str, actor_username: str) -> tuple[dict[str, Any], int]:
+        validation_error = self._validate_username(username)
+        if validation_error:
+            return {"status": "error", "message": validation_error}, 400
+
+        try:
+            if self._users.username_exists(username):
+                return {"status": "error", "message": "Username sudah digunakan."}, 409
+        except Exception as exc:
+            print(f"[ADMIN] Gagal cek duplikat username {username}: {exc}")
+            return {"status": "error", "message": "Gagal memvalidasi username."}, 500
+
+        temp_password = generate_temp_password()
+        password_hash = self._bcrypt.generate_password_hash(temp_password, rounds=12).decode("utf-8")
+
+        try:
+            new_user = self._users.create_user(
+                username=username,
+                password_hash=password_hash,
+                role="user",
+                must_change_password=True,
+            )
+        except Exception as exc:
+            print(f"[ADMIN] Gagal buat user {username}: {exc}")
+            return {"status": "error", "message": "Gagal membuat pengguna."}, 500
+
+        if not new_user:
+            return {"status": "error", "message": "Gagal membuat pengguna."}, 500
+
+        print(f"[ADMIN] User baru dibuat: {username} (oleh {actor_username})")
+        return {
+            "status": "ok",
+            "user": self._build_created_user(new_user, username, temp_password),
+        }, 201
+
+    def _serialize_error(self, error: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "username": error.get("username", ""),
+            "message": error.get("message", "Gagal membuat pengguna."),
+        }
+
+    def _serialize_legacy_user(self, user: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "id": user.get("id"),
+            "username": user.get("username", ""),
+            "role": user.get("role", "user"),
+            "must_change_password": bool(user.get("must_change_password", True)),
+            "created_at": user.get("created_at"),
+        }
+
+    def _validate_username(self, username: str) -> str | None:
+        if len(username) < 3:
+            return "Username minimal 3 karakter."
+        if not all(char in USERNAME_ALLOWED for char in username):
+            return "Username hanya boleh mengandung huruf, angka, underscore (_), atau dash (-)."
+        return None
