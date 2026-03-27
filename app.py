@@ -11,6 +11,7 @@ from routes.auth        import auth_bp, enforce_must_change_password
 from routes.berita      import berita_bp
 from routes.ai_insights import ai_insights_bp
 from routes.ai_chat     import ai_chat_bp
+from routes.official_statistics import official_statistics_bp
 from routes.scraping    import scraping_bp
 from routes.admin       import admin_bp
 
@@ -54,6 +55,7 @@ def create_app() -> Flask:
     app.register_blueprint(berita_bp)
     app.register_blueprint(ai_insights_bp)
     app.register_blueprint(ai_chat_bp)
+    app.register_blueprint(official_statistics_bp)
     app.register_blueprint(scraping_bp)
     app.register_blueprint(admin_bp)
 

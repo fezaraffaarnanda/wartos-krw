@@ -293,33 +293,13 @@ def stream_ai_insights():
     def _generate_stream():
         total_start = perf_counter()
         try:
-            if not articles:
-                empty_data = {
-                    "pdrb":         "Belum ada data berita untuk periode ini.",
-                    "kemiskinan":   "Belum ada data berita untuk periode ini.",
-                    "pengangguran": "Belum ada data berita untuk periode ini.",
-                }
-                done_payload = {
-                    "status":        "ok",
-                    "cached":        False,
-                    "quarter":       period_label,
-                    "article_count": 0,
-                    "data":          empty_data,
-                    "sources":       {"pdrb": [], "kemiskinan": [], "pengangguran": []},
-                    "latency_ms":    {"total": round((perf_counter() - total_start) * 1000, 1)},
-                }
-                _INSIGHTS_CACHE[actor_period_key] = {"ts": 0.0, "data": done_payload}
-                yield _sse_payload({"type": "start", "quarter": period_label, "article_count": 0, "cached": False})
-                yield _sse_payload({"type": "done", **done_payload})
-                return
-
             from clients.supabase import supabase as _supabase
             prepared = prepare_insight_articles(
                 period_label    = period_label,
                 date_from       = date_from,
                 date_to         = date_to,
                 supabase_client = _supabase,
-                articles        = articles,
+                articles        = articles or [],
             )
 
             article_count = int(prepared.get("article_count", 0))
@@ -339,14 +319,25 @@ def stream_ai_insights():
             for cat in categories:
                 cat_articles = prepared.get(cat, []) or []
                 if not cat_articles:
+                    official_text = str(
+                        ((prepared.get("official_statistics") or {}).get("topics") or {}).get(cat) or ""
+                    ).strip()
                     text = "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini."
+                    if official_text:
+                        text = f"{text}\n\n{official_text}"
                     final_data[cat]    = text
                     final_sources[cat] = []
                     yield _sse_payload({"type": "category_start", "category": cat, "source_map": []})
                     yield _sse_payload({"type": "category_done", "category": cat, "text": text, "sources": []})
                     continue
 
-                ctx        = build_stream_category_context(cat, period_label, cat_articles, actor=actor)
+                ctx        = build_stream_category_context(
+                    cat,
+                    period_label,
+                    cat_articles,
+                    actor=actor,
+                    official_statistics=prepared.get("official_statistics"),
+                )
                 source_map = ctx["source_map"]
                 yield _sse_payload({"type": "category_start", "category": cat, "source_map": source_map})
 

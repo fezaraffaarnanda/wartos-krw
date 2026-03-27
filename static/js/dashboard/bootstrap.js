@@ -15,6 +15,7 @@ async function bootstrapDashboard() {
   try {
     await loadUserInfo();
     initSidebarNavigation();
+    initOfficialStatisticsControls();
     initFloatingChat();
     _filterOptions = buildMasterFilterOptions();
     await loadOverviewSummary();

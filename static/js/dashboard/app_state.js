@@ -38,6 +38,10 @@ const VIEW_META = {
     title: "Data Berita",
     subtitle: "Tabel berita, filter, dan ekspor data",
   },
+  "official-statistics": {
+    title: "Data Official Statistic Terkini",
+    subtitle: "Visualisasi statistik resmi BPS Kabupaten Tegal per tahun",
+  },
   insight: {
     title: "Insight AI",
     subtitle: "Analisis otomatis indikator ekonomi, kemiskinan, dan pengangguran",
@@ -140,6 +144,14 @@ let _chatLoading = false;
 let _chatSessionId = "";
 let _chatModalResolver = null;
 let _chatReady = false;
+
+let _officialStatsLoading = false;
+let _officialStatsLoaded = false;
+let _officialStatsYear = "2025";
+let _officialStatsChartPdrbAdhk = null;
+let _officialStatsChartPdrbAdhb = null;
+let _officialStatsChartTptTpak = null;
+let _officialStatsChartKemiskinan = null;
 
 let _articleEditorState = {
   beritaId: null,

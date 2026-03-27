@@ -18,6 +18,11 @@ from openai import OpenAI
 
 from ai.embeddings import semantic_search
 from clients.llm import build_chat_client
+from services.official_statistics_service import (
+    detect_official_statistics_chat_topics,
+    detect_official_statistics_requested_year,
+    get_official_statistics_ai_context,
+)
 
 _MAX_QUERY_CHARS = 1200
 _MAX_DOC_SNIPPET_CHARS = 1500   # dinaikkan dari 700 agar LLM lihat lebih banyak konten
@@ -61,6 +66,7 @@ Pengguna adalah pegawai BPS yang sedang menyusun laporan atau analisis ekonomi d
 
 === ATURAN SITASI INLINE ===
 - Setiap klaim faktual yang bersumber dari berita WAJIB diakhiri marker sitasi: [S01], [S02], dst.
+- Fakta dari statistik resmi BPS boleh digunakan tanpa marker [Sxx]; marker [Sxx] hanya untuk berita.
 - Boleh lebih dari satu sitasi dalam satu kalimat: "... mengalami penurunan [S02][S05]."
 - Jangan menulis ID sitasi tanpa kurung siku (misal: S01) atau concatenated tanpa spasi (misal: S01S03).
 - Jangan buat daftar pustaka terpisah di akhir jawaban.
@@ -238,16 +244,39 @@ def _format_history(history: list[dict]) -> str:
 _HISTORY_CITATION_RE = re.compile(r"\[S\d{2}\]", re.IGNORECASE)
 
 
-def _build_user_prompt(query: str, context_text: str) -> str:
-    """Bangun user prompt berisi pertanyaan + konteks berita saja.
+def _build_official_statistics_block(query: str) -> str:
+    topics = detect_official_statistics_chat_topics(query)
+    if not topics:
+        return ""
+
+    requested_year = detect_official_statistics_requested_year(query)
+    context = get_official_statistics_ai_context(requested_year=requested_year, topics=topics)
+    topic_texts = [
+        str((context.get("topics") or {}).get(topic) or "").strip()
+        for topic in ("pdrb", "kemiskinan", "pengangguran")
+        if topic in topics
+    ]
+    topic_texts = [text for text in topic_texts if text]
+    if not topic_texts:
+        return ""
+
+    return "\n\n".join(topic_texts)
+
+
+def _build_user_prompt(query: str, context_text: str, official_statistics_text: str = "") -> str:
+    """Bangun user prompt berisi pertanyaan + konteks berita + statistik resmi.
     History percakapan TIDAK dimasukkan ke sini — dipass langsung ke LLM
     sebagai conversation turns terpisah di stream_gemini_answer().
     """
+    official_block = official_statistics_text or "(Tidak ada statistik resmi BPS tambahan untuk pertanyaan ini.)"
     return f"""Pertanyaan pengguna:
 {query}
 
 Konteks berita yang tersedia (terurut berdasarkan relevansi):
 {context_text}
+
+Konteks statistik resmi BPS (bukan berita):
+{official_block}
 
 Panduan jawaban:
 - Identifikasi penyebab atau faktor pendorong jika pertanyaan menyangkut kenaikan, penurunan, atau stagnansi suatu indikator.
@@ -255,6 +284,7 @@ Panduan jawaban:
 - Hubungkan temuan ke implikasi pada PDRB, kemiskinan, atau TPT Kabupaten Tegal jika relevan.
 - Gunakan gaya bahasa formal yang mengalir — cocok untuk dikutip langsung ke dalam laporan BPS.
 - Tandai setiap klaim faktual dari berita dengan sitasi [Sxx] sesuai daftar konteks.
+- Fakta dari statistik resmi BPS boleh digunakan tanpa marker [Sxx]. Marker [Sxx] hanya untuk fakta yang berasal dari berita.
 - Jika konteks tidak memadai, nyatakan keterbatasannya dan sarankan pertanyaan yang lebih spesifik.
 """
 
@@ -376,8 +406,9 @@ def prepare_rag_chat_context(
     docs = retrieve_context(clean_query, supabase_client)
     retrieve_ms = (perf_counter() - t0) * 1000
     context_text, cite_map = _format_context_docs(docs)
+    official_statistics_text = _build_official_statistics_block(clean_query)
 
-    if not docs:
+    if not docs and not official_statistics_text:
         return {
             "status": "blocked",
             "answer": (
@@ -389,7 +420,11 @@ def prepare_rag_chat_context(
             "retrieve_ms": retrieve_ms,
         }
 
-    user_prompt = _build_user_prompt(clean_query, context_text)
+    user_prompt = _build_user_prompt(
+        clean_query,
+        context_text,
+        official_statistics_text=official_statistics_text,
+    )
     return {
         "status":       "ok",
         "answer":       "",

@@ -55,6 +55,10 @@
             <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>
             <span class="sidebar-link-label">Data Berita</span>
           </button>
+          <button class="sidebar-link" data-view="official-statistics" type="button">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16" /><path d="M7 15V9" /><path d="M12 15V5" /><path d="M17 15v-3" /></svg>
+            <span class="sidebar-link-label">Data Official Statistic</span>
+          </button>
           <button class="sidebar-link" data-view="insight" type="button">
             <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>
             <span class="sidebar-link-label">Insight AI</span>
@@ -1412,6 +1416,86 @@
           <div class="pagination" id="pagination"></div>
         </div>
       </section>
+
+      <section class="official-stats-section app-view" data-view="official-statistics" id="officialStatsSection">
+        <div class="section-card official-stats-shell">
+          <div class="section-header official-stats-header">
+            <div>
+              <h2>Data Official Statistic Terkini</h2>
+              <p class="section-desc">
+                Empat statistik resmi BPS Kabupaten Tegal dari Web API BPS,
+                diringkas dalam visual yang ringkas, bersih, dan siap dibaca.
+              </p>
+            </div>
+
+            <div class="official-stats-toolbar">
+              <label class="official-stats-select-wrap" for="officialStatsYearSelect">
+                <span>Tahun</span>
+                <select id="officialStatsYearSelect" class="official-stats-select"></select>
+              </label>
+              <button class="official-stats-refresh" id="officialStatsRefreshBtn" type="button">
+                Refresh Data
+              </button>
+            </div>
+          </div>
+
+          <div class="official-stats-meta">
+            <span class="official-stats-status" id="officialStatsStatusText">
+              Statistik resmi BPS siap dimuat.
+            </span>
+          </div>
+
+          <div class="official-stats-grid">
+            <article class="official-stat-card">
+              <div class="official-stat-card-head">
+                <div>
+                  <p class="official-stat-card-eyebrow">PDRB</p>
+                  <h3>PDRB ADHK Lapangan Usaha</h3>
+                  <p>Struktur ekonomi atas dasar harga konstan 2010.</p>
+                </div>
+                <span class="official-stat-card-badge">ADHK</span>
+              </div>
+              <div class="official-stat-card-body" id="officialPdrbAdhkBody"></div>
+            </article>
+
+            <article class="official-stat-card">
+              <div class="official-stat-card-head">
+                <div>
+                  <p class="official-stat-card-eyebrow">PDRB</p>
+                  <h3>PDRB ADHB Lapangan Usaha</h3>
+                  <p>Struktur ekonomi atas dasar harga berlaku.</p>
+                </div>
+                <span class="official-stat-card-badge badge-blue">ADHB</span>
+              </div>
+              <div class="official-stat-card-body" id="officialPdrbAdhbBody"></div>
+            </article>
+
+            <article class="official-stat-card">
+              <div class="official-stat-card-head">
+                <div>
+                  <p class="official-stat-card-eyebrow">Ketenagakerjaan</p>
+                  <h3>TPT dan TPAK</h3>
+                  <p>Komparasi partisipasi kerja dan pengangguran menurut gender.</p>
+                </div>
+                <span class="official-stat-card-badge badge-teal">Tenaga Kerja</span>
+              </div>
+              <div class="official-stat-card-body" id="officialTptTpakBody"></div>
+            </article>
+
+            <article class="official-stat-card">
+              <div class="official-stat-card-head">
+                <div>
+                  <p class="official-stat-card-eyebrow">Kesejahteraan</p>
+                  <h3>Kemiskinan</h3>
+                  <p>Posisi Kabupaten Tegal di Eks Karesidenan Pekalongan.</p>
+                </div>
+                <span class="official-stat-card-badge badge-rose">Kemiskinan</span>
+              </div>
+              <div class="official-stat-card-body" id="officialKemiskinanBody"></div>
+            </article>
+          </div>
+        </div>
+      </section>
     </main>
 
     <section class="chat-window app-view" data-view="chat" id="chatWindow" aria-live="polite">
@@ -1446,8 +1530,8 @@
 
       <div class="chat-body" id="chatBody">
         <div class="chat-empty" id="chatEmptyState">
-          Tanyakan tren fenomena ekonomi, kemiskinan, atau pengangguran. Jawaban
-          akan menyertakan sitasi berita.
+          Tanyakan tren fenomena ekonomi, kemiskinan, pengangguran, atau data resmi BPS.
+          Jawaban akan menggabungkan sitasi berita dan statistik resmi saat relevan.
         </div>
       </div>
 
@@ -1583,6 +1667,7 @@
     <script src="../static/js/dashboard/table_filters.js"></script>
     <script src="../static/js/dashboard/article_editor.js"></script>
     <script src="../static/js/dashboard/scrape.js"></script>
+    <script src="../static/js/dashboard/official_statistics.js"></script>
     <script src="../static/js/dashboard/ai_insights.js"></script>
     <script src="../static/js/dashboard/chat.js"></script>
     <script src="../static/js/dashboard/bootstrap.js"></script>

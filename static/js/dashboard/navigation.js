@@ -50,6 +50,10 @@ function _setActiveView(view) {
       setTimeout(() => input.focus(), 80);
     }
   }
+
+  if (view === "official-statistics" && typeof _ensureOfficialStatisticsReady === "function") {
+    _ensureOfficialStatisticsReady();
+  }
 }
 
 function _viewFromHash() {

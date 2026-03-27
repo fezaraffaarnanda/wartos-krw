@@ -21,6 +21,7 @@ from openai import OpenAI
 
 from ai.embeddings import semantic_search_multi
 from clients.llm import build_chat_client
+from services.official_statistics_service import get_official_statistics_ai_context
 
 # ── Konstanta ──────────────────────────────────────────────────────────────────
 
@@ -255,6 +256,57 @@ _SYSTEM_PROMPT = _SYSTEM_PROMPT_BPS
 
 # ── Internal helpers ───────────────────────────────────────────────────────────
 
+
+def _extract_requested_year(
+    period_label: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> int | None:
+    for candidate in (date_to, date_from):
+        if candidate:
+            match = re.match(r"^(\d{4})", str(candidate))
+            if match:
+                return int(match.group(1))
+
+    label_match = re.search(r"\b(20\d{2})\b", str(period_label or ""))
+    return int(label_match.group(1)) if label_match else None
+
+
+def _load_official_statistics_context(
+    period_label: str,
+    date_from: str | None = None,
+    date_to: str | None = None,
+) -> dict:
+    requested_year = _extract_requested_year(period_label, date_from, date_to)
+    try:
+        return get_official_statistics_ai_context(
+            requested_year=requested_year,
+            topics={"pdrb", "kemiskinan", "pengangguran"},
+        )
+    except Exception as exc:
+        print(f"[AI Insights] Gagal memuat statistik resmi BPS: {exc}")
+        return {
+            "requested_year": requested_year,
+            "actual_year": None,
+            "topics": {
+                "pdrb": "",
+                "kemiskinan": "",
+                "pengangguran": "",
+            },
+            "has_data": False,
+        }
+
+
+def _build_official_statistics_prompt_block(official_statistics: dict | None, category: str) -> str:
+    if not official_statistics:
+        return "(Statistik resmi BPS tidak tersedia untuk kategori ini.)"
+
+    topic_text = str((official_statistics.get("topics") or {}).get(category) or "").strip()
+    if not topic_text:
+        return "(Statistik resmi BPS tidak tersedia untuk kategori ini.)"
+
+    return topic_text
+
 def _build_client() -> tuple[OpenAI, str]:
     """Wrapper internal — pakai build_chat_client() dari llm_client."""
     return build_chat_client()
@@ -351,11 +403,13 @@ def prepare_insight_articles(
         "pdrb": [...],
         "kemiskinan": [...],
         "pengangguran": [...],
+        "official_statistics": dict,
         "article_count": int,
       }
     """
     fallback_articles = articles or []
     semantic_results = {}
+    official_statistics = _load_official_statistics_context(period_label, date_from, date_to)
 
     use_semantic = (
         supabase_client is not None
@@ -397,6 +451,7 @@ def prepare_insight_articles(
         "pdrb": pdrb_articles,
         "kemiskinan": kemiskinan_articles,
         "pengangguran": pengangguran_articles,
+        "official_statistics": official_statistics,
         "article_count": article_count,
     }
 
@@ -406,6 +461,7 @@ def build_stream_category_context(
     period_label: str,
     category_articles: list[dict],
     actor: str = "bps",
+    official_statistics: dict | None = None,
 ) -> dict:
     """
     Bangun prompt + source map untuk streaming per kategori.
@@ -432,6 +488,7 @@ def build_stream_category_context(
     # Instruksi tambahan per aktor (diinjeksi setelah instruksi umum)
     extra_instructions = _ACTOR_EXTRA_INSTRUCTIONS.get(actor, "")
     extra_block = f"{extra_instructions}" if extra_instructions else ""
+    official_block = _build_official_statistics_prompt_block(official_statistics, category)
 
     prompt = f"""Periode analisis: {period_label}
 Kategori fokus: {label}
@@ -449,6 +506,11 @@ Format sitasi (WAJIB dipatuhi):
 - DILARANG menggabungkan kode dengan koma dalam satu kurung: [{prefix}01, {prefix}07] ← SALAH
 - DILARANG menulis angka polos tanpa huruf awalan dan kurung: "15" atau "24" ← SALAH, harus [{prefix}15] [{prefix}24]
 - DILARANG menulis "BERITA-xx" atau kode lain selain [{prefix}xx]
+- Statistik resmi BPS boleh digunakan sebagai konteks pembanding tanpa marker sitasi berita.
+- Marker [{prefix}xx] hanya WAJIB untuk fakta yang berasal dari berita.
+
+Konteks statistik resmi BPS:
+{official_block}
 
 Konteks berita {label}:
 {articles_text}
@@ -654,6 +716,7 @@ def _build_user_prompt(
     kemiskinan_articles:   list[dict],
     pengangguran_articles: list[dict],
     period_label:          str,
+    official_statistics:   dict | None = None,
 ) -> tuple[str, dict[str, dict]]:
     """
     Bangun user prompt + gabungan id_map dari semua kategori.
@@ -669,10 +732,16 @@ def _build_user_prompt(
     merged.update(kemiskinan_map)
     merged.update(pengangguran_map)
 
+    pdrb_stats_text = _build_official_statistics_prompt_block(official_statistics, "pdrb")
+    kemiskinan_stats_text = _build_official_statistics_prompt_block(official_statistics, "kemiskinan")
+    pengangguran_stats_text = _build_official_statistics_prompt_block(official_statistics, "pengangguran")
+
     prompt = f"""Berikut adalah berita lokal dari Kabupaten Tegal pada periode {period_label}.
 Setiap berita diberi kode unik: P01, P02 (PDRB), K01, K02 (Kemiskinan), T01, T02 (Pengangguran).
 Berita sudah diurutkan berdasarkan relevansi — yang teratas paling relevan untuk kategorinya.
 Analisis dan berikan insight untuk masing-masing kategori.
+Statistik resmi BPS boleh digunakan sebagai konteks pembanding tanpa marker sitasi berita.
+Marker [Pxx]/[Kxx]/[Txx] hanya dipakai untuk fakta yang berasal dari berita.
 
 Kembalikan HANYA JSON valid dengan format:
 {{
@@ -694,12 +763,24 @@ ATURAN SITASI INLINE:
 - Tidak perlu mengisi pdrb_source_ids, kemiskinan_source_ids, pengangguran_source_ids (opsional)
 
 ---
+### STATISTIK RESMI BPS — PDRB & Ekonomi
+{pdrb_stats_text}
+
+---
 ### BERITA — PDRB & Ekonomi
 {pdrb_text}
 
 ---
+### STATISTIK RESMI BPS — Kemiskinan & Kesejahteraan
+{kemiskinan_stats_text}
+
+---
 ### BERITA — Kemiskinan & Kesejahteraan
 {kemiskinan_text}
+
+---
+### STATISTIK RESMI BPS — Pengangguran & Ketenagakerjaan
+{pengangguran_stats_text}
 
 ---
 ### BERITA — Pengangguran & Ketenagakerjaan
@@ -808,6 +889,7 @@ def generate_insights(
     date_to:           str | None    = None,
     supabase_client                  = None,
     articles:          list[dict] | None = None,
+    official_statistics: dict | None = None,
 ) -> dict:
     """
     Analisis berita menggunakan Gemini dengan RAG (pgvector semantic search).
@@ -858,6 +940,12 @@ def generate_insights(
     else:
         print(f"[AI Insights] Semantic search tidak tersedia - fallback ke keyword filter.")
 
+    resolved_official_statistics = official_statistics or _load_official_statistics_context(
+        period_label,
+        date_from,
+        date_to,
+    )
+
     # ── Pilih artikel per kategori (semantic + fallback) ──────────────────────
     pdrb_articles         = _select_articles_for_category("pdrb",         semantic_results, fallback_articles)
     kemiskinan_articles   = _select_articles_for_category("kemiskinan",   semantic_results, fallback_articles)
@@ -866,11 +954,25 @@ def generate_insights(
     # Cek apakah semua kategori kosong
     total_articles = len(pdrb_articles) + len(kemiskinan_articles) + len(pengangguran_articles)
     if total_articles == 0:
-        empty = "Tidak ada data berita untuk periode ini."
+        official_texts = {
+            "pdrb": _build_official_statistics_prompt_block(resolved_official_statistics, "pdrb"),
+            "kemiskinan": _build_official_statistics_prompt_block(resolved_official_statistics, "kemiskinan"),
+            "pengangguran": _build_official_statistics_prompt_block(resolved_official_statistics, "pengangguran"),
+        }
+
+        def _fallback_text(category: str) -> str:
+            official_text = official_texts.get(category, "")
+            if official_text and "tidak tersedia" not in official_text.lower():
+                return (
+                    "Data berita periode ini belum tersedia untuk analisis mendalam.\n\n"
+                    f"{official_text}"
+                )
+            return "Tidak ada data berita untuk periode ini."
+
         return {
-            "pdrb":         empty,
-            "kemiskinan":   empty,
-            "pengangguran": empty,
+            "pdrb":         _fallback_text("pdrb"),
+            "kemiskinan":   _fallback_text("kemiskinan"),
+            "pengangguran": _fallback_text("pengangguran"),
             "sources":      {"pdrb": [], "kemiskinan": [], "pengangguran": []},
         }
 
@@ -884,7 +986,11 @@ def generate_insights(
     # ── Build prompt dan kirim ke LLM ─────────────────────────────────────────
     client, model               = build_chat_client()
     user_prompt, id_map         = _build_user_prompt(
-        pdrb_articles, kemiskinan_articles, pengangguran_articles, period_label
+        pdrb_articles,
+        kemiskinan_articles,
+        pengangguran_articles,
+        period_label,
+        official_statistics=resolved_official_statistics,
     )
 
     print(f"[AI Insights] Mengirim konteks ke LLM ({model}) — {period_label}...")
