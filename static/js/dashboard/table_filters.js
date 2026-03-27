@@ -200,3 +200,100 @@ document.addEventListener("click", (e) => {
     if (btn)  btn.classList.remove("open");
   }
 });
+
+// ── PDRB Pengeluaran Filter ───────────────────────────────────────────────────
+
+function populatePdrbPengeluaranFilter() {
+  const menu = document.getElementById("pdrbPengeluaranFilterMenu");
+  if (!menu) return;
+
+  const codeArr = _filterOptions.pdrb_pengeluaran_codes || [];
+  if (codeArr.length === 0) {
+    menu.innerHTML = `<div style="padding:10px 14px;font-size:0.8rem;color:var(--text-muted)">Belum ada data PDRB pengeluaran</div>`;
+    return;
+  }
+
+  let html = `<button class="kbli-filter-clear" onclick="clearPdrbPengeluaranFilter()">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        Tampilkan Semua
+    </button>
+    <div class="kbli-filter-sep"></div>`;
+
+  codeArr.forEach((code) => {
+    const label = PDRB_PENGELUARAN_LABELS[code] || code;
+    const parentCode = getPdrbPengeluaranParentCode(code);
+    const parentLabel = PDRB_PENGELUARAN_PARENT_LABELS[parentCode] || parentCode;
+    const selectedCls = _selectedPdrbPengeluaran === code ? " selected" : "";
+    html += `<button class="kbli-filter-option${selectedCls}" onclick="selectPdrbPengeluaranFilter('${code}')">
+            <span class="pdrb-filter-code">${escapeHtml(code)}</span>
+            <span>${escapeHtml(label)}${parentLabel ? ` <small>(${escapeHtml(parentLabel)})</small>` : ""}</span>
+        </button>`;
+  });
+
+  menu.innerHTML = html;
+}
+
+function togglePdrbPengeluaranFilter() {
+  const menu = document.getElementById("pdrbPengeluaranFilterMenu");
+  const btn = document.getElementById("pdrbPengeluaranFilterBtn");
+  if (!menu || !btn) return;
+  const isOpen = menu.classList.contains("open");
+  if (isOpen) {
+    menu.classList.remove("open");
+    btn.classList.remove("open");
+  } else {
+    populatePdrbPengeluaranFilter();
+    menu.classList.add("open");
+    btn.classList.add("open");
+  }
+}
+
+function selectPdrbPengeluaranFilter(code) {
+  _selectedPdrbPengeluaran = code;
+  _tableFilterState.pdrb_pengeluaran_code = code;
+  const btn = document.getElementById("pdrbPengeluaranFilterBtn");
+  const dot = document.getElementById("pdrbPengeluaranFilterDot");
+  const label = document.getElementById("pdrbPengeluaranFilterLabel");
+  if (label) label.textContent = code;
+  if (dot) dot.style.display = "";
+  if (btn) btn.classList.add("active");
+
+  const menu = document.getElementById("pdrbPengeluaranFilterMenu");
+  if (menu) {
+    menu.classList.remove("open");
+    btn?.classList.remove("open");
+  }
+
+  currentPage = 1;
+  applyFilters();
+}
+
+function clearPdrbPengeluaranFilter() {
+  _selectedPdrbPengeluaran = "";
+  _tableFilterState.pdrb_pengeluaran_code = "";
+  const btn = document.getElementById("pdrbPengeluaranFilterBtn");
+  const dot = document.getElementById("pdrbPengeluaranFilterDot");
+  const label = document.getElementById("pdrbPengeluaranFilterLabel");
+  if (label) label.textContent = "Filter PDRB Pengeluaran";
+  if (dot) dot.style.display = "none";
+  if (btn) btn.classList.remove("active");
+
+  const menu = document.getElementById("pdrbPengeluaranFilterMenu");
+  if (menu) {
+    menu.classList.remove("open");
+    btn?.classList.remove("open");
+  }
+
+  currentPage = 1;
+  applyFilters();
+}
+
+document.addEventListener("click", (e) => {
+  const wrapper = document.getElementById("pdrbPengeluaranFilterWrapper");
+  if (wrapper && !wrapper.contains(e.target)) {
+    const menu = document.getElementById("pdrbPengeluaranFilterMenu");
+    const btn = document.getElementById("pdrbPengeluaranFilterBtn");
+    if (menu) menu.classList.remove("open");
+    if (btn) btn.classList.remove("open");
+  }
+});

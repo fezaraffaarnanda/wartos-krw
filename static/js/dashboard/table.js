@@ -10,6 +10,9 @@ async function loadBerita({ search = "", date_from = "", date_to = "" } = {}) {
     if (_tableFilterState.date_to) params.set("date_to", _tableFilterState.date_to);
     if (_selectedKbli) params.set("kbli_code", _selectedKbli);
     if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
+    if (_selectedPdrbPengeluaran) {
+      params.set("pdrb_pengeluaran_code", _selectedPdrbPengeluaran);
+    }
     if (_selectedArchiveStatus) params.set("archive_status", _selectedArchiveStatus);
 
     params.set("page", String(currentPage));
@@ -79,7 +82,11 @@ function renderTable() {
         .join(" ");
       const source = escapeHtml(item.source || "—");
       const date = escapeHtml(item.date || "—");
-      const kbli = renderKbliCell(item.kbli || "", item.aktivitas_ekonomi || "");
+      const kbli = renderKbliCell(
+        item.kbli || "",
+        item.aktivitas_ekonomi || "",
+        item.pdrb_pengeluaran || "",
+      );
       const titleBadge = item.is_archived
         ? '<span class="article-status-chip archived">Arsip</span>'
         : '<span class="article-status-chip active">Aktif</span>';
@@ -174,6 +181,7 @@ function applyFilters() {
   _tableFilterState.date_to = date_to;
   _tableFilterState.kbli_code = _selectedKbli;
   _tableFilterState.aktivitas_code = _selectedAktivitas;
+  _tableFilterState.pdrb_pengeluaran_code = _selectedPdrbPengeluaran;
   _tableFilterState.archive_status = _selectedArchiveStatus;
 
   // Toggle reset button visibility
@@ -264,6 +272,9 @@ async function downloadExcel() {
     if (date_to) params.set("date_to", date_to);
     if (_selectedKbli) params.set("kbli_code", _selectedKbli);
     if (_selectedAktivitas) params.set("aktivitas_code", _selectedAktivitas);
+    if (_selectedPdrbPengeluaran) {
+      params.set("pdrb_pengeluaran_code", _selectedPdrbPengeluaran);
+    }
     if (_selectedArchiveStatus) params.set("archive_status", _selectedArchiveStatus);
     params.set("with_content", "1");
 
@@ -285,6 +296,7 @@ async function downloadExcel() {
     Tags: item.tags || "",
     KBLI: item.kbli || "",
     "Aktivitas Ekonomi": item.aktivitas_ekonomi || "",
+    "PDRB Pengeluaran": item.pdrb_pengeluaran || "",
     Konten: item.content || "",
   }));
 
@@ -301,6 +313,7 @@ async function downloadExcel() {
     { wch: 30 }, // Tags
     { wch: 48 }, // KBLI
     { wch: 55 }, // Aktivitas Ekonomi
+    { wch: 58 }, // PDRB Pengeluaran
     { wch: 80 }, // Konten
   ];
 
@@ -354,7 +367,17 @@ function getKbliCode(kbliValue) {
 function getAktivitasCode(aktivitasValue) {
   const raw = String(aktivitasValue || "").trim();
   if (!raw) return "";
+  if (raw === "—") return "—";
   if (raw.toLowerCase() === "tidak relevan") return "Tidak Relevan";
   const slashIndex = raw.indexOf("/");
   return (slashIndex === -1 ? raw : raw.slice(0, slashIndex)).trim();
+}
+
+function getPdrbPengeluaranCode(pdrbValue) {
+  const raw = String(pdrbValue || "").trim();
+  if (!raw) return "";
+  if (raw === "—") return "—";
+  if (raw.toLowerCase() === "tidak relevan") return "Tidak Relevan";
+  const slashIndex = raw.indexOf("/");
+  return (slashIndex === -1 ? raw : raw.slice(0, slashIndex)).trim().toUpperCase();
 }

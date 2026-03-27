@@ -14,9 +14,16 @@ from routes.ai_chat     import ai_chat_bp
 from routes.scraping    import scraping_bp
 from routes.admin       import admin_bp
 
-from services.article_pipeline import set_classifiers, _run_kbli_backfill, _run_aktivitas_backfill, _run_embedding_backfill
+from services.article_pipeline import (
+    set_classifiers,
+    _run_kbli_backfill,
+    _run_aktivitas_backfill,
+    _run_embedding_backfill,
+    _run_pdrb_pengeluaran_backfill,
+)
 from ai.embeddings import _build_embedding_client
 from ai.kbli import load_kbli_llm_classifier
+from ai.pdrb_pengeluaran import load_pdrb_pengeluaran_llm_classifier
 from clients.llm import build_chat_client
 
 
@@ -94,7 +101,16 @@ _kbli_predictor = load_kbli_llm_classifier(
     supabase, _kbli_embed_client, _kbli_llm_client, _kbli_llm_model
 )
 
-set_classifiers(_kbli_predictor, _kbli_llm_client, _kbli_llm_model)
+_pdrb_pengeluaran_predictor = load_pdrb_pengeluaran_llm_classifier(
+    supabase, _kbli_embed_client, _kbli_llm_client, _kbli_llm_model
+)
+
+set_classifiers(
+    _kbli_predictor,
+    _kbli_llm_client,
+    _kbli_llm_model,
+    _pdrb_pengeluaran_predictor,
+)
 
 
 # ── Startup background threads ─────────────────────────────────────────────
@@ -117,6 +133,13 @@ if _kbli_llm_client is not None:
         target=_run_aktivitas_backfill,
         daemon=True,
         name="aktivitas-backfill-startup",
+    ).start()
+
+if _pdrb_pengeluaran_predictor is not None:
+    threading.Thread(
+        target=_run_pdrb_pengeluaran_backfill,
+        daemon=True,
+        name="pdrb-pengeluaran-backfill-startup",
     ).start()
 
 

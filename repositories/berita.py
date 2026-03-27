@@ -8,11 +8,11 @@ from typing import Any
 from repositories.base import BaseRepository
 
 BERITA_LIST_COLUMNS = (
-    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, "
+    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, pdrb_pengeluaran, source, "
     "created_at, is_archived, archived_at"
 )
 BERITA_EXPORT_COLUMNS = (
-    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, source, content, "
+    "id, title, date, date_parsed, url, tags, kbli, aktivitas_ekonomi, pdrb_pengeluaran, source, content, "
     "is_archived, archived_at"
 )
 
@@ -28,6 +28,7 @@ class BeritaRepository(BaseRepository):
         date_to: str,
         kbli_code: str,
         aktivitas_code: str,
+        pdrb_pengeluaran_code: str,
         sort_col: str,
         sort_desc: bool,
         page: int,
@@ -49,6 +50,7 @@ class BeritaRepository(BaseRepository):
             date_to=date_to,
             kbli_code=kbli_code,
             aktivitas_code=aktivitas_code,
+            pdrb_pengeluaran_code=pdrb_pengeluaran_code,
             archive_status=archive_status,
         )
         result = query.range(start, end).execute()
@@ -66,6 +68,7 @@ class BeritaRepository(BaseRepository):
         date_to: str,
         kbli_code: str,
         aktivitas_code: str,
+        pdrb_pengeluaran_code: str,
         archive_status: str = "active",
     ) -> list[dict[str, Any]]:
         query = self._supabase.table("berita").select(BERITA_EXPORT_COLUMNS).order(
@@ -78,6 +81,7 @@ class BeritaRepository(BaseRepository):
             date_to=date_to,
             kbli_code=kbli_code,
             aktivitas_code=aktivitas_code,
+            pdrb_pengeluaran_code=pdrb_pengeluaran_code,
             archive_status=archive_status,
         )
         result = query.execute()
@@ -108,6 +112,7 @@ class BeritaRepository(BaseRepository):
         *,
         kbli: str,
         aktivitas_ekonomi: str,
+        pdrb_pengeluaran: str,
     ) -> dict[str, Any] | None:
         try:
             result = (
@@ -115,6 +120,7 @@ class BeritaRepository(BaseRepository):
                 .update({
                     "kbli": kbli,
                     "aktivitas_ekonomi": aktivitas_ekonomi,
+                    "pdrb_pengeluaran": pdrb_pengeluaran,
                 })
                 .eq("id", berita_id)
                 .execute()
@@ -152,7 +158,7 @@ class BeritaRepository(BaseRepository):
     def list_filter_option_rows(self) -> list[dict[str, Any]]:
         result = (
             self._supabase.table("berita")
-            .select("kbli, aktivitas_ekonomi")
+            .select("kbli, aktivitas_ekonomi, pdrb_pengeluaran")
             .eq("is_archived", False)
             .execute()
         )
@@ -181,6 +187,7 @@ class BeritaRepository(BaseRepository):
         date_to: str,
         kbli_code: str,
         aktivitas_code: str,
+        pdrb_pengeluaran_code: str,
         archive_status: str,
     ) -> Any:
         if archive_status == "archived":
@@ -190,7 +197,7 @@ class BeritaRepository(BaseRepository):
 
         if search:
             query = query.or_(
-                f"title.ilike.%{search}%,tags.ilike.%{search}%,kbli.ilike.%{search}%"
+                f"title.ilike.%{search}%,tags.ilike.%{search}%,kbli.ilike.%{search}%,pdrb_pengeluaran.ilike.%{search}%"
             )
         if date_from:
             query = query.gte("date_parsed", date_from)
@@ -200,6 +207,8 @@ class BeritaRepository(BaseRepository):
             query = query.ilike("kbli", f"{kbli_code}/%")
         if aktivitas_code:
             query = query.ilike("aktivitas_ekonomi", f"{aktivitas_code}/%")
+        if pdrb_pengeluaran_code:
+            query = query.ilike("pdrb_pengeluaran", f"{pdrb_pengeluaran_code}/%")
         return query
 
 

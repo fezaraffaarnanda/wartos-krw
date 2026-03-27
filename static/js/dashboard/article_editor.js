@@ -34,7 +34,8 @@ function initArticleEditor() {
 function populateArticleEditorOptions() {
   const kbliSelect = document.getElementById("articleEditorKbli");
   const aktivitasSelect = document.getElementById("articleEditorAktivitas");
-  if (!kbliSelect || !aktivitasSelect) return;
+  const pdrbSelect = document.getElementById("articleEditorPdrbPengeluaran");
+  if (!kbliSelect || !aktivitasSelect || !pdrbSelect) return;
 
   const kbliOptions = [
     '<option value="">Pilih kategori KBLI</option>',
@@ -46,6 +47,7 @@ function populateArticleEditorOptions() {
 
   const aktivitasOptions = [
     '<option value="">Pilih aktivitas ekonomi</option>',
+    '<option value="—">Tidak Berlaku</option>',
     '<option value="Tidak Relevan">Tidak Relevan</option>',
     ...Object.keys(AKTIVITAS_LABELS)
       .sort((a, b) => Number(a) - Number(b))
@@ -54,8 +56,26 @@ function populateArticleEditorOptions() {
       ),
   ];
 
+  const pdrbOptions = [
+    '<option value="">Pilih kategori PDRB pengeluaran</option>',
+    '<option value="—">Tidak Berlaku</option>',
+    '<option value="Tidak Relevan">Tidak Relevan</option>',
+    ...Object.keys(PDRB_PENGELUARAN_LABELS)
+      .sort(
+        (a, b) =>
+          (PDRB_PENGELUARAN_CODE_ORDER[a] || 0) -
+          (PDRB_PENGELUARAN_CODE_ORDER[b] || 0),
+      )
+      .map((code) => {
+        const parentCode = getPdrbPengeluaranParentCode(code);
+        const parentLabel = PDRB_PENGELUARAN_PARENT_LABELS[parentCode] || parentCode;
+        return `<option value="${escapeAttr(code)}">${escapeHtml(code)} — ${escapeHtml(PDRB_PENGELUARAN_LABELS[code])}${parentLabel ? ` (${escapeHtml(parentLabel)})` : ""}</option>`;
+      }),
+  ];
+
   kbliSelect.innerHTML = kbliOptions.join("");
   aktivitasSelect.innerHTML = aktivitasOptions.join("");
+  pdrbSelect.innerHTML = pdrbOptions.join("");
 }
 
 function openArticleEditor(article) {
@@ -67,6 +87,7 @@ function openArticleEditor(article) {
     source: String(article?.source || "").trim(),
     kbliCode: String(article?.kbliCode || "").trim(),
     aktivitasCode: String(article?.aktivitasCode || "").trim(),
+    pdrbPengeluaranCode: String(article?.pdrbPengeluaranCode || "").trim(),
     isArchived: Boolean(article?.isArchived),
   };
 
@@ -76,8 +97,9 @@ function openArticleEditor(article) {
   const subtitleEl = document.getElementById("articleEditorSubtitle");
   const kbliSelect = document.getElementById("articleEditorKbli");
   const aktivitasSelect = document.getElementById("articleEditorAktivitas");
+  const pdrbSelect = document.getElementById("articleEditorPdrbPengeluaran");
 
-  if (!backdrop || !kbliSelect || !aktivitasSelect) return;
+  if (!backdrop || !kbliSelect || !aktivitasSelect || !pdrbSelect) return;
 
   resetArticleEditorMessage();
 
@@ -90,11 +112,12 @@ function openArticleEditor(article) {
   if (subtitleEl) {
     subtitleEl.textContent = _articleEditorState.isArchived
       ? "Berita ini sedang diarsipkan. Anda tetap bisa memperbarui klasifikasinya."
-      : "Perbarui KBLI dan aktivitas ekonomi dengan pilihan yang paling sesuai.";
+      : "Perbarui KBLI, aktivitas ekonomi, dan kategori PDRB pengeluaran yang paling sesuai.";
   }
 
   kbliSelect.value = _articleEditorState.kbliCode || "";
   aktivitasSelect.value = _articleEditorState.aktivitasCode || "";
+  pdrbSelect.value = _articleEditorState.pdrbPengeluaranCode || "";
 
   backdrop.hidden = false;
   document.body.style.overflow = "hidden";
@@ -111,6 +134,7 @@ function openArticleEditorById(beritaId) {
     source: article.source,
     kbliCode: getKbliCode(article.kbli || ""),
     aktivitasCode: getAktivitasCode(article.aktivitas_ekonomi || ""),
+    pdrbPengeluaranCode: getPdrbPengeluaranCode(article.pdrb_pengeluaran || ""),
     isArchived: article.is_archived,
   });
 }
@@ -143,6 +167,8 @@ async function submitArticleClassification(event) {
   const beritaId = Number(_articleEditorState?.beritaId || 0);
   const kbliCode = document.getElementById("articleEditorKbli")?.value || "";
   const aktivitasCode = document.getElementById("articleEditorAktivitas")?.value || "";
+  const pdrbPengeluaranCode =
+    document.getElementById("articleEditorPdrbPengeluaran")?.value || "";
   const submitBtn = document.getElementById("articleEditorSubmitBtn");
 
   if (!beritaId) {
@@ -150,8 +176,11 @@ async function submitArticleClassification(event) {
     return;
   }
 
-  if (!kbliCode || !aktivitasCode) {
-    setArticleEditorMessage("KBLI dan aktivitas ekonomi wajib dipilih.", "error");
+  if (!kbliCode || !aktivitasCode || !pdrbPengeluaranCode) {
+    setArticleEditorMessage(
+      "KBLI, aktivitas ekonomi, dan PDRB pengeluaran wajib dipilih.",
+      "error",
+    );
     return;
   }
 
@@ -165,10 +194,11 @@ async function submitArticleClassification(event) {
     const response = await fetch(`/api/berita/${beritaId}/classification`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        kbli_code: kbliCode,
-        aktivitas_code: aktivitasCode,
-      }),
+        body: JSON.stringify({
+          kbli_code: kbliCode,
+          aktivitas_code: aktivitasCode,
+          pdrb_pengeluaran_code: pdrbPengeluaranCode,
+        }),
     });
 
     if (response.status === 401) {

@@ -41,14 +41,21 @@ _classifiers: dict = {
     "kbli_predictor":  None,
     "kbli_llm_client": None,
     "kbli_llm_model":  "",
+    "pdrb_pengeluaran_predictor": None,
 }
 
 
-def set_classifiers(kbli_predictor, kbli_llm_client, kbli_llm_model: str) -> None:
+def set_classifiers(
+    kbli_predictor,
+    kbli_llm_client,
+    kbli_llm_model: str,
+    pdrb_pengeluaran_predictor=None,
+) -> None:
     """Dipanggil oleh app.py setelah classifier berhasil diinisialisasi."""
     _classifiers["kbli_predictor"]  = kbli_predictor
     _classifiers["kbli_llm_client"] = kbli_llm_client
     _classifiers["kbli_llm_model"]  = kbli_llm_model
+    _classifiers["pdrb_pengeluaran_predictor"] = pdrb_pengeluaran_predictor
 
 
 # ── Validasi & klasifikasi artikel ──────────────────────────────────────────
@@ -80,6 +87,7 @@ def _build_article_row(article: dict, source_label: str) -> dict:
     """Rakit dict row siap insert ke tabel berita."""
     from ai.kbli import predict_kbli_label
     from ai.aktivitas import predict_aktivitas_label
+    from ai.pdrb_pengeluaran import predict_pdrb_pengeluaran_label
 
     normalized_date = normalize_date(article["date"])
     kbli = predict_kbli_label(
@@ -88,6 +96,7 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         title=article.get("title"),
     )
     aktivitas = None
+    pdrb_pengeluaran = None
     if not _is_kbli_irrelevant(kbli) and _classifiers["kbli_llm_client"] is not None:
         aktivitas = predict_aktivitas_label(
             article.get("content"),
@@ -95,6 +104,18 @@ def _build_article_row(article: dict, source_label: str) -> dict:
             _classifiers["kbli_llm_client"],
             _classifiers["kbli_llm_model"],
         )
+    elif _is_kbli_irrelevant(kbli):
+        aktivitas = "—"
+
+    if not _is_kbli_irrelevant(kbli) and _classifiers["pdrb_pengeluaran_predictor"] is not None:
+        pdrb_pengeluaran = predict_pdrb_pengeluaran_label(
+            article.get("content"),
+            _classifiers["pdrb_pengeluaran_predictor"],
+            title=article.get("title"),
+        )
+    elif _is_kbli_irrelevant(kbli):
+        pdrb_pengeluaran = "—"
+
     return {
         "title":             article["title"],
         "date":              normalized_date,
@@ -104,6 +125,7 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         "tags":              article["tags"].lower() if article.get("tags") else article.get("tags"),
         "kbli":              kbli,
         "aktivitas_ekonomi": aktivitas,
+        "pdrb_pengeluaran":  pdrb_pengeluaran,
         "source":            article.get("source") or source_label,
     }
 
@@ -290,6 +312,82 @@ def _run_aktivitas_backfill(batch_size: int = 50) -> int:
             break
 
     print(f"[Aktivitas Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
+    return total_updated
+
+
+def _run_pdrb_pengeluaran_backfill(batch_size: int = 50) -> int:
+    """
+    Prediksi PDRB pengeluaran untuk semua berita yang pdrb_pengeluaran IS NULL.
+    Return jumlah artikel yang berhasil diupdate.
+    """
+    from ai.pdrb_pengeluaran import predict_pdrb_pengeluaran_label
+
+    if _classifiers["pdrb_pengeluaran_predictor"] is None:
+        print("[PDRB Pengeluaran Backfill] Classifier tidak tersedia, backfill dilewati.")
+        return 0
+
+    total_updated = 0
+    max_batches = 100
+    iteration = 0
+
+    print("[PDRB Pengeluaran Backfill] Mulai memproses artikel tanpa label PDRB pengeluaran...")
+
+    while iteration < max_batches:
+        iteration += 1
+
+        try:
+            result = (
+                supabase.table("berita")
+                .select("id, title, content, kbli")
+                .is_("pdrb_pengeluaran", "null")
+                .not_.is_("kbli", "null")
+                .limit(batch_size)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[PDRB Pengeluaran Backfill] Gagal query DB (batch {iteration}): {exc}")
+            break
+
+        rows = result.data or []
+        if not rows:
+            break
+
+        updated_this_batch = 0
+
+        for row in rows:
+            kbli = row.get("kbli") or ""
+            content = (row.get("content") or "").strip()
+            title = (row.get("title") or "").strip()
+
+            if _is_kbli_irrelevant(kbli) or (not content and not title):
+                label = "—"
+            else:
+                label = predict_pdrb_pengeluaran_label(
+                    content,
+                    _classifiers["pdrb_pengeluaran_predictor"],
+                    title=title,
+                )
+                if label is None:
+                    continue
+
+            try:
+                supabase.table("berita").update(
+                    {"pdrb_pengeluaran": label}
+                ).eq("id", row["id"]).execute()
+                updated_this_batch += 1
+                total_updated += 1
+            except Exception as exc:
+                print(f"[PDRB Pengeluaran Backfill] Gagal update id={row['id']}: {exc}")
+
+        if updated_this_batch == 0:
+            print(
+                f"[PDRB Pengeluaran Backfill] Batch {iteration} tidak ada update - menghentikan loop."
+            )
+            break
+
+    print(
+        f"[PDRB Pengeluaran Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch."
+    )
     return total_updated
 
 

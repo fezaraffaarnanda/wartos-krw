@@ -7,6 +7,10 @@ from typing import Any
 
 from ai.aktivitas import AKTIVITAS_LABELS
 from ai.kbli import format_kbli_hasil
+from ai.pdrb_pengeluaran import (
+    PDRB_PENGELUARAN_CODE_ORDER,
+    format_pdrb_pengeluaran_hasil,
+)
 from repositories.berita import BeritaRepository
 from schemas.berita import BeritaFilterQuery
 
@@ -25,6 +29,7 @@ class BeritaService:
             date_to=query.date_to,
             kbli_code=query.kbli_code,
             aktivitas_code=query.aktivitas_code,
+            pdrb_pengeluaran_code=query.pdrb_pengeluaran_code,
             sort_col=sort_col,
             sort_desc=sort_desc,
             page=query.page,
@@ -54,6 +59,7 @@ class BeritaService:
                 "sort_dir": sort_dir,
                 "kbli_code": query.kbli_code,
                 "aktivitas_code": query.aktivitas_code,
+                "pdrb_pengeluaran_code": query.pdrb_pengeluaran_code,
                 "archive_status": query.archive_status,
             },
         }
@@ -65,6 +71,7 @@ class BeritaService:
             date_to=query.date_to,
             kbli_code=query.kbli_code,
             aktivitas_code=query.aktivitas_code,
+            pdrb_pengeluaran_code=query.pdrb_pengeluaran_code,
             archive_status=query.archive_status,
         )
         return {"status": "ok", "data": rows}
@@ -94,6 +101,7 @@ class BeritaService:
         *,
         kbli_code: str,
         aktivitas_code: str,
+        pdrb_pengeluaran_code: str,
     ) -> tuple[dict[str, Any], int]:
         if berita_id <= 0:
             return {"status": "error", "message": "ID berita tidak valid."}, 400
@@ -104,6 +112,9 @@ class BeritaService:
 
         kbli_value = self._normalize_kbli_value(kbli_code)
         aktivitas_value = self._normalize_aktivitas_value(aktivitas_code)
+        pdrb_pengeluaran_value = self._normalize_pdrb_pengeluaran_value(
+            pdrb_pengeluaran_code
+        )
 
         if kbli_value is None:
             return {"status": "error", "message": "Kode KBLI tidak valid."}, 400
@@ -111,10 +122,14 @@ class BeritaService:
         if aktivitas_value is None:
             return {"status": "error", "message": "Kode aktivitas ekonomi tidak valid."}, 400
 
+        if pdrb_pengeluaran_value is None:
+            return {"status": "error", "message": "Kode PDRB pengeluaran tidak valid."}, 400
+
         updated = self._repo.update_classification(
             berita_id,
             kbli=kbli_value,
             aktivitas_ekonomi=aktivitas_value,
+            pdrb_pengeluaran=pdrb_pengeluaran_value,
         )
         if not updated:
             return {"status": "error", "message": "Gagal menyimpan klasifikasi."}, 500
@@ -193,6 +208,7 @@ class BeritaService:
 
         kbli_codes: set[str] = set()
         aktivitas_codes: set[str] = set()
+        pdrb_pengeluaran_codes: set[str] = set()
 
         for row in rows:
             raw_kbli = str(row.get("kbli") or "").strip()
@@ -207,11 +223,21 @@ class BeritaService:
                 if code.isdigit():
                     aktivitas_codes.add(code)
 
+            raw_pdrb_pengeluaran = str(row.get("pdrb_pengeluaran") or "").strip()
+            if raw_pdrb_pengeluaran and raw_pdrb_pengeluaran not in {"-", "—", "Tidak Relevan"}:
+                code = raw_pdrb_pengeluaran.split("/")[0].strip().upper()
+                if code:
+                    pdrb_pengeluaran_codes.add(code)
+
         return {
             "status": "ok",
             "data": {
                 "kbli_codes": sorted(kbli_codes),
                 "aktivitas_codes": sorted(aktivitas_codes, key=lambda x: int(x)),
+                "pdrb_pengeluaran_codes": sorted(
+                    pdrb_pengeluaran_codes,
+                    key=lambda x: PDRB_PENGELUARAN_CODE_ORDER.get(x, 9999),
+                ),
             },
         }
 
@@ -238,6 +264,9 @@ class BeritaService:
         if not normalized:
             return None
 
+        if normalized in {"-", "—"}:
+            return "—"
+
         if normalized.lower() == "tidak relevan":
             return "Tidak Relevan"
 
@@ -250,3 +279,18 @@ class BeritaService:
             return None
 
         return f"{nomor}/{label}"
+
+    @staticmethod
+    def _normalize_pdrb_pengeluaran_value(pdrb_pengeluaran_code: str) -> str | None:
+        normalized = str(pdrb_pengeluaran_code or "").strip().upper()
+        if not normalized:
+            return None
+
+        if normalized in {"-", "—"}:
+            return "—"
+
+        if normalized == "TIDAK RELEVAN":
+            return "Tidak Relevan"
+
+        formatted = format_pdrb_pengeluaran_hasil(normalized)
+        return formatted if formatted and "/" in formatted else None

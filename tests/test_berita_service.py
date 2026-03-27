@@ -32,9 +32,21 @@ class _FakeBeritaRepository:
 
     def list_filter_option_rows(self):
         return [
-            {"kbli": "A/Pertanian", "aktivitas_ekonomi": "1/Kondisi umum"},
-            {"kbli": "Tidak Relevan", "aktivitas_ekonomi": "—"},
-            {"kbli": "C/Industri", "aktivitas_ekonomi": "9/Industri makanan"},
+            {
+                "kbli": "A/Pertanian",
+                "aktivitas_ekonomi": "1/Kondisi umum",
+                "pdrb_pengeluaran": "PKRT-01/Makanan dan minuman tidak beralkohol",
+            },
+            {
+                "kbli": "Tidak Relevan",
+                "aktivitas_ekonomi": "—",
+                "pdrb_pengeluaran": "—",
+            },
+            {
+                "kbli": "C/Industri",
+                "aktivitas_ekonomi": "9/Industri makanan",
+                "pdrb_pengeluaran": "PMTB-01/Bangunan dan Tempat Tinggal",
+            },
         ]
 
     def list_year_rows(self):
@@ -82,6 +94,7 @@ def test_filter_options_extract_codes_and_sort_numerically():
     assert result["status"] == "ok"
     assert result["data"]["kbli_codes"] == ["A", "C"]
     assert result["data"]["aktivitas_codes"] == ["1", "9"]
+    assert result["data"]["pdrb_pengeluaran_codes"] == ["PKRT-01", "PMTB-01"]
 
 
 def test_get_berita_years_sorted_descending():

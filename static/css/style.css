@@ -1520,6 +1520,65 @@ a:hover {
     line-height: 1.35;
 }
 
+.pdrb-badge {
+    display: flex;
+    width: fit-content;
+    max-width: 100%;
+    align-items: flex-start;
+    gap: 7px;
+    padding: 3px 9px 3px 4px;
+    border-radius: 16px;
+    border: 1px solid #c4b5fd;
+    background: #f5f3ff;
+    color: #5b21b6;
+    font-size: 0.76rem;
+    font-weight: 600;
+    line-height: 1.5;
+    white-space: normal;
+    margin-top: 7px;
+    cursor: default;
+    transition: filter var(--transition-fast), transform var(--transition-fast);
+}
+
+.pdrb-badge:hover {
+    filter: brightness(0.96);
+    transform: translateY(-1px);
+}
+
+.pdrb-badge-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 54px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 999px;
+    font-size: 0.64rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+    color: white;
+    background: #7c3aed;
+    margin-top: 1px;
+}
+
+.pdrb-badge-text {
+    font-size: 0.75rem;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.pdrb-badge-text small {
+    color: #7c3aed;
+    font-size: 0.7rem;
+    font-weight: 600;
+}
+
+.pdrb-inline-note {
+    display: inline-flex;
+    margin-top: 7px;
+}
+
 /* Nomor badge di filter dropdown Aktivitas */
 .aktivitas-filter-num {
     display: inline-flex;
@@ -1534,6 +1593,27 @@ a:hover {
     font-size: 0.7rem;
     font-weight: 700;
     flex-shrink: 0;
+}
+
+.pdrb-filter-code {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 58px;
+    height: 18px;
+    padding: 0 6px;
+    background: #7c3aed;
+    color: #fff;
+    border-radius: 999px;
+    font-size: 0.68rem;
+    font-weight: 800;
+    flex-shrink: 0;
+    letter-spacing: 0.02em;
+}
+
+.kbli-filter-option small {
+    color: var(--text-muted);
+    font-size: 0.72rem;
 }
 
 .kbli-filter-wrapper {

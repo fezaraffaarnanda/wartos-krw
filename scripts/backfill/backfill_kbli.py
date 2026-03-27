@@ -13,6 +13,7 @@ Pemakaian:
     python -m scripts.backfill.backfill_kbli                   # semua NULL
     python -m scripts.backfill.backfill_kbli --workers 20      # jumlah thread paralel LLM
     python -m scripts.backfill.backfill_kbli --dry-run         # preview tanpa update DB
+    python -m scripts.backfill.backfill_kbli --force           # re-klasifikasi semua artikel
 """
 
 import argparse
@@ -45,6 +46,11 @@ def main():
     parser.add_argument("--workers",  type=int,  default=15,    help="Thread paralel untuk LLM (default: 15)")
     parser.add_argument("--db-batch", type=int,  default=50,    help="Jumlah update DB per batch (default: 50)")
     parser.add_argument("--dry-run",  action="store_true",      help="Preview tanpa update DB")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Proses semua artikel, termasuk yang KBLI-nya sudah terisi",
+    )
     args = parser.parse_args()
 
     # ── Inisialisasi ──────────────────────────────────────────────────────────
@@ -69,22 +75,30 @@ def main():
         sys.exit(1)
 
     classifier = KBLIClassifierLLM(supabase, embed_client, llm_client, llm_model, top_k=5)
-    print(f"[Backfill] Model: {llm_model} | Workers: {args.workers} | Dry-run: {args.dry_run}")
+    print(
+        f"[Backfill] Model: {llm_model} | Workers: {args.workers} | "
+        f"Dry-run: {args.dry_run} | Force: {args.force}"
+    )
 
     # ── Step 1: Fetch semua artikel NULL kbli ─────────────────────────────────
-    print("[Backfill] Mengambil semua artikel dengan KBLI NULL...")
+    if args.force:
+        print("[Backfill] Mengambil semua artikel (mode force)...")
+    else:
+        print("[Backfill] Mengambil semua artikel dengan KBLI NULL...")
     all_articles = []
     offset = 0
     PAGE = 1000
     while True:
-        res = (
+        query = (
             supabase.table("berita")
             .select("id, title, content")
-            .is_("kbli", "null")
             .order("id")
             .range(offset, offset + PAGE - 1)
-            .execute()
         )
+        if not args.force:
+            query = query.is_("kbli", "null")
+
+        res = query.execute()
         batch = res.data or []
         all_articles.extend(batch)
         if len(batch) < PAGE:
@@ -93,7 +107,10 @@ def main():
 
     total = len(all_articles)
     if total == 0:
-        print("[Backfill] Tidak ada artikel dengan KBLI NULL.")
+        if args.force:
+            print("[Backfill] Tidak ada artikel untuk diproses pada mode force.")
+        else:
+            print("[Backfill] Tidak ada artikel dengan KBLI NULL.")
         return
 
     print(f"[Backfill] Ditemukan {total} artikel — mulai proses...")

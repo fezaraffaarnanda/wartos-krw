@@ -15,7 +15,7 @@ function _kbliGroupClass(kode) {
  * - "Tidak Relevan"   → badge abu-abu
  * - "—"              → dash (artikel tanpa konten)
  */
-function renderKbliCell(kbliStr, aktivitasStr) {
+function renderKbliCell(kbliStr, aktivitasStr, pdrbPengeluaranStr) {
   // Render badge KBLI
   let kbliHtml;
   if (!kbliStr || !kbliStr.trim()) {
@@ -66,7 +66,27 @@ function renderKbliCell(kbliStr, aktivitasStr) {
     }
   }
 
-  return kbliHtml + aktivitasHtml;
+  let pdrbHtml = "";
+  if (pdrbPengeluaranStr && pdrbPengeluaranStr.trim() && pdrbPengeluaranStr.trim() !== "—") {
+    const raw = pdrbPengeluaranStr.trim();
+    if (raw.toLowerCase() === "tidak relevan") {
+      pdrbHtml = `<span class="kbli-tidak-relevan pdrb-inline-note">PDRB Pengeluaran: Tidak Relevan</span>`;
+    } else {
+      const slashIdx = raw.indexOf("/");
+      const code = (slashIdx === -1 ? raw : raw.slice(0, slashIdx)).trim().toUpperCase();
+      const label = slashIdx === -1 ? raw : raw.slice(slashIdx + 1).trim();
+      const parentCode = getPdrbPengeluaranParentCode(code);
+      const parentLabel = PDRB_PENGELUARAN_PARENT_LABELS[parentCode] || parentCode;
+      pdrbHtml = (
+        `<span class="pdrb-badge">` +
+        `<span class="pdrb-badge-code">${escapeHtml(code)}</span>` +
+        `<span class="pdrb-badge-text">${escapeHtml(label)}${parentLabel ? ` <small>(${escapeHtml(parentLabel)})</small>` : ""}</span>` +
+        `</span>`
+      );
+    }
+  }
+
+  return kbliHtml + aktivitasHtml + pdrbHtml;
 }
 
 // Elemen tooltip floating (satu, di-append ke body saat pertama dipakai)

@@ -56,6 +56,66 @@ const AKTIVITAS_LABELS = {
   27: "Aktivitas bongkar muat di pelabuhan/bandara/stasiun",
 };
 
+const PDRB_PENGELUARAN_PARENT_LABELS = {
+  PKRT: "Pengeluaran Konsumsi Rumah Tangga",
+  PKP: "Pengeluaran Konsumsi Pemerintah",
+  PMTB: "Pembentukan Modal Tetap Bruto",
+  PKLNPRT: "Pengeluaran Konsumsi LNPRT",
+  PI: "Perubahan Inventori",
+};
+
+const PDRB_PENGELUARAN_LABELS = {
+  "PKRT-01": "Makanan dan minuman tidak beralkohol",
+  "PKRT-02": "Minuman beralkohol, tembakau, dan narkotika",
+  "PKRT-03": "Pakaian dan alas kaki",
+  "PKRT-04": "Perumahan, air, listrik, gas, dan bahan bakar lainnya",
+  "PKRT-05": "Furniture, perlengkapan rumah tangga, dan pemeliharaan rutin rumah",
+  "PKRT-06": "Kesehatan",
+  "PKRT-07": "Transportasi",
+  "PKRT-08": "Komunikasi",
+  "PKRT-09": "Rekreasi/hiburan dan kebudayaan",
+  "PKRT-10": "Pendidikan",
+  "PKRT-11": "Penyediaan makan minum dan penginapan/akomodasi",
+  "PKRT-12": "Barang dan jasa lainnya",
+  "PKP-01": "Pelayanan Umum",
+  "PKP-02": "Pertahanan",
+  "PKP-03": "Ketertiban dan Keamanan",
+  "PKP-04": "Ekonomi",
+  "PKP-05": "Perlindungan Lingkungan Hidup",
+  "PKP-06": "Perumahan dan Fasilitas Umum",
+  "PKP-07": "Kesehatan",
+  "PKP-08": "Pariwisata dan Budaya",
+  "PKP-09": "Agama",
+  "PKP-10": "Pendidikan",
+  "PKP-11": "Perlindungan Sosial",
+  "PMTB-01": "Bangunan dan Tempat Tinggal",
+  "PMTB-02": "Mesin dan Perlengkapan",
+  "PMTB-03": "Aset Biologis yang Dibudidayakan",
+  "PMTB-04": "Produk Kekayaan Intelektual",
+  "PMTB-05": "Biaya Pemindahan Kepemilikan (Atas Aset Tidak Diproduksi)",
+  "PKLNPRT-01": "Perumahan",
+  "PKLNPRT-02": "Kesehatan",
+  "PKLNPRT-03": "Rekreasi dan Kebudayaan",
+  "PKLNPRT-04": "Pendidikan",
+  "PKLNPRT-05": "Perlindungan Sosial",
+  "PKLNPRT-06": "Keagamaan",
+  "PKLNPRT-07": "Lingkungan Hidup",
+  "PKLNPRT-08": "Partai Politik, Organisasi Buruh dan Profesional",
+  "PKLNPRT-09": "Jasa Lainnya",
+  "PI-01": "Bahan Baku dan Penolong",
+  "PI-02": "Barang Dalam Proses (Work in Progress)",
+  "PI-03": "Barang Jadi",
+  "PI-04": "Barang untuk Dijual Kembali (Goods for Resale)",
+};
+
+const PDRB_PENGELUARAN_CODE_ORDER = Object.keys(PDRB_PENGELUARAN_LABELS).reduce(
+  (acc, code, index) => {
+    acc[code] = index;
+    return acc;
+  },
+  {},
+);
+
 const KBLI_GROUP_CLASS = {
   A1: "a",
   A2: "a",
@@ -96,12 +156,27 @@ function buildMasterFilterOptions() {
   const aktivitas_codes = Object.keys(AKTIVITAS_LABELS).sort(
     (a, b) => Number(a) - Number(b),
   );
+  const pdrb_pengeluaran_codes = Object.keys(PDRB_PENGELUARAN_LABELS).sort(
+    (a, b) =>
+      (PDRB_PENGELUARAN_CODE_ORDER[a] || 0) -
+      (PDRB_PENGELUARAN_CODE_ORDER[b] || 0),
+  );
 
-  return { kbli_codes, aktivitas_codes };
+  return { kbli_codes, aktivitas_codes, pdrb_pengeluaran_codes };
 }
 
 function _isKbliIrrelevant(kbli) {
   if (!kbli) return true;
   const k = kbli.trim();
   return k === "—" || k.toLowerCase().startsWith("tidak relevan");
+}
+
+function getPdrbPengeluaranParentCode(rawCode) {
+  const normalized = String(rawCode || "").trim().toUpperCase();
+  if (!normalized || normalized === "—" || normalized === "TIDAK RELEVAN") {
+    return "";
+  }
+  const codeOnly = normalized.split("/", 1)[0];
+  const dashIndex = codeOnly.indexOf("-");
+  return dashIndex === -1 ? "" : codeOnly.slice(0, dashIndex);
 }

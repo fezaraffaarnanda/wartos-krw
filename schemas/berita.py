@@ -33,6 +33,7 @@ class BeritaFilterQuery(BaseModel):
     date_to: str = Field(default="")
     kbli_code: str = Field(default="")
     aktivitas_code: str = Field(default="")
+    pdrb_pengeluaran_code: str = Field(default="")
     archive_status: str = Field(default="active")
     page: int = Field(default=1, ge=1, le=50000)
     per_page: int = Field(default=15, ge=1, le=100)
@@ -47,6 +48,9 @@ class BeritaFilterQuery(BaseModel):
             "date_to": str(args.get("date_to", "")).strip(),
             "kbli_code": str(args.get("kbli_code", "")).strip().upper(),
             "aktivitas_code": str(args.get("aktivitas_code", "")).strip(),
+            "pdrb_pengeluaran_code": str(
+                args.get("pdrb_pengeluaran_code", "")
+            ).strip().upper(),
             "archive_status": _normalize_archive_status(args.get("archive_status", "active")),
             "page": _safe_int(
                 str(args.get("page", "")),
@@ -85,6 +89,7 @@ class BeritaArchivePayload(BaseModel):
 class BeritaClassificationPayload(BaseModel):
     kbli_code: str = Field(default="")
     aktivitas_code: str = Field(default="")
+    pdrb_pengeluaran_code: str = Field(default="")
 
     @classmethod
     def from_body(cls, body: Mapping[str, Any]) -> "BeritaClassificationPayload":
@@ -92,6 +97,9 @@ class BeritaClassificationPayload(BaseModel):
             {
                 "kbli_code": str(body.get("kbli_code", "")).strip().upper(),
                 "aktivitas_code": str(body.get("aktivitas_code", "")).strip(),
+                "pdrb_pengeluaran_code": str(
+                    body.get("pdrb_pengeluaran_code", "")
+                ).strip().upper(),
             }
         )
 

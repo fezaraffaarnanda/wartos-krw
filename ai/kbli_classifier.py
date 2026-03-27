@@ -61,7 +61,7 @@ _SPECIAL_CODES = {
 # System prompt template — dioptimasi untuk token efficiency + akurasi
 _SYSTEM_PROMPT = """\
 Kamu adalah sistem klasifikasi otomatis KBLI 2025 (Klasifikasi Baku Lapangan Usaha Indonesia) \
-untuk berita ekonomi daerah.
+untuk berita ekonomi daerah Kabupaten Tegal.
 
 TUGAS:
 Baca berita yang diberikan, lalu pilih SATU kode KBLI yang paling sesuai dari DAFTAR KANDIDAT \
@@ -81,7 +81,8 @@ ATURAN OUTPUT (WAJIB DIPATUHI):
 3. Pilih kode yang merepresentasikan KEGIATAN EKONOMI UTAMA yang dibahas berita
 4. Jika berita membahas kemiskinan → KE; pengangguran/ketenagakerjaan → PG
 5. Jika topik tidak terkait kegiatan ekonomi → Tidak Relevan
-6. Kode valid: {valid_codes}
+6. Jika topik berita diluar Kabupaten Tegal/Tegal → Tidak Relevan
+7. Kode valid: {valid_codes}
 """
 
 # User message template

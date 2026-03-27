@@ -1,5 +1,5 @@
 from schemas.auth import LoginPayload, ResetPasswordPayload
-from schemas.berita import BeritaFilterQuery
+from schemas.berita import BeritaClassificationPayload, BeritaFilterQuery
 from schemas.scraping import ScrapeTriggerPayload
 
 
@@ -8,6 +8,7 @@ def test_berita_filter_query_normalization_defaults_and_sort():
         {
             "search": "  pangan  ",
             "kbli_code": " c ",
+            "pdrb_pengeluaran_code": " pkrt-01 ",
             "page": "bukan-angka",
             "per_page": "9999",
             "sort_by": "date",
@@ -17,6 +18,7 @@ def test_berita_filter_query_normalization_defaults_and_sort():
 
     assert query.search == "pangan"
     assert query.kbli_code == "C"
+    assert query.pdrb_pengeluaran_code == "PKRT-01"
     assert query.page == 1
     assert query.per_page == 100
 
@@ -34,6 +36,20 @@ def test_auth_payload_normalization():
     assert login.password == "x"
     assert reset.username == "user"
     assert reset.code == "AB12CD34"
+
+
+def test_berita_classification_payload_normalizes_pdrb_pengeluaran_code():
+    payload = BeritaClassificationPayload.from_body(
+        {
+            "kbli_code": " c ",
+            "aktivitas_code": " 9 ",
+            "pdrb_pengeluaran_code": " pkrt-01 ",
+        }
+    )
+
+    assert payload.kbli_code == "C"
+    assert payload.aktivitas_code == "9"
+    assert payload.pdrb_pengeluaran_code == "PKRT-01"
 
 
 def test_scrape_payload_clamps_invalid_values():

@@ -98,7 +98,7 @@ function renderArticle(d) {
       .join(" ");
   }
 
-  renderClassification(d.kbli, d.aktivitas_ekonomi);
+  renderClassification(d.kbli, d.aktivitas_ekonomi, d.pdrb_pengeluaran);
   renderArchiveStatus(d.is_archived, d.archived_at);
 
   const bodyEl = document.getElementById("articleBody");
@@ -112,23 +112,25 @@ function renderArticle(d) {
   document.getElementById("articleCard").classList.remove("is-hidden");
 }
 
-function renderClassification(kbliRaw, aktivitasRaw) {
+function renderClassification(kbliRaw, aktivitasRaw, pdrbRaw) {
   const section = document.getElementById("articleClassification");
   const kbliBadge = document.getElementById("kbliBadge");
   const aktivitasBadge = document.getElementById("aktivitasBadge");
+  const pdrbPengeluaranBadge = document.getElementById("pdrbPengeluaranBadge");
 
   let hasContent = false;
 
   if (kbliRaw && kbliRaw.trim()) {
-    const kode = kbliRaw.trim().toUpperCase();
+    const raw = kbliRaw.trim();
+    const kode = raw.split("/", 1)[0].trim().toUpperCase();
+    const label = raw.includes("/") ? raw.split("/", 2)[1].trim() : (KBLI_KEY_MAPPING[kode] || raw);
     const isIrrelevant = kode === "TIDAK RELEVAN" || kode === "—";
     if (isIrrelevant) {
       kbliBadge.textContent = "Tidak Relevan";
       kbliBadge.classList.add("badge-irrelevant");
     } else {
-      const deskripsi = KBLI_KEY_MAPPING[kode];
-      kbliBadge.innerHTML = deskripsi
-        ? `<strong>${escapeHtml(kode)}</strong> — ${escapeHtml(deskripsi)}`
+      kbliBadge.innerHTML = label
+        ? `<strong>${escapeHtml(kode)}</strong> — ${escapeHtml(label)}`
         : escapeHtml(kode);
     }
     hasContent = true;
@@ -159,6 +161,33 @@ function renderClassification(kbliRaw, aktivitasRaw) {
   } else {
     aktivitasBadge.textContent = "Belum diklasifikasi";
     aktivitasBadge.classList.add("badge-pending");
+    hasContent = true;
+  }
+
+  if (pdrbPengeluaranBadge) {
+    if (pdrbRaw && pdrbRaw.trim()) {
+      const val = pdrbRaw.trim();
+      const isNotApplicable = val === "—";
+      const isIrrelevant = val.toLowerCase() === "tidak relevan";
+
+      if (isNotApplicable) {
+        pdrbPengeluaranBadge.textContent = "Tidak berlaku";
+        pdrbPengeluaranBadge.classList.add("badge-pending");
+      } else if (isIrrelevant) {
+        pdrbPengeluaranBadge.textContent = "Tidak Relevan";
+        pdrbPengeluaranBadge.classList.add("badge-irrelevant");
+      } else {
+        const slashIdx = val.indexOf("/");
+        const code = (slashIdx === -1 ? val : val.slice(0, slashIdx)).trim().toUpperCase();
+        const label = (slashIdx === -1 ? val : val.slice(slashIdx + 1)).trim();
+        const parentCode = getPdrbPengeluaranParentCode(code);
+        const parentLabel = PDRB_PENGELUARAN_PARENT_LABELS[parentCode] || "";
+        pdrbPengeluaranBadge.innerHTML = `<strong>${escapeHtml(code)}</strong> — ${escapeHtml(label)}${parentLabel ? ` (${escapeHtml(parentLabel)})` : ""}`;
+      }
+    } else {
+      pdrbPengeluaranBadge.textContent = "Belum diklasifikasi";
+      pdrbPengeluaranBadge.classList.add("badge-pending");
+    }
     hasContent = true;
   }
 

@@ -1270,6 +1270,50 @@
                 </button>
                 <div class="kbli-filter-menu" id="aktivitasFilterMenu"></div>
               </div>
+              <div class="kbli-filter-wrapper" id="pdrbPengeluaranFilterWrapper">
+                <button
+                  class="kbli-filter-btn"
+                  id="pdrbPengeluaranFilterBtn"
+                  onclick="togglePdrbPengeluaranFilter()"
+                  type="button"
+                >
+                  <svg
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <path d="M4 7h16" />
+                    <path d="M4 12h10" />
+                    <path d="M4 17h7" />
+                    <path d="M17 10l3 2-3 2" />
+                  </svg>
+                  <span
+                    id="pdrbPengeluaranFilterDot"
+                    class="kbli-filter-dot"
+                    style="display: none"
+                  ></span>
+                  <span id="pdrbPengeluaranFilterLabel">Filter PDRB Pengeluaran</span>
+                  <svg
+                    class="kbli-filter-chevron"
+                    width="13"
+                    height="13"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                  >
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+                <div class="kbli-filter-menu" id="pdrbPengeluaranFilterMenu"></div>
+              </div>
               <div class="archive-filter-group" role="group" aria-label="Filter arsip berita">
                 <button
                   class="archive-filter-btn active"
@@ -1331,7 +1375,7 @@
                     Tags
                     <span class="sort-icon" id="sort-tags">↕</span>
                   </th>
-                  <th class="th-kbli">KBLI dan Aktivitas Ekonomi</th>
+                  <th class="th-kbli">KBLI, Aktivitas, dan PDRB Pengeluaran</th>
                   <th class="th-actions">Aksi</th>
                   <th class="th-link">Link Berita</th>
                 </tr>
@@ -1471,7 +1515,7 @@
           <div>
             <p class="article-editor-eyebrow">Koreksi Manual</p>
             <h3 class="article-editor-title" id="articleEditorTitle">Edit klasifikasi berita</h3>
-            <p class="article-editor-subtitle" id="articleEditorSubtitle">Perbarui KBLI dan aktivitas ekonomi dengan pilihan yang paling sesuai.</p>
+            <p class="article-editor-subtitle" id="articleEditorSubtitle">Perbarui KBLI, aktivitas ekonomi, dan kategori PDRB pengeluaran dengan pilihan yang paling sesuai.</p>
           </div>
           <button
             type="button"
@@ -1500,6 +1544,11 @@
           <label class="article-editor-field">
             <span class="article-editor-label">Aktivitas Ekonomi</span>
             <select id="articleEditorAktivitas" class="article-editor-select" required></select>
+          </label>
+
+          <label class="article-editor-field">
+            <span class="article-editor-label">PDRB Pengeluaran</span>
+            <select id="articleEditorPdrbPengeluaran" class="article-editor-select" required></select>
           </label>
 
           <div class="article-editor-message" id="articleEditorMessage" aria-live="polite"></div>

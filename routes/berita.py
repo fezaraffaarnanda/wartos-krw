@@ -115,6 +115,7 @@ def update_berita_classification(berita_id: int):
             berita_id,
             kbli_code=payload.kbli_code,
             aktivitas_code=payload.aktivitas_code,
+            pdrb_pengeluaran_code=payload.pdrb_pengeluaran_code,
         )
         return jsonify(response), status_code
     except Exception as exc:

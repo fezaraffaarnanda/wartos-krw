@@ -7,7 +7,7 @@ let sortAsc = false;
 let currentUser = null;
 let _activeView = "overview";
 let _overviewSummary = null;
-let _filterOptions = { kbli_codes: [], aktivitas_codes: [] };
+let _filterOptions = { kbli_codes: [], aktivitas_codes: [], pdrb_pengeluaran_codes: [] };
 let _sortKeyUi = "date";
 
 const _tableFilterState = {
@@ -16,6 +16,7 @@ const _tableFilterState = {
   date_to: "",
   kbli_code: "",
   aktivitas_code: "",
+  pdrb_pengeluaran_code: "",
   archive_status: "active",
 };
 
@@ -100,6 +101,7 @@ const AUTO_REFRESH_MS = 5 * 60 * 1000;
 
 let _selectedKbli = "";
 let _selectedAktivitas = "";
+let _selectedPdrbPengeluaran = "";
 let _selectedArchiveStatus = "active";
 let _filterDebounce = null;
 
@@ -145,5 +147,6 @@ let _articleEditorState = {
   source: "",
   kbliCode: "",
   aktivitasCode: "",
+  pdrbPengeluaranCode: "",
   isArchived: false,
 };
