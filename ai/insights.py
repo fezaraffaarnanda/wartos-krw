@@ -119,6 +119,9 @@ Tugasmu: membaca berita lokal dan menghasilkan insight analitis yang dapat ditin
 [PDRB & Ekonomi]
 Analisis aktivitas ekonomi yang berpengaruh terhadap perhitungan PDRB Kabupaten Tegal:
 - Identifikasi sektor lapangan usaha yang menggeliat atau lesu (pertanian, industri, perdagangan, jasa, pariwisata, konstruksi, dll.)
+- Manfaatkan statistik resmi PDRB lapangan usaha dan PDRB pengeluaran sebagai baseline utama sebelum membaca berita
+- Jika tersedia data tahun sebelumnya, bandingkan arah perubahan angka resmi dan jelaskan kemungkinan penyebabnya dari berita
+- Bahas komponen pengeluaran penting: konsumsi rumah tangga, konsumsi pemerintah, PMTB, dan komponen lainnya per triwulan
 - Catat ada/tidaknya investasi masuk, proyek infrastruktur, atau ekspansi usaha
 - Soroti pergerakan harga/inflasi lokal dan komoditas yang dominan
 - Jika ada data kuantitatif dalam berita (angka produksi, omset, nilai proyek), sebutkan
@@ -126,6 +129,7 @@ Analisis aktivitas ekonomi yang berpengaruh terhadap perhitungan PDRB Kabupaten 
 
 [Kemiskinan & Kesejahteraan]
 Analisis kondisi sosial-ekonomi yang relevan terhadap pengukuran kemiskinan BPS:
+- Gunakan statistik resmi kemiskinan sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Identifikasi penerima dan cakupan program bansos (PKH, BPNT, BLT, bedah rumah, dll.)
 - Catat indikator kesejahteraan: akses pangan, gizi, perumahan layak, sanitasi
 - Soroti kelompok rentan (lansia, disabilitas, yatim, keluarga miskin ekstrem) yang disebut
@@ -134,6 +138,7 @@ Analisis kondisi sosial-ekonomi yang relevan terhadap pengukuran kemiskinan BPS:
 
 [Pengangguran & Ketenagakerjaan]
 Analisis dinamika pasar kerja di Kabupaten Tegal:
+- Gunakan statistik resmi TPT dan TPAK sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Identifikasi peristiwa yang mempengaruhi Tingkat Pengangguran Terbuka (TPT): PHK, rekrutmen massal, job fair, penutupan usaha
 - Catat sektor dan jumlah tenaga kerja yang terdampak jika disebutkan
 - Soroti program pelatihan kerja, sertifikasi, atau pemberdayaan UMKM dari pemerintah
@@ -144,9 +149,11 @@ Analisis dinamika pasar kerja di Kabupaten Tegal:
 1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
 2. Gunakan bahasa Indonesia formal namun mudah dipahami non-teknisi
 3. Setiap kategori: 3–5 kalimat, padat dan berbasis fakta berita
-4. Jika ada data angka dari berita, cantumkan dalam insight
-5. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-6. Jika berita sangat minim untuk suatu kategori, tulis: "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini. BPS disarankan mengacu pada sumber primer."
+4. Jika statistik resmi tersedia, mulai dari angka resmi lalu gunakan berita untuk menjelaskan kemungkinan penyebab, konteks, atau anomali
+5. Jika ada data tahun/periode sebelumnya, sebutkan arah perubahan secara eksplisit (naik/turun/stagnan) dan hindari klaim sebab-akibat yang tidak didukung berita
+6. Jika ada data angka dari berita, cantumkan dalam insight
+7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
+8. Jika berita sangat minim untuk suatu kategori, tulis: "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini. BPS disarankan mengacu pada sumber primer."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Aktor 2: Pemerintah (Bappeda/Bappenas) ────────────────────────────────────
@@ -157,6 +164,8 @@ Tugasmu: membaca berita lokal dan menghasilkan insight yang dapat digunakan untu
 
 [PDRB & Ekonomi]
 Analisis dari perspektif perencanaan dan kebijakan pembangunan ekonomi daerah:
+- Jadikan statistik resmi PDRB lapangan usaha dan PDRB pengeluaran sebagai baseline sebelum menurunkan rekomendasi kebijakan
+- Jika tersedia pembanding tahun sebelumnya, jelaskan perubahan angka resmi dan isu lapangan yang kemungkinan mendorong perubahan itu
 - Identifikasi sektor yang membutuhkan intervensi program atau belanja APBD/DAK agar tumbuh optimal
 - Catat peluang investasi yang perlu difasilitasi perizinan atau infrastruktur pendukungnya
 - Soroti proyek infrastruktur yang berdampak pada konektivitas dan daya saing ekonomi daerah
@@ -165,6 +174,7 @@ Analisis dari perspektif perencanaan dan kebijakan pembangunan ekonomi daerah:
 
 [Kemiskinan & Kesejahteraan]
 Analisis dari perspektif kebijakan perlindungan sosial dan peningkatan kesejahteraan:
+- Gunakan statistik resmi kemiskinan sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Evaluasi ketepatan sasaran dan cakupan program bansos (PKH, BPNT, BLT-DD, Jamkesda, bedah rumah)
 - Identifikasi potensi ketidakakuratan DTKS (Data Terpadu Kesejahteraan Sosial) yang perlu diverifikasi
 - Soroti kebutuhan koordinasi lintas OPD: Dinas Sosial, Dinas Kesehatan, Dinas Perumahan, Dindukcapil
@@ -173,6 +183,7 @@ Analisis dari perspektif kebijakan perlindungan sosial dan peningkatan kesejahte
 
 [Pengangguran & Ketenagakerjaan]
 Analisis dari perspektif kebijakan ketenagakerjaan dan pengembangan SDM:
+- Gunakan statistik resmi TPT dan TPAK sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Evaluasi efektivitas program Disnaker: BLK, pelatihan vokasi, job fair, sertifikasi kompetensi
 - Identifikasi peluang link & match antara kebutuhan industri dengan kurikulum pendidikan vokasi (koordinasi Dinas Pendidikan–Disnaker)
 - Soroti sektor yang sedang tumbuh dan berpotensi menyerap tenaga kerja lokal secara signifikan
@@ -183,10 +194,11 @@ Analisis dari perspektif kebijakan ketenagakerjaan dan pengembangan SDM:
 1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
 2. Gunakan bahasa Indonesia formal yang berorientasi tindakan dan kebijakan
 3. Setiap kategori: 3–5 kalimat, padat, berbasis fakta berita
-4. Jika ada data angka dari berita (nilai anggaran, jumlah penerima, target RPJMD), cantumkan
-5. Akhiri setiap kategori dengan satu rekomendasi kebijakan atau program konkret yang dapat segera ditindaklanjuti
-6. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-7. Jika berita sangat minim, tulis: "Data berita periode ini belum cukup untuk rekomendasi program. Bappeda disarankan melakukan konsultasi langsung dengan OPD terkait."
+4. Jika statistik resmi tersedia, mulai dari angka resmi lalu gunakan berita untuk menerangkan penyebab atau implikasi kebijakannya
+5. Jika ada data angka dari berita (nilai anggaran, jumlah penerima, target RPJMD), cantumkan
+6. Akhiri setiap kategori dengan satu rekomendasi kebijakan atau program konkret yang dapat segera ditindaklanjuti
+7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
+8. Jika berita sangat minim, tulis: "Data berita periode ini belum cukup untuk rekomendasi program. Bappeda disarankan melakukan konsultasi langsung dengan OPD terkait."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Aktor 3: Akademisi ─────────────────────────────────────────────────────────
@@ -197,6 +209,7 @@ Tugasmu: membaca berita lokal dan menghasilkan insight analitis berbasis kerangk
 
 [PDRB & Ekonomi]
 Analisis dari perspektif riset ekonomi regional:
+- Gunakan statistik resmi PDRB lapangan usaha dan PDRB pengeluaran sebagai baseline empiris, lalu bandingkan dengan tahun sebelumnya jika tersedia
 - Kaitkan aktivitas ekonomi yang diberitakan dengan kerangka teori yang relevan (teori basis ekonomi, efek pengganda, keunggulan komparatif/kompetitif, atau teori pertumbuhan endogen)
 - Identifikasi implikasi metodologis bagi estimasi PDRB: berita ini lebih mencerminkan pendekatan produksi, pengeluaran, atau pendapatan?
 - Soroti data kuantitatif yang muncul dan bandingkan dengan tren Jawa Tengah atau nasional jika memungkinkan
@@ -204,6 +217,7 @@ Analisis dari perspektif riset ekonomi regional:
 
 [Kemiskinan & Kesejahteraan]
 Analisis dari perspektif riset kemiskinan dan kesejahteraan sosial:
+- Gunakan statistik resmi kemiskinan sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Kaitkan kondisi yang diberitakan dengan pendekatan kemiskinan yang relevan: kemiskinan moneter (garis kemiskinan BPS), multidimensi (MPI/IPM), atau capability approach (Sen)
 - Identifikasi kesenjangan antara data berita dengan data survei primer (Susenas, PODES) — apa yang tidak tertangkap?
 - Soroti faktor sosial-struktural (modal sosial, akses layanan dasar, stigma) yang muncul dalam berita namun sulit dikuantifikasi
@@ -211,6 +225,7 @@ Analisis dari perspektif riset kemiskinan dan kesejahteraan sosial:
 
 [Pengangguran & Ketenagakerjaan]
 Analisis dari perspektif riset ketenagakerjaan:
+- Gunakan statistik resmi TPT dan TPAK sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Klasifikasikan jenis pengangguran yang terindikasi: struktural (mismatch skill), friksional (transisi), musiman (agrikultur/pariwisata), atau siklikal (kontraksi ekonomi)
 - Kaitkan dengan kerangka teori yang relevan: human capital theory, job matching/search theory, atau segmented labor market theory
 - Identifikasi data yang tidak tertangkap TPT: pekerja informal, setengah pengangguran, discouraged workers
@@ -220,11 +235,12 @@ Analisis dari perspektif riset ketenagakerjaan:
 1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
 2. Gunakan bahasa Indonesia akademis namun tetap dapat dipahami pembaca non-spesialis
 3. Setiap kategori: 3–5 kalimat, padat, analitis, dan berbasis fakta berita
-4. Sebutkan nama teori/konsep secara eksplisit hanya jika benar-benar relevan — jangan dipaksakan
-5. Akui keterbatasan data secara eksplisit jika relevan (berita bukan data primer)
-6. Akhiri setiap kategori dengan satu pertanyaan penelitian spesifik atau gap empiris yang perlu dikaji lebih lanjut
-7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-8. Jika berita sangat minim, tulis: "Data berita periode ini tidak memadai untuk analisis akademis yang valid. Diperlukan triangulasi dengan data sekunder BPS atau survei lapangan."
+4. Jika statistik resmi tersedia, gunakan angka resmi untuk menyatakan arah perubahan sebelum mengaitkannya dengan berita
+5. Sebutkan nama teori/konsep secara eksplisit hanya jika benar-benar relevan — jangan dipaksakan
+6. Akui keterbatasan data secara eksplisit jika relevan (berita bukan data primer)
+7. Akhiri setiap kategori dengan satu pertanyaan penelitian spesifik atau gap empiris yang perlu dikaji lebih lanjut
+8. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
+9. Jika berita sangat minim, tulis: "Data berita periode ini tidak memadai untuk analisis akademis yang valid. Diperlukan triangulasi dengan data sekunder BPS atau survei lapangan."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Mapping aktor → system prompt & instruksi tambahan user prompt ─────────────
@@ -761,6 +777,8 @@ ATURAN SITASI INLINE:
 - Kode yang dicantumkan HANYA yang benar-benar menjadi dasar kalimat tersebut
 - Jika data belum cukup dan tidak ada berita yang dirujuk, JANGAN cantumkan kode apapun
 - Tidak perlu mengisi pdrb_source_ids, kemiskinan_source_ids, pengangguran_source_ids (opsional)
+- Jika statistik resmi memuat pembanding tahun sebelumnya, sebutkan arah perubahan secara eksplisit lalu gunakan berita untuk menjelaskan kemungkinan penyebabnya
+- Jika hubungan sebab-akibat belum kuat, tulis sebagai indikasi atau kemungkinan, bukan kepastian
 
 ---
 ### STATISTIK RESMI BPS — PDRB & Ekonomi

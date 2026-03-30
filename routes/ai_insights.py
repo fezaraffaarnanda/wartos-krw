@@ -213,23 +213,6 @@ def get_ai_insights():
 
     articles = _fetch_period_articles(date_from, date_to)
 
-    if not articles:
-        print(f"[AI Insights] Tidak ada artikel untuk {actor_period_key} — return langsung.")
-        empty_payload = {
-            "status":        "ok",
-            "cached":        False,
-            "quarter":       period_label,
-            "article_count": 0,
-            "data": {
-                "pdrb":         "Belum ada data berita untuk periode ini.",
-                "kemiskinan":   "Belum ada data berita untuk periode ini.",
-                "pengangguran": "Belum ada data berita untuk periode ini.",
-            },
-            "sources": {"pdrb": [], "kemiskinan": [], "pengangguran": []},
-        }
-        _INSIGHTS_CACHE[actor_period_key] = {"ts": 0.0, "data": empty_payload}
-        return jsonify(empty_payload)
-
     _INSIGHTS_GENERATING[actor_period_key] = True
     threading.Thread(
         target  = _generate_insights_worker,

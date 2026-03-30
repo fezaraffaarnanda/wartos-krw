@@ -84,6 +84,8 @@ function _showOfficialStatisticsSkeleton() {
     "officialPdrbAdhbBody",
     "officialTptTpakBody",
     "officialKemiskinanBody",
+    "officialPdrbPengeluaranAdhkBody",
+    "officialPdrbPengeluaranAdhbBody",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -109,6 +111,8 @@ function _renderOfficialStatisticsError(message) {
     "officialPdrbAdhbBody",
     "officialTptTpakBody",
     "officialKemiskinanBody",
+    "officialPdrbPengeluaranAdhkBody",
+    "officialPdrbPengeluaranAdhbBody",
   ].forEach((id) => {
     const el = document.getElementById(id);
     if (!el) return;
@@ -130,9 +134,10 @@ function renderOfficialStatistics(payload) {
   if (yearSelect) yearSelect.value = year;
 
   const availableCount = Number(payload.available_count || 0);
+  const datasetCount = Number(payload.dataset_count || Object.keys(datasets).length || 0);
   const status = document.getElementById("officialStatsStatusText");
   if (status) {
-    status.textContent = `${availableCount}/4 tabel resmi berhasil dimuat untuk tahun ${year}.`;
+    status.textContent = `${availableCount}/${datasetCount} tabel resmi berhasil dimuat untuk tahun ${year}.`;
   }
 
   _renderPdrbCard("officialPdrbAdhkBody", datasets.pdrb_adhk, {
@@ -145,6 +150,14 @@ function renderOfficialStatistics(payload) {
   });
   _renderTptTpakCard("officialTptTpakBody", datasets.tpt_tpak);
   _renderKemiskinanCard("officialKemiskinanBody", datasets.kemiskinan);
+  _renderPdrbPengeluaranCard("officialPdrbPengeluaranAdhkBody", datasets.pdrb_pengeluaran_adhk, {
+    chartId: "officialPdrbPengeluaranAdhkChart",
+    toneClass: "tone-orange",
+  });
+  _renderPdrbPengeluaranCard("officialPdrbPengeluaranAdhbBody", datasets.pdrb_pengeluaran_adhb, {
+    chartId: "officialPdrbPengeluaranAdhbChart",
+    toneClass: "tone-blue",
+  });
 }
 
 function _renderPdrbCard(bodyId, dataset, { chartId, toneClass }) {
@@ -332,6 +345,80 @@ function _renderKemiskinanCard(bodyId, dataset) {
   _renderOfficialStatisticsPovertyChart(comparisonRows);
 }
 
+function _renderPdrbPengeluaranCard(bodyId, dataset, { chartId, toneClass }) {
+  const body = document.getElementById(bodyId);
+  if (!body) return;
+
+  if (!dataset || !dataset.available) {
+    body.innerHTML = _buildOfficialStatisticsEmptyHtml(dataset?.message || "Tidak ada data PDRB pengeluaran untuk tahun terpilih.");
+    _destroyOfficialStatisticsChart(chartId);
+    return;
+  }
+
+  const comparison = dataset.comparison || {};
+  const annualSummary = comparison.annual_summary || {};
+  const strongestGrowth = comparison.strongest_growth || {};
+  const topComponent = dataset.top_components?.[0] || {};
+  const rowsHtml = (dataset.component_rows || [])
+    .map(
+      (row, index) => `
+        <tr>
+          <td>${index + 1}</td>
+          <td>${escapeHtml(row.label || "—")}</td>
+          <td>${escapeHtml(row.displays?.q1 || "—")}</td>
+          <td>${escapeHtml(row.displays?.q2 || "—")}</td>
+          <td>${escapeHtml(row.displays?.q3 || "—")}</td>
+          <td>${escapeHtml(row.displays?.q4 || "—")}</td>
+          <td>${escapeHtml(row.total_display || "—")}</td>
+        </tr>
+      `,
+    )
+    .join("");
+
+  body.innerHTML = `
+    <div class="official-stat-metric-row official-stat-metric-row-tight">
+      ${_buildOfficialStatisticsMetricHtml("Total Tahunan", `${dataset.annual_total_display || "—"} miliar`)}
+      ${_buildOfficialStatisticsMetricHtml("Komponen Terbesar", topComponent.label || "—")}
+      ${_buildOfficialStatisticsMetricHtml("Perubahan YoY", annualSummary.delta_percentage_display || "—")}
+    </div>
+    ${_buildOfficialStatisticsCardMetaHtml(dataset)}
+    ${_buildOfficialStatisticsQuarterSummaryHtml(comparison.comparison_quarters || [], comparison.previous_year)}
+    <div class="official-stat-chart-card ${toneClass}">
+      <div class="official-stat-chart-head">
+        <strong>Perbandingan Total per Triwulan</strong>
+        <span>${escapeHtml(dataset.unit || "—")}</span>
+      </div>
+      <div class="official-stat-chart-wrap official-stat-chart-wrap-wide">
+        <canvas id="${escapeAttr(chartId)}"></canvas>
+      </div>
+    </div>
+    ${_buildOfficialStatisticsTablePanelHtml({
+      title: "Rincian Komponen Pengeluaran",
+      subtitle: strongestGrowth.label
+        ? `${strongestGrowth.label} mencatat kenaikan terkuat dibanding ${comparison.previous_year || "tahun sebelumnya"}.`
+        : "Komponen pengeluaran per triwulan dan total tahunan.",
+      tableHead: `
+        <tr>
+          <th>No</th>
+          <th>Komponen</th>
+          <th>TW I</th>
+          <th>TW II</th>
+          <th>TW III</th>
+          <th>TW IV</th>
+          <th>Jumlah</th>
+        </tr>
+      `,
+      tableBody: rowsHtml,
+      wrapClassName: "official-stat-table-wrap compact-scroll",
+    })}
+    <div class="official-stat-footnote">
+      <span>${escapeHtml(dataset.source || "Web API BPS")}</span>
+    </div>
+  `;
+
+  _renderOfficialStatisticsQuarterlyChart(chartId, dataset);
+}
+
 function _renderOfficialStatisticsBarChart(chartId, rows, toneClass) {
   const canvas = document.getElementById(chartId);
   if (!canvas) return;
@@ -506,6 +593,70 @@ function _renderOfficialStatisticsPovertyChart(rows) {
   });
 }
 
+function _renderOfficialStatisticsQuarterlyChart(chartId, dataset) {
+  const canvas = document.getElementById(chartId);
+  if (!canvas) return;
+
+  const quarterRows = (dataset.quarter_series || []).filter((row) => row.quarter_key !== "total");
+  const comparisonRows = (dataset.comparison?.comparison_quarters || []).filter((row) => row.quarter_key !== "total");
+  const previousValuesByQuarter = Object.fromEntries(
+    comparisonRows.map((row) => [row.quarter_key, row.previous_value]),
+  );
+
+  const currentValues = quarterRows.map((row) => row.value);
+  const previousValues = quarterRows.map((row) => previousValuesByQuarter[row.quarter_key] ?? null);
+  const currentTone = chartId === "officialPdrbPengeluaranAdhbChart"
+    ? { red: 37, green: 99, blue: 235 }
+    : { red: 234, green: 88, blue: 12 };
+
+  _createOfficialStatisticsChart(chartId, canvas, {
+    type: "bar",
+    data: {
+      labels: quarterRows.map((row) => row.label),
+      datasets: [
+        {
+          label: String(dataset.year || "Tahun Terpilih"),
+          data: currentValues,
+          backgroundColor: _buildValueDrivenColors(currentValues, currentTone),
+          borderRadius: 10,
+          borderSkipped: false,
+        },
+        {
+          label: String(dataset.comparison?.previous_year || "Tahun Sebelumnya"),
+          data: previousValues,
+          backgroundColor: "rgba(148, 163, 184, 0.28)",
+          borderColor: "rgba(100, 116, 139, 0.45)",
+          borderWidth: 1,
+          borderRadius: 10,
+          borderSkipped: false,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: "bottom",
+          labels: { boxWidth: 12, usePointStyle: true },
+        },
+      },
+      scales: {
+        x: { grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          grid: { color: "rgba(148, 163, 184, 0.16)" },
+          ticks: {
+            callback(value) {
+              return _formatAxisNumber(value);
+            },
+          },
+        },
+      },
+    },
+  });
+}
+
 function _createOfficialStatisticsChart(chartId, canvas, config) {
   _destroyOfficialStatisticsChart(chartId);
 
@@ -521,6 +672,8 @@ function _assignOfficialStatisticsChart(chartId, chart) {
   if (chartId === "officialPdrbAdhbChart") _officialStatsChartPdrbAdhb = chart;
   if (chartId === "officialTptTpakChart") _officialStatsChartTptTpak = chart;
   if (chartId === "officialKemiskinanChart") _officialStatsChartKemiskinan = chart;
+  if (chartId === "officialPdrbPengeluaranAdhkChart") _officialStatsChartPdrbPengeluaranAdhk = chart;
+  if (chartId === "officialPdrbPengeluaranAdhbChart") _officialStatsChartPdrbPengeluaranAdhb = chart;
 }
 
 function _destroyOfficialStatisticsChart(chartId) {
@@ -528,7 +681,9 @@ function _destroyOfficialStatisticsChart(chartId) {
     chartId === "officialPdrbAdhkChart" ? _officialStatsChartPdrbAdhk
     : chartId === "officialPdrbAdhbChart" ? _officialStatsChartPdrbAdhb
     : chartId === "officialTptTpakChart" ? _officialStatsChartTptTpak
-    : _officialStatsChartKemiskinan;
+    : chartId === "officialKemiskinanChart" ? _officialStatsChartKemiskinan
+    : chartId === "officialPdrbPengeluaranAdhkChart" ? _officialStatsChartPdrbPengeluaranAdhk
+    : _officialStatsChartPdrbPengeluaranAdhb;
 
   if (chart) chart.destroy();
 
@@ -536,6 +691,8 @@ function _destroyOfficialStatisticsChart(chartId) {
   if (chartId === "officialPdrbAdhbChart") _officialStatsChartPdrbAdhb = null;
   if (chartId === "officialTptTpakChart") _officialStatsChartTptTpak = null;
   if (chartId === "officialKemiskinanChart") _officialStatsChartKemiskinan = null;
+  if (chartId === "officialPdrbPengeluaranAdhkChart") _officialStatsChartPdrbPengeluaranAdhk = null;
+  if (chartId === "officialPdrbPengeluaranAdhbChart") _officialStatsChartPdrbPengeluaranAdhb = null;
 }
 
 function _destroyOfficialStatisticsCharts() {
@@ -544,6 +701,8 @@ function _destroyOfficialStatisticsCharts() {
     "officialPdrbAdhbChart",
     "officialTptTpakChart",
     "officialKemiskinanChart",
+    "officialPdrbPengeluaranAdhkChart",
+    "officialPdrbPengeluaranAdhbChart",
   ].forEach(_destroyOfficialStatisticsChart);
 }
 
@@ -572,6 +731,25 @@ function _buildOfficialStatisticsCardMetaHtml(dataset) {
       </span>
     </div>
   `;
+}
+
+function _buildOfficialStatisticsQuarterSummaryHtml(rows, previousYear) {
+  const quarterRows = rows.filter((row) => row.quarter_key !== "total");
+  if (!quarterRows.length) return "";
+
+  const itemsHtml = quarterRows
+    .map(
+      (row) => `
+        <div class="official-stat-quarter-item">
+          <span class="official-stat-quarter-label">${escapeHtml(row.label || "—")}</span>
+          <strong class="official-stat-quarter-value">${escapeHtml(row.current_display || "—")}</strong>
+          <span class="official-stat-quarter-delta">vs ${escapeHtml(String(previousYear || "tahun lalu"))}: ${escapeHtml(row.delta_percentage_display || "—")}</span>
+        </div>
+      `,
+    )
+    .join("");
+
+  return `<div class="official-stat-quarter-grid">${itemsHtml}</div>`;
 }
 
 function _buildOfficialStatisticsTablePanelHtml({

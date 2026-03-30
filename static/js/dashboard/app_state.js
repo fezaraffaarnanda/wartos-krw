@@ -152,6 +152,8 @@ let _officialStatsChartPdrbAdhk = null;
 let _officialStatsChartPdrbAdhb = null;
 let _officialStatsChartTptTpak = null;
 let _officialStatsChartKemiskinan = null;
+let _officialStatsChartPdrbPengeluaranAdhk = null;
+let _officialStatsChartPdrbPengeluaranAdhb = null;
 
 let _articleEditorState = {
   beritaId: null,

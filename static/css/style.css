@@ -4517,6 +4517,41 @@ body.chat-view-lock {
     background: rgba(255, 247, 237, 0.9);
 }
 
+.official-stat-quarter-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.official-stat-quarter-item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 14px;
+    border-radius: 16px;
+    border: 1px solid rgba(148, 163, 184, 0.16);
+    background: rgba(248, 250, 252, 0.92);
+}
+
+.official-stat-quarter-label {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+}
+
+.official-stat-quarter-value {
+    color: var(--text-primary);
+    font-size: 0.94rem;
+}
+
+.official-stat-quarter-delta {
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.45;
+}
+
 .official-stat-chart-card {
     padding: 16px;
     border-radius: 22px;
@@ -4751,6 +4786,7 @@ body.chat-view-lock {
     }
 
     .official-stat-metric-row,
+    .official-stat-quarter-grid,
     .official-stat-skeleton-grid {
         grid-template-columns: 1fr;
     }

@@ -17,6 +17,8 @@ _PDRB_ADHK_TABLE_ID = "UklLSnFZZnMzMlJiSWpMOExJODIrQT09"
 _PDRB_ADHB_TABLE_ID = "S1RMUWRYb0NWc0Y5L05QQkxzcWw3Zz09"
 _TPT_TPAK_VAR_ID = 420
 _KEMISKINAN_VAR_ID = 944
+_PDRB_PENGELUARAN_ADHB_VAR_ID = 962
+_PDRB_PENGELUARAN_ADHK_VAR_ID = 963
 _DOMAIN_ID = 3328
 _PDRB_WILAYAH_ID = 3328000
 
@@ -40,6 +42,12 @@ class BPSWebApiClient:
 
     def fetch_kemiskinan(self, year: int) -> dict[str, Any]:
         return self._request_json(self._build_dynamic_url(_KEMISKINAN_VAR_ID, year))
+
+    def fetch_pdrb_pengeluaran_adhb(self, year: int) -> dict[str, Any]:
+        return self._request_json(self._build_dynamic_url(_PDRB_PENGELUARAN_ADHB_VAR_ID, year))
+
+    def fetch_pdrb_pengeluaran_adhk(self, year: int) -> dict[str, Any]:
+        return self._request_json(self._build_dynamic_url(_PDRB_PENGELUARAN_ADHK_VAR_ID, year))
 
     def _build_pdrb_url(self, year: int, table_id: str) -> str:
         return (
