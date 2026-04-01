@@ -2,6 +2,8 @@
 
 KABARE adalah aplikasi pemantauan berita ekonomi lokal untuk Kabupaten Tegal yang menggabungkan scraping multi-sumber, klasifikasi otomatis, statistik resmi BPS, dan fitur AI berbasis Gemini. Proyek ini ditujukan untuk membantu tim BPS atau analis daerah membaca dinamika ekonomi lapangan dengan lebih cepat, lebih rapi, dan lebih kontekstual.
 
+## URL : kabare.bpstegalkab.web.id
+
 ## Daftar Isi
 
 - [Gambaran Singkat](#gambaran-singkat)
@@ -181,9 +183,9 @@ pip install -r requirements.txt
 
 ### 4. Siapkan file environment
 
-Repo ini belum menyediakan `.env.example`, jadi buat file `.env` manual di root project.
+Buat file `.env` manual di root project.
 
-Contoh minimal:
+Untuk FLASK_SECRET_KEY dan CRON_SECRET hubungi Feza
 
 ```env
 SUPABASE_URL=https://your-project.supabase.co
@@ -193,20 +195,6 @@ CRON_SECRET=your-cron-secret
 GEMINI_API_KEY=your-gemini-api-key
 BPS_API_KEY=your-bps-api-key
 ```
-
-### 5. Jalankan migration SQL di Supabase
-
-Migration disimpan di folder `migrations/` dan perlu dijalankan manual ke database Supabase.
-
-File yang terdeteksi saat ini:
-
-```text
-migrations/20260325_add_berita_archive_fields.sql
-migrations/20260326120000_add_pdrb_pengeluaran.sql
-migrations/20260330124500_add_official_statistics_snapshots.sql
-```
-
-Jika proyek ini dijalankan pada database baru, pastikan skema inti seperti tabel berita, user, chat, insight, dan log juga sudah tersedia.
 
 ### 6. Jalankan aplikasi
 
@@ -247,7 +235,6 @@ Semua environment variable dibaca dari `config/settings.py`.
 
 ### Catatan penting
 
-- Jika `FLASK_SECRET_KEY` kosong, aplikasi tetap berjalan tetapi memakai key acak sementara. Ini tidak cocok untuk produksi.
 - Jika `GEMINI_API_KEY` tidak tersedia, fitur chat, insight, dan klasifikasi berbasis LLM tidak akan berfungsi penuh.
 - Jika `BPS_API_KEY` tidak tersedia, statistik resmi BPS tidak bisa dimuat.
 - Jangan commit `.env` ke repository.
@@ -419,28 +406,11 @@ python -m scripts.reference_data.build_pdrb_pengeluaran_embeddings
 python -m scripts.maintenance.clean_tags_db
 ```
 
-### Menjalankan test
-
-```bash
-python -m pytest
-python -m pytest tests/test_auth_service.py
-python -m pytest tests/test_berita_service.py
-python -m pytest tests/test_pdrb_pengeluaran.py
-```
-
-### Smoke check ringan
-
-```bash
-python -m compileall .
-node --check static/js/dashboard/bootstrap.js
-node --check static/js/auth/login.js
-```
-
 ## Data dan Database
 
-Repo ini memakai Supabase Postgres tanpa ORM. Akses data dilakukan lewat layer repository.
+Repo ini memakai Supabase Postgres
 
-### Entitas yang terlihat dari kode
+### Entitas
 
 Beberapa tabel/domain yang terdeteksi dari repository dan service:
 
@@ -468,19 +438,6 @@ Setiap artikel minimal mengandung field berikut dalam pipeline:
 - `pdrb_pengeluaran`
 - `embedding`
 
-### Kontrak respons API
-
-Repo ini konsisten menggunakan pola:
-
-```json
-{"status": "ok", "data": ...}
-```
-
-atau
-
-```json
-{"status": "error", "message": "..."}
-```
 
 ## Scraper yang Digunakan
 
@@ -499,161 +456,6 @@ Setiap scraper mengikuti pola umum:
 ```python
 def scrape_new_articles(existing_urls: set, max_articles: int, on_progress=None) -> list[dict]:
     ...
-```
-
-### Catatan operasional
-
-- Sistem mengecek URL existing lebih dulu agar tidak menyimpan duplikat.
-- Scraping bisa dijalankan dari dashboard admin atau lewat token `CRON_SECRET`.
-- Setelah scraping, sistem bisa melanjutkan dengan backfill KBLI, aktivitas, dan embedding.
-
-## Testing dan Validasi
-
-Repo ini sudah memiliki beberapa test `pytest`, tetapi belum memiliki setup QA yang besar.
-
-### Test yang terdeteksi
-
-- `tests/test_auth_service.py`
-- `tests/test_berita_service.py`
-- `tests/test_pdrb_pengeluaran.py`
-- `tests/test_schemas.py`
-
-### Rekomendasi validasi setelah perubahan
-
-Untuk perubahan Python:
-
-```bash
-python -m compileall .
-python -m pytest
-```
-
-Untuk perubahan frontend JS:
-
-```bash
-node --check static/js/auth/login.js
-node --check static/js/dashboard/bootstrap.js
-```
-
-## Deployment
-
-Saat ini repo memperlihatkan jejak keterhubungan ke Vercel melalui folder `.vercel/`, tetapi belum menyimpan file deployment config lengkap seperti `vercel.json`, `Dockerfile`, atau `render.yaml`.
-
-### Opsi 1 - Vercel
-
-Paling relevan jika deployment existing memang memakai Vercel project yang sudah dikaitkan sebelumnya.
-
-Catatan:
-
-- beberapa komentar di service scraping menunjukkan dukungan mode synchronous yang cocok untuk environment serverless,
-- tetapi detail build/runtime Vercel perlu dicek di dashboard project yang aktif.
-
-Yang perlu dipastikan di Vercel:
-
-- semua environment variable sudah diset,
-- Supabase dapat diakses dari runtime,
-- endpoint scraping dengan `CRON_SECRET` diamankan,
-- timeout cukup untuk proses yang berat.
-
-### Opsi 2 - Self-hosted / VPS
-
-Karena aplikasi dapat dijalankan langsung dengan `python app.py`, opsi paling sederhana untuk server internal adalah menjalankannya sebagai web app Python biasa di belakang reverse proxy.
-
-Langkah umum:
-
-1. clone repo ke server,
-2. buat virtual environment,
-3. install dependency,
-4. set `.env`,
-5. jalankan aplikasi,
-6. pasang reverse proxy dan proses manager sesuai kebutuhan tim.
-
-### Opsi 3 - Containerization
-
-Repo belum menyediakan `Dockerfile`, jadi jika ingin container-based deployment, tambahkan file container terpisah. Untuk saat ini, README ini tidak mengasumsikan alur Docker siap pakai.
-
-## Troubleshooting
-
-### 1. Aplikasi gagal start karena secret key
-
-Gejala:
-
-- session tidak stabil,
-- login terasa tidak konsisten,
-- console menampilkan peringatan `FLASK_SECRET_KEY tidak ditemukan`.
-
-Solusi:
-
-- isi `FLASK_SECRET_KEY` di `.env` dengan nilai acak yang permanen.
-
-Contoh membuat secret sederhana:
-
-```bash
-python - <<'PY'
-import secrets
-print(secrets.token_hex(32))
-PY
-```
-
-### 2. Fitur AI tidak jalan
-
-Gejala:
-
-- insight gagal,
-- chat error,
-- backfill embedding tidak berjalan.
-
-Solusi:
-
-- cek `GEMINI_API_KEY`,
-- cek kuota/rate limit Gemini,
-- cek konektivitas keluar ke endpoint Google Gemini.
-
-### 3. Statistik resmi BPS kosong
-
-Gejala:
-
-- endpoint statistik resmi mengembalikan error atau kosong.
-
-Solusi:
-
-- pastikan `BPS_API_KEY` valid,
-- cek koneksi ke `webapi.bps.go.id`,
-- cek apakah dataset tahun yang diminta memang tersedia.
-
-### 4. Scraping berhasil tapi berita tidak muncul
-
-Kemungkinan penyebab:
-
-- URL sudah pernah tersimpan,
-- artikel dianggap tidak valid oleh pipeline,
-- insert database gagal,
-- filter dashboard terlalu sempit.
-
-Langkah cek:
-
-```bash
-python -m scripts.scraping.trigger_scrape --max-articles 50
-```
-
-Lalu cek log aplikasi untuk pesan `[SCRAPE]`, `[DB ERROR]`, atau `[SKIP]`.
-
-### 5. Login gagal
-
-Kemungkinan penyebab:
-
-- user tidak ada di database,
-- password hash tidak cocok,
-- user wajib mengganti password dan diarahkan ke flow change password.
-
-Jika perlu, reset password lewat admin atau gunakan endpoint kode reset.
-
-### 6. Error JavaScript di halaman
-
-Lakukan smoke check:
-
-```bash
-node --check static/js/auth/login.js
-node --check static/js/dashboard/bootstrap.js
 ```
 
 ## Developer
