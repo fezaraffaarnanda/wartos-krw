@@ -17,7 +17,7 @@ const _tableFilterState = {
   kbli_code: "",
   aktivitas_code: "",
   pdrb_pengeluaran_code: "",
-  archive_status: "active",
+  archive_status: "relevant",
 };
 
 const _tablePaginationState = {
@@ -31,7 +31,7 @@ const _tablePaginationState = {
 
 const VIEW_META = {
   overview: {
-    title: "KABARE Dashboard",
+    title: "WARTOS Dashboard",
     subtitle: "Pemantauan fenomena ekonomi berbasis berita lokal",
   },
   data: {
@@ -40,7 +40,7 @@ const VIEW_META = {
   },
   "official-statistics": {
     title: "Data Official Statistic Terkini",
-    subtitle: "Visualisasi statistik resmi BPS Kabupaten Tegal per tahun",
+    subtitle: "Visualisasi statistik resmi BPS Kabupaten Karawang per tahun",
   },
   insight: {
     title: "Insight AI",
@@ -106,7 +106,7 @@ const AUTO_REFRESH_MS = 5 * 60 * 1000;
 let _selectedKbli = "";
 let _selectedAktivitas = "";
 let _selectedPdrbPengeluaran = "";
-let _selectedArchiveStatus = "active";
+let _selectedArchiveStatus = "relevant";
 let _filterDebounce = null;
 
 let _kbliTooltipEl = null;

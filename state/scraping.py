@@ -7,11 +7,10 @@ import threading
 _scraping_lock = threading.Lock()
 
 _scrape_progress: dict = {
-    "radartegal": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "panturapost": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "tribunjateng": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "kompas": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "setdategal": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "inews_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "karawangnews": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "pemda_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
+    "radar_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
 }
 
 _scrape_overall: dict = {"active": False, "done": False, "total_inserted": 0, "error": ""}

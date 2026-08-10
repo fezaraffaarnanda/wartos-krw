@@ -204,7 +204,7 @@ function coverPage(title, subtitle, dateText) {
     new Paragraph({
       alignment: AlignmentType.CENTER,
       spacing: { before: 520, after: 120 },
-      children: [run("BPS Kabupaten Tegal", { size: 24, bold: true, color: "1D4ED8" })],
+      children: [run("BPS Kabupaten Karawang", { size: 24, bold: true, color: "1D4ED8" })],
     }),
     new Paragraph({
       alignment: AlignmentType.CENTER,
@@ -234,8 +234,8 @@ function buildUserGuidebook() {
 
   children.push(
     ...coverPage(
-      "Guidebook Pengguna Aplikasi KABARE",
-      "Panduan penggunaan aplikasi pemantauan dan analisis berita untuk mendukung pekerjaan statistik BPS Kabupaten Tegal",
+      "Guidebook Pengguna Aplikasi WARTOS",
+      "Panduan penggunaan aplikasi pemantauan dan analisis berita untuk mendukung pekerjaan statistik BPS Kabupaten Karawang",
       dateText,
     ),
     ...tocPage(),
@@ -247,13 +247,13 @@ function buildUserGuidebook() {
       run: { size: 30, bold: true, color: "0F172A" },
     }),
     p(
-      "Aplikasi KABARE dibuat untuk menjawab kebutuhan kerja yang sangat nyata di lingkungan BPS Kabupaten Tegal. Dalam praktiknya, setelah kegiatan survei selesai dan hasil pengolahan mulai dibaca, pegawai sering mendapat tugas lanjutan ketika muncul angka yang terasa tidak biasa. Misalnya, pertumbuhan ekonomi bergerak di luar pola yang diharapkan, tingkat kemiskinan berubah cukup tajam, atau indikator pengangguran menunjukkan kondisi yang perlu dijelaskan lebih lanjut.",
+      "Aplikasi WARTOS dibuat untuk menjawab kebutuhan kerja yang sangat nyata di lingkungan BPS Kabupaten Karawang. Dalam praktiknya, setelah kegiatan survei selesai dan hasil pengolahan mulai dibaca, pegawai sering mendapat tugas lanjutan ketika muncul angka yang terasa tidak biasa. Misalnya, pertumbuhan ekonomi bergerak di luar pola yang diharapkan, tingkat kemiskinan berubah cukup tajam, atau indikator pengangguran menunjukkan kondisi yang perlu dijelaskan lebih lanjut.",
     ),
     p(
       "Pada kondisi seperti itu, pegawai perlu menelusuri berita yang relevan untuk memahami konteks lapangan dan mencari kemungkinan penyebab perubahan angka. Proses ini biasanya memakan waktu karena berita tersebar di banyak sumber, istilah yang dipakai tidak selalu sama, dan pencarian manual sering membuat informasi penting terlewat.",
     ),
     p(
-      "KABARE hadir untuk mempermudah proses tersebut. Aplikasi ini membantu pengguna mengumpulkan berita, membaca klasifikasi ekonomi yang sudah disiapkan sistem, menelusuri aktivitas ekonomi, melihat keterkaitan dengan PDRB pengeluaran, serta memanfaatkan AI untuk mempercepat analisis. Dengan begitu, pengguna tidak perlu memulai dari nol setiap kali harus menjelaskan fenomena di balik suatu indikator statistik.",
+      "WARTOS hadir untuk mempermudah proses tersebut. Aplikasi ini membantu pengguna mengumpulkan berita, membaca klasifikasi ekonomi yang sudah disiapkan sistem, menelusuri aktivitas ekonomi, melihat keterkaitan dengan PDRB pengeluaran, serta memanfaatkan AI untuk mempercepat analisis. Dengan begitu, pengguna tidak perlu memulai dari nol setiap kali harus menjelaskan fenomena di balik suatu indikator statistik.",
     ),
 
     p("2. Tujuan Aplikasi", {
@@ -343,7 +343,7 @@ function buildUserGuidebook() {
       run: { size: 30, bold: true, color: "0F172A" },
     }),
     p(
-      "Salah satu kekuatan KABARE adalah berita tidak hanya dikumpulkan, tetapi juga diklasifikasikan agar lebih mudah dicari kembali. Klasifikasi utama yang dipakai di aplikasi ini meliputi KBLI, aktivitas ekonomi, dan PDRB pengeluaran.",
+      "Salah satu kekuatan WARTOS adalah berita tidak hanya dikumpulkan, tetapi juga diklasifikasikan agar lebih mudah dicari kembali. Klasifikasi utama yang dipakai di aplikasi ini meliputi KBLI, aktivitas ekonomi, dan PDRB pengeluaran.",
     ),
     ...bulletList([
       "KBLI membantu menghubungkan berita dengan lapangan usaha yang relevan.",
@@ -482,10 +482,10 @@ function buildUserGuidebook() {
       run: { size: 30, bold: true, color: "0F172A" },
     }),
     p(
-      "KABARE dirancang untuk membantu pekerjaan yang sebelumnya banyak dilakukan secara manual, tersebar, dan memakan waktu. Dengan dukungan pencarian berita, klasifikasi ekonomi, arsip, statistik resmi, AI Insight, dan AI Chat, pengguna diharapkan bisa lebih cepat menemukan konteks yang dibutuhkan saat harus menjelaskan fenomena statistik di Kabupaten Tegal.",
+      "WARTOS dirancang untuk membantu pekerjaan yang sebelumnya banyak dilakukan secara manual, tersebar, dan memakan waktu. Dengan dukungan pencarian berita, klasifikasi ekonomi, arsip, statistik resmi, AI Insight, dan AI Chat, pengguna diharapkan bisa lebih cepat menemukan konteks yang dibutuhkan saat harus menjelaskan fenomena statistik di Kabupaten Karawang.",
     ),
     p(
-      "Semakin konsisten aplikasi ini dipakai dan diperbarui dengan penilaian yang baik dari pengguna, semakin kuat pula manfaatnya sebagai alat bantu kerja internal BPS Kabupaten Tegal.",
+      "Semakin konsisten aplikasi ini dipakai dan diperbarui dengan penilaian yang baik dari pengguna, semakin kuat pula manfaatnya sebagai alat bantu kerja internal BPS Kabupaten Karawang.",
     ),
   );
 
@@ -498,8 +498,8 @@ function buildAdminGuidebook() {
 
   children.push(
     ...coverPage(
-      "Guidebook Admin Aplikasi KABARE",
-      "Panduan pengelolaan akun dan operasional utama aplikasi pemantauan berita BPS Kabupaten Tegal",
+      "Guidebook Admin Aplikasi WARTOS",
+      "Panduan pengelolaan akun dan operasional utama aplikasi pemantauan berita BPS Kabupaten Karawang",
       dateText,
     ),
     ...tocPage(),
@@ -511,10 +511,10 @@ function buildAdminGuidebook() {
       run: { size: 30, bold: true, color: "0F172A" },
     }),
     p(
-      "Admin memegang peran penting dalam menjaga agar aplikasi KABARE dapat digunakan dengan tertib, aman, dan berkelanjutan. Jika pengguna biasa berfokus pada pencarian berita dan analisis, maka admin bertanggung jawab memastikan akses pengguna berjalan dengan baik, akun terkelola dengan aman, dan operasional dasar aplikasi tetap lancar.",
+      "Admin memegang peran penting dalam menjaga agar aplikasi WARTOS dapat digunakan dengan tertib, aman, dan berkelanjutan. Jika pengguna biasa berfokus pada pencarian berita dan analisis, maka admin bertanggung jawab memastikan akses pengguna berjalan dengan baik, akun terkelola dengan aman, dan operasional dasar aplikasi tetap lancar.",
     ),
     p(
-      "Di lingkungan kerja BPS Kabupaten Tegal, peran ini penting karena aplikasi mendukung pekerjaan yang berkaitan langsung dengan pembacaan fenomena ekonomi, kemiskinan, dan pengangguran. Karena itu, pengelolaan admin perlu dilakukan dengan hati-hati, praktis, dan tetap tertib secara administrasi.",
+      "Di lingkungan kerja BPS Kabupaten Karawang, peran ini penting karena aplikasi mendukung pekerjaan yang berkaitan langsung dengan pembacaan fenomena ekonomi, kemiskinan, dan pengangguran. Karena itu, pengelolaan admin perlu dilakukan dengan hati-hati, praktis, dan tetap tertib secara administrasi.",
     ),
 
     p("2. Tanggung Jawab Utama Admin", {
@@ -679,7 +679,7 @@ function buildAdminGuidebook() {
       run: { size: 30, bold: true, color: "0F172A" },
     }),
     p(
-      "Peran admin dalam KABARE mungkin terlihat sederhana di permukaan, tetapi dampaknya besar bagi kelancaran penggunaan aplikasi oleh seluruh tim. Pengelolaan akun yang rapi, pengamanan akses yang disiplin, dan dukungan operasional yang tepat akan membuat aplikasi ini lebih stabil dan lebih bermanfaat untuk pekerjaan statistik di BPS Kabupaten Tegal.",
+      "Peran admin dalam WARTOS mungkin terlihat sederhana di permukaan, tetapi dampaknya besar bagi kelancaran penggunaan aplikasi oleh seluruh tim. Pengelolaan akun yang rapi, pengamanan akses yang disiplin, dan dukungan operasional yang tepat akan membuat aplikasi ini lebih stabil dan lebih bermanfaat untuk pekerjaan statistik di BPS Kabupaten Karawang.",
     ),
     p(
       "Dengan pengelolaan admin yang baik, pengguna dapat fokus pada inti pekerjaannya, yaitu memahami fenomena ekonomi dan sosial melalui kombinasi berita, klasifikasi, serta statistik resmi yang tersedia di aplikasi.",
@@ -761,8 +761,8 @@ async function saveDoc(fileName, doc) {
 }
 
 async function main() {
-  await saveDoc("Guidebook Pengguna KABARE.docx", buildUserGuidebook());
-  await saveDoc("Guidebook Admin KABARE.docx", buildAdminGuidebook());
+  await saveDoc("Guidebook Pengguna WARTOS.docx", buildUserGuidebook());
+  await saveDoc("Guidebook Admin WARTOS.docx", buildAdminGuidebook());
 }
 
 main().catch((error) => {

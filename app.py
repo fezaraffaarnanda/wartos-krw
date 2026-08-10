@@ -17,6 +17,7 @@ from routes.admin       import admin_bp
 
 from services.article_pipeline import (
     set_classifiers,
+    _run_relevance_backfill,
     _run_kbli_backfill,
     _run_aktivitas_backfill,
     _run_embedding_backfill,
@@ -112,12 +113,25 @@ set_classifiers(
     _kbli_llm_client,
     _kbli_llm_model,
     _pdrb_pengeluaran_predictor,
+    relevance_llm_client=_kbli_llm_client,
+    relevance_llm_model=_kbli_llm_model,
 )
 
 
 # ── Startup background threads ─────────────────────────────────────────────
 
-if _kbli_predictor is not None:
+if _kbli_llm_client is not None:
+    def _relevance_then_kbli_startup():
+        _run_relevance_backfill()
+        if _kbli_predictor is not None:
+            _run_kbli_backfill()
+
+    threading.Thread(
+        target=_relevance_then_kbli_startup,
+        daemon=True,
+        name="relevance-kbli-backfill-startup",
+    ).start()
+elif _kbli_predictor is not None:
     threading.Thread(
         target=_run_kbli_backfill,
         daemon=True,
@@ -149,6 +163,6 @@ if _pdrb_pengeluaran_predictor is not None:
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("KABARE (Kanal Berita & Rekomendasi Ekonomi)")
+    print("WARTOS (Warta Online Statistik)")
     print("=" * 50)
     app.run(debug=True, port=5000, use_reloader=False)

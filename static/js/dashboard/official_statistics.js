@@ -294,12 +294,12 @@ function _renderKemiskinanCard(bodyId, dataset) {
     return;
   }
 
-  const tegal = dataset.tegal_metrics || {};
+  const focusArea = dataset.focus_area_metrics || {};
   const comparisonRows = dataset.comparison_rows || [];
   const rowsHtml = comparisonRows
     .map(
       (row) => `
-        <tr class="${row.label === "Kabupaten Tegal" ? "is-highlight" : ""}">
+        <tr class="${row.is_focus_area ? "is-highlight" : ""}">
           <td>${escapeHtml(row.label || "—")}</td>
           <td>${escapeHtml(row.poverty_rate_display || "—")}%</td>
           <td>${escapeHtml(row.poor_population_display || "—")}</td>
@@ -310,9 +310,9 @@ function _renderKemiskinanCard(bodyId, dataset) {
 
   body.innerHTML = `
     <div class="official-stat-metric-row official-stat-metric-row-tight">
-      ${_buildOfficialStatisticsMetricHtml("Garis Kemiskinan", `${tegal.poverty_line_display || "—"} rupiah`)}
-      ${_buildOfficialStatisticsMetricHtml("Penduduk Miskin", `${tegal.poor_population_display || "—"} ribu jiwa`)}
-      ${_buildOfficialStatisticsMetricHtml("Persentase Miskin", `${tegal.poverty_rate_display || "—"}%`)}
+      ${_buildOfficialStatisticsMetricHtml("Garis Kemiskinan", `${focusArea.poverty_line_display || "—"} rupiah`)}
+      ${_buildOfficialStatisticsMetricHtml("Penduduk Miskin", `${focusArea.poor_population_display || "—"} ribu jiwa`)}
+      ${_buildOfficialStatisticsMetricHtml("Persentase Miskin", `${focusArea.poverty_rate_display || "—"}%`)}
     </div>
     ${_buildOfficialStatisticsCardMetaHtml(dataset)}
     <div class="official-stat-chart-card tone-rose">
@@ -551,7 +551,7 @@ function _renderOfficialStatisticsPovertyChart(rows) {
     blue: 72,
   });
   const borderColors = rows.map((row, index) =>
-    row.label === "Kabupaten Tegal"
+    row.is_focus_area
       ? "rgba(136, 19, 55, 0.95)"
       : backgroundColors[index].replace(/,\s*[\d.]+\)$/, ", 1)"),
   );
@@ -565,7 +565,7 @@ function _renderOfficialStatisticsPovertyChart(rows) {
           data: rows.map((row) => row.poverty_rate),
           backgroundColor: backgroundColors,
           borderColor: borderColors,
-          borderWidth: rows.map((row) => (row.label === "Kabupaten Tegal" ? 2 : 0)),
+          borderWidth: rows.map((row) => (row.is_focus_area ? 2 : 0)),
           borderRadius: 10,
           borderSkipped: false,
         },

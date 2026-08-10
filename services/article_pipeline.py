@@ -17,20 +17,18 @@ from state.scraping import (
 from utils.date import normalize_date, parse_date_to_iso
 from ai.embeddings import batch_embed_articles, embed_article, _build_embedding_client
 
-from scrapers.radartegal import scrape_new_articles as scrape_radartegal
-from scrapers.panturapost import scrape_new_articles as scrape_panturapost
-from scrapers.tribunjateng import scrape_new_articles as scrape_tribunjateng
-from scrapers.kompas import scrape_new_articles as scrape_kompas
-from scrapers.setda_tegal import scrape_new_articles as scrape_tegal
+from scrapers.inews_karawang import scrape_new_articles as scrape_inews_karawang
+from scrapers.karawangnews import scrape_new_articles as scrape_karawangnews
+from scrapers.pemda_karawang import scrape_new_articles as scrape_pemda_karawang
+from scrapers.radar_karawang import scrape_new_articles as scrape_radar_karawang
 
 # ── Konstanta ───────────────────────────────────────────────────────────────
 
 SOURCE_LABELS = {
-    "radartegal":   "Radar Tegal",
-    "panturapost":  "Pantura Post",
-    "tribunjateng": "Tribun Jateng",
-    "kompas":       "Kompas",
-    "setdategal":   "Setda Tegal",
+    "inews_karawang": "iNews Karawang",
+    "karawangnews":   "KarawangNews",
+    "pemda_karawang": "Pemda Karawang",
+    "radar_karawang": "Radar Karawang",
 }
 
 
@@ -42,6 +40,8 @@ _classifiers: dict = {
     "kbli_llm_client": None,
     "kbli_llm_model":  "",
     "pdrb_pengeluaran_predictor": None,
+    "relevance_llm_client": None,
+    "relevance_llm_model":  "",
 }
 
 
@@ -50,12 +50,16 @@ def set_classifiers(
     kbli_llm_client,
     kbli_llm_model: str,
     pdrb_pengeluaran_predictor=None,
+    relevance_llm_client=None,
+    relevance_llm_model: str = "",
 ) -> None:
     """Dipanggil oleh app.py setelah classifier berhasil diinisialisasi."""
     _classifiers["kbli_predictor"]  = kbli_predictor
     _classifiers["kbli_llm_client"] = kbli_llm_client
     _classifiers["kbli_llm_model"]  = kbli_llm_model
     _classifiers["pdrb_pengeluaran_predictor"] = pdrb_pengeluaran_predictor
+    _classifiers["relevance_llm_client"] = relevance_llm_client
+    _classifiers["relevance_llm_model"]  = relevance_llm_model
 
 
 # ── Validasi & klasifikasi artikel ──────────────────────────────────────────
@@ -83,6 +87,48 @@ def _is_kbli_irrelevant(kbli: str | None) -> bool:
     return kbli.strip() in ("Tidak Relevan", "—")
 
 
+def _classify_relevance_for_article(article: dict) -> dict:
+    """
+    Jalankan classifier tahap-1. Return dict field relevance siap masuk row.
+    Fallback aman: jika classifier tidak tersedia / gagal → anggap relevan
+    (jangan buang data diam-diam), skor None.
+    """
+    from ai.relevance import classify_relevance
+
+    client = _classifiers["relevance_llm_client"]
+    model  = _classifiers["relevance_llm_model"]
+
+    if client is None:
+        return {
+            "is_relevant":      True,
+            "relevance_score":  None,
+            "relevance_reason": None,
+            "classifier_model": None,
+        }
+
+    result = classify_relevance(
+        article.get("content"),
+        article.get("title"),
+        client,
+        model,
+    )
+    if result is None:
+        # Gagal klasifikasi — fallback konservatif: tetap proses sebagai relevan.
+        return {
+            "is_relevant":      True,
+            "relevance_score":  None,
+            "relevance_reason": "Classifier relevance gagal/menghasilkan output tak valid — fallback dianggap relevan.",
+            "classifier_model": None,
+        }
+
+    return {
+        "is_relevant":      result["is_relevant"],
+        "relevance_score":  result["score"],
+        "relevance_reason": result["reason"],
+        "classifier_model": result["classifier_model"],
+    }
+
+
 def _build_article_row(article: dict, source_label: str) -> dict:
     """Rakit dict row siap insert ke tabel berita."""
     from ai.kbli import predict_kbli_label
@@ -90,6 +136,29 @@ def _build_article_row(article: dict, source_label: str) -> dict:
     from ai.pdrb_pengeluaran import predict_pdrb_pengeluaran_label
 
     normalized_date = normalize_date(article["date"])
+
+    # ── Gerbang tahap-1: relevance ────────────────────────────────────────────
+    rel = _classify_relevance_for_article(article)
+
+    if not rel["is_relevant"]:
+        # Tidak relevan secara ekonomi → lewati classifier mahal (hemat cost).
+        return {
+            "title":             article["title"],
+            "date":              normalized_date,
+            "date_parsed":       parse_date_to_iso(normalized_date),
+            "url":               article["url"],
+            "content":           article["content"],
+            "tags":              article["tags"].lower() if article.get("tags") else article.get("tags"),
+            "kbli":              "—",
+            "aktivitas_ekonomi": "—",
+            "pdrb_pengeluaran":  "—",
+            "source":            article.get("source") or source_label,
+            "is_relevant":       False,
+            "relevance_score":   rel["relevance_score"],
+            "relevance_reason":  rel["relevance_reason"],
+            "classifier_model":  rel["classifier_model"],
+        }
+
     kbli = predict_kbli_label(
         article.get("content"),
         _classifiers["kbli_predictor"],
@@ -127,6 +196,10 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         "aktivitas_ekonomi": aktivitas,
         "pdrb_pengeluaran":  pdrb_pengeluaran,
         "source":            article.get("source") or source_label,
+        "is_relevant":       True,
+        "relevance_score":   rel["relevance_score"],
+        "relevance_reason":  rel["relevance_reason"],
+        "classifier_model":  rel["classifier_model"],
     }
 
 
@@ -171,6 +244,95 @@ def _insert_articles(articles: list, source_key: str) -> int:
     _scrape_progress[source_key]["inserted"] = inserted
     print(f"[Embedding] {source_key}: {embedded_count}/{inserted} artikel baru di-embed saat insert.")
     return inserted
+
+
+# ── Backfill Relevance (gerbang tahap-1) ─────────────────────────────────────
+
+def _run_relevance_backfill(batch_size: int = 50) -> int:
+    """
+    Prediksi relevance untuk semua berita yang is_relevant IS NULL.
+    Untuk artikel tidak relevan, langsung set kbli/aktivitas/pdrb = "—"
+    agar backfill mahal melewatinya. Untuk artikel relevan, biarkan kbli NULL
+    supaya diproses backfill KBLI.
+    Return jumlah artikel yang berhasil diupdate.
+    """
+    from ai.relevance import classify_relevance
+
+    client = _classifiers["relevance_llm_client"]
+    model  = _classifiers["relevance_llm_model"]
+
+    if client is None:
+        print("[Relevance Backfill] Classifier tidak tersedia, backfill dilewati.")
+        return 0
+
+    total_updated = 0
+    MAX_BATCHES   = 200
+    iteration     = 0
+
+    print("[Relevance Backfill] Mulai memproses artikel tanpa label relevance...")
+
+    while iteration < MAX_BATCHES:
+        iteration += 1
+
+        try:
+            result = (
+                supabase.table("berita")
+                .select("id, title, content")
+                .is_("is_relevant", "null")
+                .limit(batch_size)
+                .execute()
+            )
+        except Exception as exc:
+            print(f"[Relevance Backfill] Gagal query DB (batch {iteration}): {exc}")
+            break
+
+        rows = result.data or []
+        if not rows:
+            break
+
+        updated_this_batch = 0
+
+        for row in rows:
+            content = (row.get("content") or "").strip()
+            title   = (row.get("title")   or "").strip()
+
+            res = classify_relevance(content, title, client, model)
+
+            if res is None:
+                # Fallback aman: tandai relevan tanpa skor, biar tidak dibuang.
+                update = {
+                    "is_relevant":      True,
+                    "relevance_score":  None,
+                    "relevance_reason": "Classifier relevance gagal — fallback dianggap relevan.",
+                    "classifier_model": None,
+                }
+            else:
+                update = {
+                    "is_relevant":      res["is_relevant"],
+                    "relevance_score":  res["score"],
+                    "relevance_reason": res["reason"],
+                    "classifier_model": res["classifier_model"],
+                }
+                if not res["is_relevant"]:
+                    update.update({
+                        "kbli":              "—",
+                        "aktivitas_ekonomi": "—",
+                        "pdrb_pengeluaran":  "—",
+                    })
+
+            try:
+                supabase.table("berita").update(update).eq("id", row["id"]).execute()
+                updated_this_batch += 1
+                total_updated += 1
+            except Exception as exc:
+                print(f"[Relevance Backfill] Gagal update id={row['id']}: {exc}")
+
+        if updated_this_batch == 0:
+            print(f"[Relevance Backfill] Batch {iteration} tidak ada update — menghentikan loop.")
+            break
+
+    print(f"[Relevance Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
+    return total_updated
 
 
 # ── Backfill KBLI ────────────────────────────────────────────────────────────
@@ -466,13 +628,11 @@ def _run_embedding_backfill(batch_size: int = 20) -> int:
 
 def _build_scraper_config(max_articles: int) -> list[tuple]:
     """Return daftar (key, scraper_fn, kwargs) untuk semua sumber."""
-    max_pages = max(1, max_articles // 30)
     return [
-        ("radartegal",   scrape_radartegal,   {"max_pages": max_pages}),
-        ("panturapost",  scrape_panturapost,  {"max_articles": max_articles}),
-        ("tribunjateng", scrape_tribunjateng, {"max_articles": max_articles}),
-        ("kompas",       scrape_kompas,       {"max_articles": max_articles}),
-        ("setdategal",   scrape_tegal,        {"max_articles": max_articles}),
+        ("inews_karawang", scrape_inews_karawang, {"max_articles": max_articles}),
+        ("karawangnews",   scrape_karawangnews,   {"max_articles": max_articles}),
+        ("pemda_karawang", scrape_pemda_karawang, {"max_articles": max_articles}),
+        ("radar_karawang", scrape_radar_karawang, {"max_articles": max_articles}),
     ]
 
 
@@ -519,12 +679,19 @@ def _scrape_worker(max_articles: int) -> None:
         _log_scrape_run(total_inserted)
         print(f"[SCRAPE] Semua selesai. Total {total_inserted} berita baru disimpan.")
 
-        if _classifiers["kbli_predictor"] is not None:
-            threading.Thread(
-                target=_run_kbli_backfill,
-                daemon=True,
-                name="kbli-backfill-post-scrape",
-            ).start()
+        # Gerbang relevance → KBLI berjalan setelahnya dalam thread yang sama
+        # agar artikel tidak-relevan sudah ditandai "—" sebelum backfill KBLI.
+        def _relevance_then_kbli_backfill():
+            if _classifiers["relevance_llm_client"] is not None:
+                _run_relevance_backfill()
+            if _classifiers["kbli_predictor"] is not None:
+                _run_kbli_backfill()
+
+        threading.Thread(
+            target=_relevance_then_kbli_backfill,
+            daemon=True,
+            name="relevance-kbli-backfill-post-scrape",
+        ).start()
 
         threading.Thread(
             target=_run_embedding_backfill,
@@ -579,6 +746,12 @@ def _scrape_sync(max_articles: int) -> dict:
 
     print(f"[SCRAPE-SYNC] Selesai. Total {total_inserted} berita baru disimpan.")
     _log_scrape_run(total_inserted)
+
+    if _classifiers["relevance_llm_client"] is not None:
+        try:
+            _run_relevance_backfill()
+        except Exception as exc:
+            print(f"[SCRAPE-SYNC] Relevance backfill error: {exc}")
 
     if _classifiers["kbli_predictor"] is not None:
         try:

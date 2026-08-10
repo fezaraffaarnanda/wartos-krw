@@ -1,7 +1,7 @@
 """
 aktivitas_utils.py — Klasifikasi Aktivitas Ekonomi untuk pemantauan PDRB BPS.
 
-27 kategori aktivitas ekonomi sesuai master BPS Kabupaten Tegal.
+27 kategori aktivitas ekonomi sesuai master BPS Kabupaten Karawang.
 Klasifikasi menggunakan LLM Gemini (pure LLM, tanpa embedding).
 Format output: "9/Aktivitas industri makanan dan minuman selain CPO"
 """

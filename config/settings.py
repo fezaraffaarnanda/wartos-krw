@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     SUPABASE_KEY: str = ""
     BPS_API_KEY: str = ""
     GEMINI_API_KEY: str = ""
+    DEEPSEEK_API_KEY: str = ""
     FLASK_SECRET_KEY: str = ""
     CRON_SECRET: str = ""
     BPS_API_KEY: str = ""

@@ -103,3 +103,16 @@ def test_get_berita_years_sorted_descending():
     result = service.get_berita_years()
 
     assert result == {"status": "ok", "years": ["2026", "2025", "2024"]}
+
+
+def test_focus_area_sources_match_pipeline():
+    """Allowlist tampilan harus persis sama dengan sumber yang benar-benar di-scrape.
+
+    Kalau scraper baru ditambahkan ke pipeline tanpa memperbarui
+    config.region.FOCUS_AREA_SOURCES, beritanya masuk DB tapi tidak pernah
+    tampil di dashboard — kegagalan yang sunyi.
+    """
+    from config.region import FOCUS_AREA_SOURCES
+    from services.article_pipeline import SOURCE_LABELS
+
+    assert set(FOCUS_AREA_SOURCES) == set(SOURCE_LABELS.values())

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="id">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Audit Relevance — Dashboard BPS Kab. Karawang</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
+        rel="stylesheet" />
+    <link rel="stylesheet" href="../static/css/style.css" />
+    <link rel="stylesheet" href="../static/css/pages/admin_users.css" />
+    <link rel="icon" href="../static/favicon.png" />
+    <style>
+        .rel-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
+        .rel-metric-card { background: var(--surface, #fff); border: 1px solid rgba(0,0,0,.08); border-radius: 12px; padding: 14px 16px; }
+        .rel-metric-card .rel-metric-val { font-size: 1.6rem; font-weight: 800; }
+        .rel-metric-card .rel-metric-lbl { font-size: .78rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
+        .rel-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
+        .rel-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12); background: transparent; cursor: pointer; font-size: .85rem; }
+        .rel-tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
+        .rel-score { font-weight: 700; }
+        .rel-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
+        .rel-pill.yes { background: #dcfce7; color: #166534; }
+        .rel-pill.no { background: #fee2e2; color: #991b1b; }
+        .rel-pill.na { background: #e5e7eb; color: #374151; }
+        .rel-reason { font-size: .8rem; opacity: .85; max-width: 360px; }
+        .rel-actions button { margin-right: 6px; }
+        .rel-actions button:disabled { opacity: .5; cursor: wait; }
+        .rel-confusion { font-size: .8rem; opacity: .75; margin-bottom: 14px; }
+        .rel-export-modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+        .rel-export-modal.hidden { display: none; }
+        .rel-export-box { background: #fff; border-radius: 16px; padding: 28px; max-width: 680px; width: 94%; max-height: 80vh; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 40px rgba(0,0,0,.18); }
+        .rel-export-box h3 { margin: 0; font-size: 1.05rem; }
+        .rel-export-meta { font-size: .82rem; opacity: .7; }
+        .rel-export-box textarea { flex: 1; min-height: 260px; font-family: monospace; font-size: .8rem; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; padding: 12px; resize: vertical; }
+        .rel-export-actions { display: flex; gap: 8px; justify-content: flex-end; }
+        .rel-pagination { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+        .rel-prompt-box { max-width: 1080px; }
+        .rel-prompt-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; }
+        .rel-prompt-col { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
+        .rel-prompt-col h4 { margin: 0; font-size: .85rem; }
+        .rel-prompt-col textarea { flex: 1; min-height: 300px; font-family: monospace; font-size: .75rem; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; padding: 10px; resize: vertical; }
+        .rel-prompt-warning { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 12px 14px; font-size: .82rem; line-height: 1.5; }
+        .rel-prompt-confirm { display: flex; gap: 8px; align-items: center; }
+        .rel-prompt-confirm input { flex: 1; padding: 8px 12px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; font-size: .85rem; }
+        .rel-prompt-notes { font-size: .82rem; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 10px 14px; }
+        @media (max-width: 860px) { .rel-prompt-cols { grid-template-columns: 1fr; } }
+        .rel-toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; max-width: 380px; }
+        .rel-toast { display: flex; align-items: flex-start; gap: 10px; padding: 13px 16px; border-radius: 12px; font-size: .86rem; line-height: 1.45; box-shadow: 0 6px 24px rgba(0,0,0,.14); animation: relToastIn .25s ease; background: #fff; border: 1px solid rgba(0,0,0,.08); }
+        .rel-toast.info    { border-left: 4px solid #1d4ed8; }
+        .rel-toast.success { border-left: 4px solid #16a34a; }
+        .rel-toast.warning { border-left: 4px solid #d97706; }
+        .rel-toast.error   { border-left: 4px solid #dc2626; }
+        .rel-toast .rel-toast-icon { flex-shrink: 0; font-size: 1rem; margin-top: 1px; }
+        .rel-toast .rel-toast-close { margin-left: auto; flex-shrink: 0; background: none; border: none; cursor: pointer; opacity: .5; font-size: .95rem; padding: 0 2px; }
+        .rel-toast .rel-toast-close:hover { opacity: 1; }
+        .rel-toast.leaving { animation: relToastOut .2s ease forwards; }
+        @keyframes relToastIn  { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+        @keyframes relToastOut { to { opacity: 0; transform: translateX(24px); } }
+    </style>
+</head>
+
+<body>
+    <div class="app-shell" id="appShell">
+        <aside class="app-sidebar" id="appSidebar">
+            <div class="sidebar-brand">
+                <img src="../static/bps.svg" alt="BPS Logo" height="34" />
+                <div>
+                    <h1>WARTOS</h1>
+                    <p>BPS Kabupaten Karawang</p>
+                </div>
+            </div>
+            <nav class="sidebar-nav" aria-label="Menu utama">
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#overview">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9" /><path d="M9 21V9h6v12" /></svg>
+                    <span class="sidebar-link-label">Ringkasan Dashboard</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#data">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>
+                    <span class="sidebar-link-label">Data Berita</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#official-statistics">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16" /><path d="M7 15V9" /><path d="M12 15V5" /><path d="M17 15v-3" /></svg>
+                    <span class="sidebar-link-label">Data Official Statistic</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#insight">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>
+                    <span class="sidebar-link-label">Insight AI</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/dashboard#chat">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
+                    <span class="sidebar-link-label">AI Chat</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/admin/users">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
+                    <span class="sidebar-link-label">Manajemen User</span>
+                </a>
+                <a class="sidebar-link sidebar-link-anchor active" href="/admin/relevance" aria-current="page">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+                    <span class="sidebar-link-label">Audit Relevance</span>
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <span class="header-user" id="headerUser"></span>
+                <a href="/logout" class="btn-logout">Keluar</a>
+            </div>
+        </aside>
+
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <div class="app-content">
+            <header class="header" id="header">
+                <div class="header-inner">
+                    <div class="header-brand header-brand-main">
+                        <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-label="Tutup sidebar" title="Tutup sidebar">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="3" y1="6" x2="21" y2="6" />
+                                <line x1="3" y1="12" x2="21" y2="12" />
+                                <line x1="3" y1="18" x2="21" y2="18" />
+                            </svg>
+                        </button>
+                        <div class="header-text">
+                            <h1>Audit Classifier Relevance</h1>
+                            <p class="header-subtitle">Pantau & koreksi keputusan filter tahap-1</p>
+                        </div>
+                    </div>
+                    <div class="header-actions">
+                        <a href="/dashboard" class="btn-logout">Dashboard</a>
+                    </div>
+                </div>
+            </header>
+
+            <main class="admin-shell">
+                <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
+                    <button type="button" class="btn-admin ghost" id="btnExportFewShot">Export Few-Shot untuk Prompt</button>
+                    <button type="button" class="btn-admin" id="btnUpdatePrompt">Update Prompt (AI)</button>
+                </div>
+                <div class="rel-metrics" id="relMetrics"></div>
+                <div class="rel-confusion" id="relConfusion"></div>
+
+                <div class="rel-tabs" id="relTabs">
+                    <button class="rel-tab active" data-mode="borderline">Borderline (40–59)</button>
+                    <button class="rel-tab" data-mode="unlabeled">Belum dilabeli</button>
+                    <button class="rel-tab" data-mode="disagreement">Disagreement</button>
+                    <button class="rel-tab" data-mode="all">Semua</button>
+                </div>
+
+                <section class="admin-card">
+                    <div class="admin-table-wrap">
+                        <table class="admin-table" aria-label="Antrian review relevance">
+                            <thead>
+                                <tr>
+                                    <th>Judul</th>
+                                    <th>Sumber</th>
+                                    <th>Skor</th>
+                                    <th>Mesin</th>
+                                    <th>Alasan</th>
+                                    <th>Label Manusia</th>
+                                    <th>Aksi Override</th>
+                                </tr>
+                            </thead>
+                            <tbody id="relTableBody">
+                                <tr><td colspan="7" class="table-empty">Memuat...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="admin-meta-row">
+                        <div class="rel-pagination" id="relPagination"></div>
+                        <button type="button" class="btn-admin ghost" id="btnRefreshRel">Refresh</button>
+                    </div>
+                </section>
+            </main>
+        </div>
+    </div>
+
+    <!-- Modal: Few-shot export -->
+    <div class="rel-export-modal hidden" id="exportModal">
+        <div class="rel-export-box">
+            <h3>Export Few-Shot untuk Iterasi Prompt</h3>
+            <p class="rel-export-meta" id="exportMeta"></p>
+            <p style="font-size:.82rem;line-height:1.5;opacity:.8;">
+                Pilih <strong>maks 6-8 contoh total</strong> (3-4 per tipe) untuk di-paste ke
+                <code>SYSTEM_PROMPT</code> di <code>ai/relevance.py</code>, lalu bump
+                <code>PROMPT_VERSION</code>. Jangan paste semua — terlalu banyak contoh menurunkan performa LLM.
+            </p>
+            <textarea id="exportTextarea" readonly></textarea>
+            <div class="rel-export-actions">
+                <button class="btn-admin ghost" type="button" id="btnCopyExport">Salin Semua</button>
+                <button class="btn-admin ghost" type="button" onclick="document.getElementById('exportModal').classList.add('hidden')">Tutup</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: AI prompt update -->
+    <div class="rel-export-modal hidden" id="promptModal">
+        <div class="rel-export-box rel-prompt-box">
+            <h3>Update System Prompt (Draft AI) — <span id="promptVersions"></span></h3>
+            <p class="rel-export-meta" id="promptMeta"></p>
+            <div class="rel-prompt-notes" id="promptNotes" style="display:none;"></div>
+            <div class="rel-prompt-cols">
+                <div class="rel-prompt-col">
+                    <h4>Prompt Aktif (<span id="promptCurrentVersion"></span>)</h4>
+                    <textarea id="promptCurrentText" readonly></textarea>
+                </div>
+                <div class="rel-prompt-col">
+                    <h4>Draft Baru (<span id="promptNextVersion"></span>) — boleh diedit</h4>
+                    <textarea id="promptDraftText"></textarea>
+                </div>
+            </div>
+            <div class="rel-prompt-warning">
+                <strong>⚠ Peringatan:</strong> Mengaktifkan prompt baru mengubah perilaku classifier untuk
+                SEMUA klasifikasi berikutnya. Row lama tetap bertag versi lama. Aksi ini tidak bisa
+                di-undo dari UI (tapi versi lama tersimpan di DB).
+                Ketik persis <code>yes, update system prompt</code> untuk melanjutkan.
+            </div>
+            <div class="rel-prompt-confirm">
+                <input type="text" id="promptConfirmInput" placeholder='Ketik: yes, update system prompt' autocomplete="off" />
+                <button class="btn-admin" type="button" id="btnApplyPrompt" disabled>Aktifkan Prompt Baru</button>
+                <button class="btn-admin ghost" type="button" onclick="document.getElementById('promptModal').classList.add('hidden')">Batal</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div class="rel-toast-wrap" id="relToastWrap"></div>
+
+    <script>
+        const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+
+        const TOAST_ICONS = { info: "ℹ️", success: "✅", warning: "⚠️", error: "❌" };
+
+        function showToast(message, type = "info", duration = 5000) {
+            const wrap = document.getElementById("relToastWrap");
+            const el = document.createElement("div");
+            el.className = `rel-toast ${type}`;
+            el.innerHTML = `
+                <span class="rel-toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
+                <span>${esc(message)}</span>
+                <button class="rel-toast-close" aria-label="Tutup">✕</button>`;
+            const remove = () => {
+                el.classList.add("leaving");
+                setTimeout(() => el.remove(), 200);
+            };
+            el.querySelector(".rel-toast-close").addEventListener("click", remove);
+            wrap.appendChild(el);
+            if (duration > 0) setTimeout(remove, duration);
+        }
+        let currentMode = "borderline";
+        let currentPage = 1;
+        let totalPages = 1;
+        const PER_PAGE = 25;
+
+        function pill(val) {
+            if (val === true) return '<span class="rel-pill yes">Relevan</span>';
+            if (val === false) return '<span class="rel-pill no">Tidak</span>';
+            return '<span class="rel-pill na">—</span>';
+        }
+
+        async function loadMetrics() {
+            try {
+                const r = await fetch("/api/admin/relevance/metrics");
+                const d = await r.json();
+                if (d.status !== "ok") return;
+                const pct = (x) => x === null ? "—" : (x * 100).toFixed(1) + "%";
+                document.getElementById("relMetrics").innerHTML = `
+                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.precision)}</div><div class="rel-metric-lbl">Precision</div></div>
+                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.recall)}</div><div class="rel-metric-lbl">Recall</div></div>
+                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.accuracy)}</div><div class="rel-metric-lbl">Accuracy</div></div>
+                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.f1)}</div><div class="rel-metric-lbl">F1</div></div>
+                    <div class="rel-metric-card"><div class="rel-metric-val">${d.labeled_count}</div><div class="rel-metric-lbl">Berlabel</div></div>`;
+                const c = d.confusion;
+                document.getElementById("relConfusion").textContent =
+                    `Confusion (positive = relevan): TP=${c.tp}  FP=${c.fp}  TN=${c.tn}  FN=${c.fn}`;
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadQueue(page = 1) {
+            currentPage = page;
+            const body = document.getElementById("relTableBody");
+            body.innerHTML = '<tr><td colspan="7" class="table-empty">Memuat...</td></tr>';
+            try {
+                const r = await fetch(`/api/admin/relevance/review-queue?mode=${currentMode}&page=${page}&per_page=${PER_PAGE}`);
+                const d = await r.json();
+                const rows = d.data || [];
+                totalPages = Number(d.total_pages || 1);
+                renderPagination(d.total_items ?? rows.length);
+                if (!rows.length) {
+                    body.innerHTML = '<tr><td colspan="7" class="table-empty">Tidak ada data.</td></tr>';
+                    return;
+                }
+                body.innerHTML = rows.map(row => `
+                    <tr data-id="${row.id}">
+                        <td><a href="/berita/${row.id}" target="_blank">${esc(row.title)}</a></td>
+                        <td>${esc(row.source)}</td>
+                        <td class="rel-score">${row.relevance_score ?? "—"}</td>
+                        <td>${pill(row.is_relevant)}</td>
+                        <td class="rel-reason">${esc(row.relevance_reason)}</td>
+                        <td class="rel-human-cell">${pill(row.human_label)}</td>
+                        <td class="rel-actions">
+                            <button class="btn-admin ghost" onclick="setLabel(${row.id}, true, this)">Relevan</button>
+                            <button class="btn-admin ghost" onclick="setLabel(${row.id}, false, this)">Tidak</button>
+                        </td>
+                    </tr>`).join("");
+            } catch (e) {
+                body.innerHTML = '<tr><td colspan="7" class="table-empty">Gagal memuat.</td></tr>';
+            }
+        }
+
+        function getPageRange(current, total, size) {
+            let start = Math.max(1, current - Math.floor(size / 2));
+            const end = Math.min(total, start + size - 1);
+            start = Math.max(1, end - size + 1);
+            const range = [];
+            for (let p = start; p <= end; p++) range.push(p);
+            return range;
+        }
+
+        function renderPagination(totalItems) {
+            const container = document.getElementById("relPagination");
+            if (totalPages <= 1) {
+                container.innerHTML = `<span class="page-info">${totalItems} berita</span>`;
+                return;
+            }
+            let html = `<button class="page-btn" ${currentPage === 1 ? "disabled" : ""} onclick="goPage(${currentPage - 1})">‹</button>`;
+            const range = getPageRange(currentPage, totalPages, 5);
+            if (range[0] > 1) {
+                html += `<button class="page-btn" onclick="goPage(1)">1</button>`;
+                if (range[0] > 2) html += `<span class="page-info">…</span>`;
+            }
+            for (const p of range) {
+                html += `<button class="page-btn ${p === currentPage ? "active" : ""}" onclick="goPage(${p})">${p}</button>`;
+            }
+            if (range[range.length - 1] < totalPages) {
+                if (range[range.length - 1] < totalPages - 1) html += `<span class="page-info">…</span>`;
+                html += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
+            }
+            html += `<button class="page-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="goPage(${currentPage + 1})">›</button>`;
+            html += `<span class="page-info">${totalItems} berita</span>`;
+            container.innerHTML = html;
+        }
+
+        function goPage(p) {
+            if (p < 1 || p > totalPages || p === currentPage) return;
+            loadQueue(p);
+        }
+
+        async function setLabel(id, isRelevant, btnEl) {
+            const row = btnEl.closest("tr");
+            const buttons = row.querySelectorAll(".rel-actions button");
+            buttons.forEach(b => b.disabled = true);
+            try {
+                const r = await fetch(`/api/admin/berita/${id}/human-label`, {
+                    method: "PATCH",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ is_relevant: isRelevant }),
+                });
+                const d = await r.json();
+                if (d.status !== "ok") { showToast(d.message || "Gagal menyimpan label.", "error"); return; }
+                // update pill label manusia in-place, tanpa reload tabel
+                row.querySelector(".rel-human-cell").innerHTML = pill(isRelevant);
+                loadMetrics();
+            } catch (e) {
+                showToast("Gagal menyimpan label.", "error");
+            } finally {
+                buttons.forEach(b => b.disabled = false);
+            }
+        }
+
+        document.getElementById("relTabs").addEventListener("click", (e) => {
+            const btn = e.target.closest(".rel-tab");
+            if (!btn) return;
+            document.querySelectorAll(".rel-tab").forEach(b => b.classList.remove("active"));
+            btn.classList.add("active");
+            currentMode = btn.dataset.mode;
+            loadQueue(1);
+        });
+        document.getElementById("btnRefreshRel").addEventListener("click", () => { loadMetrics(); loadQueue(currentPage); });
+
+        document.getElementById("btnExportFewShot").addEventListener("click", async () => {
+            const btn = document.getElementById("btnExportFewShot");
+            btn.textContent = "Memuat...";
+            btn.disabled = true;
+            try {
+                const r = await fetch("/api/admin/relevance/disagreement-export?limit=20");
+                const d = await r.json();
+                if (d.status !== "ok") { showToast(d.message || "Gagal memuat export.", "warning", 7000); return; }
+                document.getElementById("exportMeta").textContent =
+                    `Total disagreement: ${d.total_disagreements} kasus — FP (mesin salah relevan): ${d.false_positives.length}, FN (mesin salah tidak relevan): ${d.false_negatives.length}`;
+                document.getElementById("exportTextarea").value = d.formatted_prompt;
+                document.getElementById("exportModal").classList.remove("hidden");
+            } catch (e) {
+                showToast("Gagal memuat export.", "error");
+            } finally {
+                btn.textContent = "Export Few-Shot untuk Prompt";
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById("btnCopyExport").addEventListener("click", () => {
+            const ta = document.getElementById("exportTextarea");
+            navigator.clipboard.writeText(ta.value).then(() => {
+                const btn = document.getElementById("btnCopyExport");
+                btn.textContent = "Tersalin!";
+                setTimeout(() => { btn.textContent = "Salin Semua"; }, 2000);
+            });
+        });
+
+        document.getElementById("exportModal").addEventListener("click", (e) => {
+            if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
+        });
+
+        // ── Update Prompt (AI) ────────────────────────────────────────────────
+        const CONFIRM_PHRASE = "yes, update system prompt";
+
+        document.getElementById("btnUpdatePrompt").addEventListener("click", async () => {
+            const btn = document.getElementById("btnUpdatePrompt");
+            btn.textContent = "Menyusun draft (AI)...";
+            btn.disabled = true;
+            try {
+                const r = await fetch("/api/admin/relevance/prompt-draft", { method: "POST" });
+                const d = await r.json();
+                if (d.status !== "ok") { showToast(d.message || "Gagal generate draft.", "warning", 8000); return; }
+                document.getElementById("promptMeta").textContent =
+                    `Draft disusun dari ${d.disagreement_count} kasus disagreement. Review & edit sebelum apply.`;
+                document.getElementById("promptCurrentVersion").textContent = d.current_version;
+                document.getElementById("promptNextVersion").textContent = d.next_version;
+                document.getElementById("promptVersions").textContent = `${d.current_version} → ${d.next_version}`;
+                document.getElementById("promptCurrentText").value = d.current_prompt;
+                document.getElementById("promptDraftText").value = d.draft_prompt;
+                const notesEl = document.getElementById("promptNotes");
+                if (d.notes) { notesEl.textContent = "Catatan AI: " + d.notes; notesEl.style.display = "block"; }
+                else { notesEl.style.display = "none"; }
+                window._promptDraftNotes = d.notes || "";
+                document.getElementById("promptConfirmInput").value = "";
+                document.getElementById("btnApplyPrompt").disabled = true;
+                document.getElementById("promptModal").classList.remove("hidden");
+            } catch (e) {
+                showToast("Gagal generate draft prompt.", "error");
+            } finally {
+                btn.textContent = "Update Prompt (AI)";
+                btn.disabled = false;
+            }
+        });
+
+        document.getElementById("promptConfirmInput").addEventListener("input", (e) => {
+            document.getElementById("btnApplyPrompt").disabled = e.target.value !== CONFIRM_PHRASE;
+        });
+
+        document.getElementById("btnApplyPrompt").addEventListener("click", async () => {
+            const btn = document.getElementById("btnApplyPrompt");
+            btn.textContent = "Menyimpan...";
+            btn.disabled = true;
+            try {
+                const r = await fetch("/api/admin/relevance/prompt-apply", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        draft_prompt: document.getElementById("promptDraftText").value,
+                        confirmation: document.getElementById("promptConfirmInput").value,
+                        notes: window._promptDraftNotes || "",
+                    }),
+                });
+                const d = await r.json();
+                if (d.status !== "ok") { showToast(d.message || "Gagal apply prompt.", "error", 8000); return; }
+                showToast(d.message || `Prompt ${d.version} aktif.`, "success", 8000);
+                document.getElementById("promptModal").classList.add("hidden");
+            } catch (e) {
+                showToast("Gagal apply prompt.", "error");
+            } finally {
+                btn.textContent = "Aktifkan Prompt Baru";
+                btn.disabled = true;
+            }
+        });
+
+        document.getElementById("promptModal").addEventListener("click", (e) => {
+            if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
+        });
+
+        loadMetrics();
+        loadQueue(1);
+    </script>
+    <script src="../static/js/layout/shell.js"></script>
+</body>
+
+</html>

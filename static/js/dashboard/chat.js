@@ -167,7 +167,7 @@ function _showChatEmptyState() {
       <img class="chat-avatar" src="/static/logochatbotAI.png" alt="AI">
       <div class="chat-bubble">
         Halo! Saya siap membantu Anda menganalisis berita terkait kondisi ekonomi,
-        kemiskinan, pengangguran, dan statistik resmi BPS Kabupaten Tegal.<br><br>
+        kemiskinan, pengangguran, dan statistik resmi BPS Kabupaten Karawang.<br><br>
         Silakan ajukan pertanyaan, misalnya:<br>
         &bull; Apa penyebab kenaikan kemiskinan bulan lalu?<br>
         &bull; Bagaimana tren PDRB sektor industri saat ini?<br>

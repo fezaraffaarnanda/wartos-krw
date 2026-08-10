@@ -5,8 +5,9 @@ Fokus utamanya: menjaga konsistensi arsitektur Flask + Supabase + scraper + vani
 serta menghindari technical debt saat menambah fitur atau refactor.
 
 ## Project Summary
-- Aplikasi Flask untuk pemantauan berita ekonomi lokal Kabupaten Tegal.
-- Sumber berita: Radar Tegal, Pantura Post, Tribun Jateng, Kompas, Setda Tegal.
+- WARTOS (Warta Online Statistik) — aplikasi Flask untuk pemantauan berita ekonomi lokal Kabupaten Karawang.
+- Sumber berita aktif: iNews Karawang, KarawangNews, Pemda Karawang, Radar Karawang.
+- Wilayah fokus dan identitas aplikasi terpusat di `config/region.py` — jangan sebar literal nama daerah.
 - Backend memakai Supabase Postgres via Python client, tanpa ORM.
 - Fitur AI: KBLI, aktivitas ekonomi, embedding, AI insights, AI chat.
 - Frontend memakai HTML template, CSS, dan vanilla JS modular di `static/js/`.

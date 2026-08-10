@@ -1,4 +1,4 @@
-"""Client Web API BPS untuk statistik resmi Kabupaten Tegal."""
+"""Client Web API BPS untuk statistik resmi wilayah fokus (lihat config/region.py)."""
 
 from __future__ import annotations
 
@@ -8,10 +8,11 @@ from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
+from config.region import APP_NAME, BPS_DOMAIN_ID, BPS_PDRB_WILAYAH_ID
 from config.settings import get_settings
 
 _BPS_BASE_URL = "https://webapi.bps.go.id/v1/api"
-_USER_AGENT = "Mozilla/5.0 (compatible; KABARE-BPS/1.0)"
+_USER_AGENT = f"Mozilla/5.0 (compatible; {APP_NAME}-BPS/1.0)"
 _PDRB_SOURCE_ID = 25
 _PDRB_ADHK_TABLE_ID = "UklLSnFZZnMzMlJiSWpMOExJODIrQT09"
 _PDRB_ADHB_TABLE_ID = "S1RMUWRYb0NWc0Y5L05QQkxzcWw3Zz09"
@@ -19,8 +20,8 @@ _TPT_TPAK_VAR_ID = 420
 _KEMISKINAN_VAR_ID = 944
 _PDRB_PENGELUARAN_ADHB_VAR_ID = 962
 _PDRB_PENGELUARAN_ADHK_VAR_ID = 963
-_DOMAIN_ID = 3328
-_PDRB_WILAYAH_ID = 3328000
+_DOMAIN_ID = BPS_DOMAIN_ID
+_PDRB_WILAYAH_ID = BPS_PDRB_WILAYAH_ID
 
 
 class BPSWebApiClient:

@@ -43,17 +43,17 @@ _SEMANTIC_QUERIES: dict[str, str] = {
     "pdrb": (
         "aktivitas ekonomi PDRB pertumbuhan sektor industri perdagangan investasi "
         "infrastruktur proyek pertanian pariwisata manufaktur UMKM omset pendapatan "
-        "inflasi harga komoditas fiskal anggaran ekspor impor Kabupaten Tegal"
+        "inflasi harga komoditas fiskal anggaran ekspor impor Kabupaten Karawang"
     ),
     "kemiskinan": (
         "kemiskinan bantuan sosial kesejahteraan masyarakat miskin program PKH BLT "
         "BPNT sembako stunting gizi buruk bedah rumah rumah layak huni kelompok rentan "
-        "lansia disabilitas yatim pengentasan kemiskinan data BPS Kabupaten Tegal"
+        "lansia disabilitas yatim pengentasan kemiskinan data BPS Kabupaten Karawang"
     ),
     "pengangguran": (
         "pengangguran ketenagakerjaan PHK pemutusan hubungan kerja lapangan kerja "
         "buruh tenaga kerja rekrutmen job fair lowongan pelatihan kerja disnaker "
-        "TKI TKW upah minimum TPT tingkat pengangguran terbuka Kabupaten Tegal"
+        "TKI TKW upah minimum TPT tingkat pengangguran terbuka Kabupaten Karawang"
     ),
 }
 
@@ -111,13 +111,13 @@ Setiap fakta dari berita WAJIB disertai marker sitasi tepat sebelum tanda baca a
 """
 
 # ── Aktor 1: BPS ───────────────────────────────────────────────────────────────
-_SYSTEM_PROMPT_BPS = """Kamu adalah analis ekonomi senior dari Badan Pusat Statistik (BPS) Kabupaten Tegal.
+_SYSTEM_PROMPT_BPS = """Kamu adalah analis ekonomi senior dari Badan Pusat Statistik (BPS) Kabupaten Karawang.
 Tugasmu: membaca berita lokal dan menghasilkan insight analitis yang dapat ditindaklanjuti oleh BPS untuk tiga indikator makroekonomi utama.
 
 === FOKUS PER KATEGORI ===
 
 [PDRB & Ekonomi]
-Analisis aktivitas ekonomi yang berpengaruh terhadap perhitungan PDRB Kabupaten Tegal:
+Analisis aktivitas ekonomi yang berpengaruh terhadap perhitungan PDRB Kabupaten Karawang:
 - Identifikasi sektor lapangan usaha yang menggeliat atau lesu (pertanian, industri, perdagangan, jasa, pariwisata, konstruksi, dll.)
 - Manfaatkan statistik resmi PDRB lapangan usaha dan PDRB pengeluaran sebagai baseline utama sebelum membaca berita
 - Jika tersedia data tahun sebelumnya, bandingkan arah perubahan angka resmi dan jelaskan kemungkinan penyebabnya dari berita
@@ -137,7 +137,7 @@ Analisis kondisi sosial-ekonomi yang relevan terhadap pengukuran kemiskinan BPS:
 - Simpulkan apakah tren menunjukkan penurunan atau risiko kenaikan angka kemiskinan
 
 [Pengangguran & Ketenagakerjaan]
-Analisis dinamika pasar kerja di Kabupaten Tegal:
+Analisis dinamika pasar kerja di Kabupaten Karawang:
 - Gunakan statistik resmi TPT dan TPAK sebagai baseline dan bandingkan dengan tahun sebelumnya jika tersedia
 - Identifikasi peristiwa yang mempengaruhi Tingkat Pengangguran Terbuka (TPT): PHK, rekrutmen massal, job fair, penutupan usaha
 - Catat sektor dan jumlah tenaga kerja yang terdampak jika disebutkan
@@ -152,12 +152,11 @@ Analisis dinamika pasar kerja di Kabupaten Tegal:
 4. Jika statistik resmi tersedia, mulai dari angka resmi lalu gunakan berita untuk menjelaskan kemungkinan penyebab, konteks, atau anomali
 5. Jika ada data tahun/periode sebelumnya, sebutkan arah perubahan secara eksplisit (naik/turun/stagnan) dan hindari klaim sebab-akibat yang tidak didukung berita
 6. Jika ada data angka dari berita, cantumkan dalam insight
-7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-8. Jika berita sangat minim untuk suatu kategori, tulis: "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini. BPS disarankan mengacu pada sumber primer."
+7. Jika berita sangat minim untuk suatu kategori, tulis: "Data berita periode ini belum cukup untuk analisis mendalam pada kategori ini. BPS disarankan mengacu pada sumber primer."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Aktor 2: Pemerintah (Bappeda/Bappenas) ────────────────────────────────────
-_SYSTEM_PROMPT_PEMERINTAH = """Kamu adalah perencana pembangunan daerah senior di Bappeda Kabupaten Tegal.
+_SYSTEM_PROMPT_PEMERINTAH = """Kamu adalah perencana pembangunan daerah senior di Bappeda Kabupaten Karawang.
 Tugasmu: membaca berita lokal dan menghasilkan insight yang dapat digunakan untuk perencanaan program, alokasi anggaran, dan koordinasi kebijakan lintas OPD.
 
 === FOKUS PER KATEGORI ===
@@ -197,12 +196,11 @@ Analisis dari perspektif kebijakan ketenagakerjaan dan pengembangan SDM:
 4. Jika statistik resmi tersedia, mulai dari angka resmi lalu gunakan berita untuk menerangkan penyebab atau implikasi kebijakannya
 5. Jika ada data angka dari berita (nilai anggaran, jumlah penerima, target RPJMD), cantumkan
 6. Akhiri setiap kategori dengan satu rekomendasi kebijakan atau program konkret yang dapat segera ditindaklanjuti
-7. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-8. Jika berita sangat minim, tulis: "Data berita periode ini belum cukup untuk rekomendasi program. Bappeda disarankan melakukan konsultasi langsung dengan OPD terkait."
+7. Jika berita sangat minim, tulis: "Data berita periode ini belum cukup untuk rekomendasi program. Bappeda disarankan melakukan konsultasi langsung dengan OPD terkait."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Aktor 3: Akademisi ─────────────────────────────────────────────────────────
-_SYSTEM_PROMPT_AKADEMISI = """Kamu adalah peneliti ekonomi regional dari perguruan tinggi yang mengkaji kondisi sosial-ekonomi Kabupaten Tegal.
+_SYSTEM_PROMPT_AKADEMISI = """Kamu adalah peneliti ekonomi regional dari perguruan tinggi yang mengkaji kondisi sosial-ekonomi Kabupaten Karawang.
 Tugasmu: membaca berita lokal dan menghasilkan insight analitis berbasis kerangka teori, mengidentifikasi implikasi metodologis, dan merumuskan pertanyaan penelitian yang relevan.
 
 === FOKUS PER KATEGORI ===
@@ -212,7 +210,7 @@ Analisis dari perspektif riset ekonomi regional:
 - Gunakan statistik resmi PDRB lapangan usaha dan PDRB pengeluaran sebagai baseline empiris, lalu bandingkan dengan tahun sebelumnya jika tersedia
 - Kaitkan aktivitas ekonomi yang diberitakan dengan kerangka teori yang relevan (teori basis ekonomi, efek pengganda, keunggulan komparatif/kompetitif, atau teori pertumbuhan endogen)
 - Identifikasi implikasi metodologis bagi estimasi PDRB: berita ini lebih mencerminkan pendekatan produksi, pengeluaran, atau pendapatan?
-- Soroti data kuantitatif yang muncul dan bandingkan dengan tren Jawa Tengah atau nasional jika memungkinkan
+- Soroti data kuantitatif yang muncul dan bandingkan dengan tren Jawa Barat atau nasional jika memungkinkan
 - Catat keterbatasan data berita ini dibandingkan data primer (Sensus Ekonomi, Survei Industri, data ekspor BPS)
 
 [Kemiskinan & Kesejahteraan]
@@ -229,7 +227,7 @@ Analisis dari perspektif riset ketenagakerjaan:
 - Klasifikasikan jenis pengangguran yang terindikasi: struktural (mismatch skill), friksional (transisi), musiman (agrikultur/pariwisata), atau siklikal (kontraksi ekonomi)
 - Kaitkan dengan kerangka teori yang relevan: human capital theory, job matching/search theory, atau segmented labor market theory
 - Identifikasi data yang tidak tertangkap TPT: pekerja informal, setengah pengangguran, discouraged workers
-- Bandingkan dinamika ketenagakerjaan lokal dengan tren regional Jawa Tengah jika data tersedia
+- Bandingkan dinamika ketenagakerjaan lokal dengan tren regional Jawa Barat jika data tersedia
 
 === PANDUAN PENULISAN ===
 1. Tulis langsung ke poin — tidak ada kalimat pembuka basa-basi
@@ -239,8 +237,7 @@ Analisis dari perspektif riset ketenagakerjaan:
 5. Sebutkan nama teori/konsep secara eksplisit hanya jika benar-benar relevan — jangan dipaksakan
 6. Akui keterbatasan data secara eksplisit jika relevan (berita bukan data primer)
 7. Akhiri setiap kategori dengan satu pertanyaan penelitian spesifik atau gap empiris yang perlu dikaji lebih lanjut
-8. Jika berita mencakup Kota Tegal (bukan Kabupaten Tegal), tetap analisis namun awali dengan "[Catatan: berita ini terkait Kota Tegal, bukan Kabupaten]"
-9. Jika berita sangat minim, tulis: "Data berita periode ini tidak memadai untuk analisis akademis yang valid. Diperlukan triangulasi dengan data sekunder BPS atau survei lapangan."
+8. Jika berita sangat minim, tulis: "Data berita periode ini tidak memadai untuk analisis akademis yang valid. Diperlukan triangulasi dengan data sekunder BPS atau survei lapangan."
 """ + _CITATION_FORMAT_BLOCK
 
 # ── Mapping aktor → system prompt & instruksi tambahan user prompt ─────────────
@@ -752,7 +749,7 @@ def _build_user_prompt(
     kemiskinan_stats_text = _build_official_statistics_prompt_block(official_statistics, "kemiskinan")
     pengangguran_stats_text = _build_official_statistics_prompt_block(official_statistics, "pengangguran")
 
-    prompt = f"""Berikut adalah berita lokal dari Kabupaten Tegal pada periode {period_label}.
+    prompt = f"""Berikut adalah berita lokal dari Kabupaten Karawang pada periode {period_label}.
 Setiap berita diberi kode unik: P01, P02 (PDRB), K01, K02 (Kemiskinan), T01, T02 (Pengangguran).
 Berita sudah diurutkan berdasarkan relevansi — yang teratas paling relevan untuk kategorinya.
 Analisis dan berikan insight untuk masing-masing kategori.

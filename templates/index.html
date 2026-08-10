@@ -3,10 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard Berita Lokal — BPS Kab. Tegal</title>
+    <title>Dashboard Berita Lokal — BPS Kab. Karawang</title>
     <meta
       name="description"
-      content="KABARE (Kanal Berita & Rekomendasi Ekonomi) - platform pemantauan berita ekonomi BPS Kabupaten Tegal."
+      content="WARTOS (Warta Online Statistik) - platform pemantauan berita ekonomi BPS Kabupaten Karawang."
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -41,8 +41,8 @@
         <div class="sidebar-brand">
           <img src="../static/bps.svg" alt="BPS Logo" height="34" />
           <div>
-            <h1>KABARE</h1>
-            <p>BPS Kabupaten Tegal</p>
+            <h1>WARTOS</h1>
+            <p>BPS Kabupaten Karawang</p>
           </div>
         </div>
 
@@ -71,6 +71,10 @@
             <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
             <span class="sidebar-link-label">Manajemen User</span>
           </a>
+          <a href="/admin/relevance" class="sidebar-link sidebar-link-anchor" id="adminRelevanceLink" style="display: none">
+            <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
+            <span class="sidebar-link-label">Audit Relevance</span>
+          </a>
         </nav>
 
         <div class="sidebar-footer">
@@ -94,7 +98,7 @@
                 </svg>
               </button>
               <div class="header-text">
-                <h1 id="viewTitle">KABARE Dashboard</h1>
+                <h1 id="viewTitle">WARTOS Dashboard</h1>
                 <p class="header-subtitle" id="viewSubtitle">Pemantauan fenomena ekonomi berbasis berita lokal</p>
               </div>
             </div>
@@ -118,10 +122,10 @@
               </svg>
               Tentang Dashboard
             </div>
-            <h2 class="welcome-title">KABARE - Kanal Berita & Rekomendasi Ekonomi</h2>
+            <h2 class="welcome-title">WARTOS - Warta Online Statistik</h2>
             <p class="welcome-subtitle">
               Platform pemantauan berita lokal berbasis AI untuk mendukung analisis kegiatan ekonomi,
-              kemiskinan, dan ketenagakerjaan di Kabupaten Tegal secara otomatis dan real-time.
+              kemiskinan, dan ketenagakerjaan di Kabupaten Karawang secara otomatis dan real-time.
             </p>
           </div>
 
@@ -1321,6 +1325,12 @@
               <div class="archive-filter-group" role="group" aria-label="Filter arsip berita">
                 <button
                   class="archive-filter-btn active"
+                  id="archiveFilterRelevant"
+                  type="button"
+                  onclick="selectArchiveFilter('relevant')"
+                >Relevan</button>
+                <button
+                  class="archive-filter-btn"
                   id="archiveFilterActive"
                   type="button"
                   onclick="selectArchiveFilter('active')"
@@ -1423,7 +1433,7 @@
             <div>
               <h2>Data Official Statistic Terkini</h2>
               <p class="section-desc">
-                Empat statistik resmi BPS Kabupaten Tegal dari Web API BPS,
+                Empat statistik resmi BPS Kabupaten Karawang dari Web API BPS,
                 diringkas dalam visual yang ringkas, bersih, dan siap dibaca.
               </p>
             </div>
@@ -1487,7 +1497,7 @@
                 <div>
                   <p class="official-stat-card-eyebrow">Kesejahteraan</p>
                   <h3>Kemiskinan</h3>
-                  <p>Posisi Kabupaten Tegal di Eks Karesidenan Pekalongan.</p>
+                  <p>Posisi Kabupaten Karawang di Provinsi Jawa Barat.</p>
                 </div>
                 <span class="official-stat-card-badge badge-rose">Kemiskinan</span>
               </div>
@@ -1672,8 +1682,8 @@
     <!-- Footer -->
     <footer class="footer">
       <p>
-        © 2026 Badan Pusat Statistik Kabupaten Tegal. KABARE
-        — Kabupaten Tegal.
+        © 2026 Badan Pusat Statistik Kabupaten Karawang. WARTOS
+        — Kabupaten Karawang.
       </p>
     </footer>
       </div>

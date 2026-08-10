@@ -10,3 +10,9 @@ __pycache__/
 .vscode/
 .pytest_cache/
 .tmp-docx/
+.env*
+graphify-out/
+
+# Migrasi WAJIB masuk version control — tanpa ini environment baru
+# tidak bisa di-provision dari repo. Mengalahkan pola `*.sql` di atas.
+!migrations/*.sql

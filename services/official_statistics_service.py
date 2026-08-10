@@ -11,6 +11,7 @@ from threading import Lock
 from typing import Any
 
 from clients.bps import BPSWebApiClient
+from config.region import FOCUS_AREA_LABEL, PROVINCE_LABEL
 from repositories.official_statistics import (
     load_official_statistics_year_snapshots,
     upsert_official_statistics_snapshots,
@@ -182,7 +183,7 @@ class OfficialStatisticsService:
         if topics:
             return topics
 
-        if any(keyword in text for keyword in ("statistik resmi", "data resmi", "bps", "ekonomi tegal")):
+        if any(keyword in text for keyword in ("statistik resmi", "data resmi", "bps", "ekonomi karawang")):
             return set(_AI_TOPIC_DEFAULTS)
 
         return set()
@@ -366,8 +367,8 @@ class OfficialStatisticsService:
         current_dataset: dict[str, Any],
         previous_dataset: dict[str, Any],
     ) -> dict[str, Any]:
-        current_metrics = current_dataset.get("tegal_metrics") or {}
-        previous_metrics = previous_dataset.get("tegal_metrics") or {}
+        current_metrics = current_dataset.get("focus_area_metrics") or {}
+        previous_metrics = previous_dataset.get("focus_area_metrics") or {}
 
         return {
             "previous_year": previous_dataset.get("year"),
@@ -463,7 +464,7 @@ class OfficialStatisticsService:
         if not any(dataset.get("available") for dataset in (lapangan_adhk, lapangan_adhb, pengeluaran_adhk, pengeluaran_adhb)):
             return ""
 
-        lines = [f"Statistik resmi BPS tahun {year} untuk PDRB Kabupaten Tegal:"]
+        lines = [f"Statistik resmi BPS tahun {year} untuk PDRB {FOCUS_AREA_LABEL}:"]
 
         if lapangan_adhk.get("available"):
             lines.append(self._build_pdrb_lapangan_ai_line(lapangan_adhk, "ADHK"))
@@ -530,7 +531,7 @@ class OfficialStatisticsService:
         tpak_comparison = (comparison.get("indicators") or {}).get("tpak", {})
         tpt_comparison = (comparison.get("indicators") or {}).get("tpt", {})
 
-        lines = [f"Statistik resmi BPS tahun {year} untuk ketenagakerjaan Kabupaten Tegal:"]
+        lines = [f"Statistik resmi BPS tahun {year} untuk ketenagakerjaan {FOCUS_AREA_LABEL}:"]
         lines.append(
             f"- TPAK total {tpak_value.get('total_display', '—')} persen; laki-laki {tpak_value.get('male_display', '—')} persen; perempuan {tpak_value.get('female_display', '—')} persen."
         )
@@ -555,17 +556,17 @@ class OfficialStatisticsService:
         if not dataset.get("available"):
             return ""
 
-        tegal_metrics = dataset.get("tegal_metrics") or {}
+        focus_area_metrics = dataset.get("focus_area_metrics") or {}
         comparison = dataset.get("comparison") or {}
         poverty_rate_comparison = comparison.get("poverty_rate") or {}
         poor_population_comparison = comparison.get("poor_population") or {}
 
-        lines = [f"Statistik resmi BPS tahun {year} untuk kemiskinan Kabupaten Tegal:"]
+        lines = [f"Statistik resmi BPS tahun {year} untuk kemiskinan {FOCUS_AREA_LABEL}:"]
         lines.append(
             (
-                f"- Kabupaten Tegal: garis kemiskinan {tegal_metrics.get('poverty_line_display', '—')} rupiah/kapita/bulan, "
-                f"jumlah penduduk miskin {tegal_metrics.get('poor_population_display', '—')} ribu jiwa, "
-                f"persentase penduduk miskin {tegal_metrics.get('poverty_rate_display', '—')} persen."
+                f"- {FOCUS_AREA_LABEL}: garis kemiskinan {focus_area_metrics.get('poverty_line_display', '—')} rupiah/kapita/bulan, "
+                f"jumlah penduduk miskin {focus_area_metrics.get('poor_population_display', '—')} ribu jiwa, "
+                f"persentase penduduk miskin {focus_area_metrics.get('poverty_rate_display', '—')} persen."
             )
         )
         if poverty_rate_comparison.get("delta_display") and comparison.get("previous_year"):
@@ -751,12 +752,12 @@ class OfficialStatisticsService:
         metric_map = {str(item.get("val")): str(item.get("label") or "") for item in turvar_items}
 
         rows: list[dict[str, Any]] = []
-        tegal_metrics: dict[str, Any] = {}
+        focus_area_metrics: dict[str, Any] = {}
 
         for area in vervar_items:
             area_id = str(area.get("val"))
             label = str(area.get("label") or "").strip()
-            row: dict[str, Any] = {"label": label}
+            row: dict[str, Any] = {"label": label, "is_focus_area": label == FOCUS_AREA_LABEL}
 
             for metric_id, metric_label in metric_map.items():
                 composite_key = f"{area_id}{var_id}{metric_id}{year_id}{period_id}"
@@ -774,11 +775,11 @@ class OfficialStatisticsService:
                 row["poverty_rate_display"] = self._format_decimal(row.get("poverty_rate"))
                 rows.append(row)
 
-            if label == "Kabupaten Tegal":
-                tegal_metrics = row
+            if row["is_focus_area"]:
+                focus_area_metrics = row
 
         comparison_rows = sorted(
-            [row for row in rows if row.get("label") != "Jawa Tengah"],
+            [row for row in rows if row.get("label") != PROVINCE_LABEL],
             key=lambda item: item.get("poverty_rate") or -1,
             reverse=True,
         )
@@ -794,7 +795,7 @@ class OfficialStatisticsService:
             "unit": "Persen / ribu jiwa / rupiah",
             "updated_at": str(payload.get("last_update") or "").strip(),
             "source": self._strip_html(var_items[0].get("note")) or "Web API BPS",
-            "tegal_metrics": tegal_metrics,
+            "focus_area_metrics": focus_area_metrics,
             "comparison_rows": comparison_rows,
             "highest_poverty_area": {
                 "label": highest_area.get("label"),

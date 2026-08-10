@@ -1,6 +1,6 @@
-# KABARE
+# WARTOS
 
-KABARE adalah aplikasi pemantauan berita ekonomi lokal untuk Kabupaten Tegal yang menggabungkan scraping multi-sumber, klasifikasi otomatis, statistik resmi BPS, dan fitur AI berbasis Gemini. Proyek ini ditujukan untuk membantu tim BPS atau analis daerah membaca dinamika ekonomi lapangan dengan lebih cepat, lebih rapi, dan lebih kontekstual.
+WARTOS (Warta Online Statistik) adalah aplikasi pemantauan berita ekonomi lokal untuk Kabupaten Karawang yang menggabungkan scraping multi-sumber, klasifikasi otomatis, statistik resmi BPS, dan fitur AI berbasis Gemini. Proyek ini ditujukan untuk membantu tim BPS atau analis daerah membaca dinamika ekonomi lapangan dengan lebih cepat, lebih rapi, dan lebih kontekstual.
 
 ## URL : kabare.bpstegalkab.web.id
 
@@ -28,7 +28,7 @@ KABARE adalah aplikasi pemantauan berita ekonomi lokal untuk Kabupaten Tegal yan
 
 ## Gambaran Singkat
 
-Fungsi utama KABARE adalah mengumpulkan berita ekonomi dari portal lokal dan nasional yang relevan dengan Tegal, menyimpannya ke Supabase, lalu memperkaya berita tersebut dengan:
+Fungsi utama WARTOS adalah mengumpulkan berita ekonomi dari portal lokal dan nasional yang relevan dengan Karawang, menyimpannya ke Supabase, lalu memperkaya berita tersebut dengan:
 
 - klasifikasi KBLI,
 - label aktivitas ekonomi,
@@ -41,7 +41,7 @@ Dengan pendekatan ini, dashboard tidak hanya menampilkan berita, tetapi juga mem
 
 ## Fitur Utama
 
-- Scraping otomatis dari 5 sumber berita yang relevan untuk Kabupaten Tegal dan sekitarnya.
+- Scraping otomatis dari 4 sumber berita yang relevan untuk Kabupaten Karawang dan sekitarnya.
 - Dashboard berita dengan filter, pencarian, pagination, ekspor, dan detail artikel.
 - Role `admin` dan `user` dengan manajemen akun, reset password, dan kontrol akses.
 - Klasifikasi otomatis ke KBLI 2025, aktivitas ekonomi, dan PDRB pengeluaran.

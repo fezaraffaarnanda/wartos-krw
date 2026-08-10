@@ -16,7 +16,10 @@ _STOPWORD_EXACT: frozenset[str] = frozenset({
 
 _RE_LOCATION = re.compile(
     r"\b(?:tegal|kota tegal|kabupaten tegal|slawi|jawa tengah|jateng"
-    r"|brebes|pemalang|pekalongan|batang|kendal|pemkab|pemkot)\b",
+    r"|brebes|pemalang|pekalongan|batang|kendal|pemkab|pemkot"
+    r"|karawang|cikampek|purwakarta|jawa barat|jabar|bekasi"
+    r"|telukjambe|rengasdengklok|cilamaya|klari|kotabaru"
+    r"|pemda|pemprov|jakarta|indonesia|nasional)\b",
     re.IGNORECASE,
 )
 

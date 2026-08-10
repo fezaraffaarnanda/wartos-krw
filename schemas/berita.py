@@ -15,7 +15,7 @@ _SORT_MAP = {
     "created_at": "created_at",
 }
 
-_ARCHIVE_STATUS_VALUES = {"active", "archived", "all"}
+_ARCHIVE_STATUS_VALUES = {"relevant", "active", "archived", "all"}
 
 
 def _safe_int(raw: str, *, default: int, min_value: int, max_value: int) -> int:
@@ -34,7 +34,7 @@ class BeritaFilterQuery(BaseModel):
     kbli_code: str = Field(default="")
     aktivitas_code: str = Field(default="")
     pdrb_pengeluaran_code: str = Field(default="")
-    archive_status: str = Field(default="active")
+    archive_status: str = Field(default="relevant")
     page: int = Field(default=1, ge=1, le=50000)
     per_page: int = Field(default=15, ge=1, le=100)
     sort_by: str = Field(default="date_parsed")
@@ -51,7 +51,7 @@ class BeritaFilterQuery(BaseModel):
             "pdrb_pengeluaran_code": str(
                 args.get("pdrb_pengeluaran_code", "")
             ).strip().upper(),
-            "archive_status": _normalize_archive_status(args.get("archive_status", "active")),
+            "archive_status": _normalize_archive_status(args.get("archive_status", "relevant")),
             "page": _safe_int(
                 str(args.get("page", "")),
                 default=1,
@@ -105,7 +105,7 @@ class BeritaClassificationPayload(BaseModel):
 
 
 def _normalize_archive_status(raw: Any) -> str:
-    value = str(raw or "active").strip().lower()
+    value = str(raw or "relevant").strip().lower()
     if value in _ARCHIVE_STATUS_VALUES:
         return value
-    return "active"
+    return "relevant"

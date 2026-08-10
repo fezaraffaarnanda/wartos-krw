@@ -74,7 +74,7 @@ async function loadArticle(id) {
 }
 
 function renderArticle(d) {
-  document.title = `${d.title || "Detail Berita"} — KABARE`;
+  document.title = `${d.title || "Detail Berita"} — WARTOS`;
 
   document.getElementById("articleTitle").textContent = d.title || "—";
   document.getElementById("articleSource").textContent = d.source || "—";

@@ -228,6 +228,7 @@ async function submitArticleClassification(event) {
 
 function syncArchiveFilterButtons() {
   const buttons = {
+    relevant: document.getElementById("archiveFilterRelevant"),
     active: document.getElementById("archiveFilterActive"),
     archived: document.getElementById("archiveFilterArchived"),
     all: document.getElementById("archiveFilterAll"),
@@ -240,7 +241,7 @@ function syncArchiveFilterButtons() {
 }
 
 function selectArchiveFilter(status) {
-  _selectedArchiveStatus = status || "active";
+  _selectedArchiveStatus = status || "relevant";
   _tableFilterState.archive_status = _selectedArchiveStatus;
   syncArchiveFilterButtons();
   currentPage = 1;

@@ -317,7 +317,7 @@ async function downloadExcel() {
     { wch: 80 }, // Konten
   ];
 
-  XLSX.writeFile(wb, "berita_lokal_tegal.xlsx");
+  XLSX.writeFile(wb, "berita_lokal_karawang.xlsx");
 }
 
 function renderArticleActionButtons(item) {
