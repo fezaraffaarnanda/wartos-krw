@@ -10,7 +10,7 @@
     />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="icon" href="../static/favicon.png" />
+    <link rel="icon" type="image/svg+xml" href="../static/bps.svg" />
     <link
       href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;0,800;1,400&display=swap"
       rel="stylesheet"
@@ -139,12 +139,9 @@
               </svg>
               Sumber Berita:
             </span>
-            <div class="welcome-chips">
-              <span class="welcome-chip">Radar Tegal</span>
-              <span class="welcome-chip">Tribun Jateng</span>
-              <span class="welcome-chip">Pantura Post</span>
-              <span class="welcome-chip">Kompas</span>
-              <span class="welcome-chip">Setda Tegal</span>
+            <!-- Diisi runtime oleh shared/news_sources.js dari GET /api/sources -->
+            <div class="welcome-chips" id="welcomeSourceChips">
+              <span class="welcome-chip">Memuat sumber…</span>
             </div>
           </div>
 
@@ -160,7 +157,7 @@
               </div>
               <div class="wf-body">
                 <strong>Scraping Berita Otomatis</strong>
-                <p>Mengumpulkan berita terbaru dari 5 sumber setiap jam secara otomatis.</p>
+                <p>Mengumpulkan berita terbaru dari <span id="sourceCountInline">—</span> sumber setiap jam secara otomatis.</p>
               </div>
             </div>
 
@@ -302,8 +299,8 @@
           <div class="scrape-info">
             <h2>Mulai Scraping Berita</h2>
             <p>
-              Scrape berita lokal dari 4 sumber sekaligus: Radar Tegal, Pantura
-              Post, Tribun Jateng, dan Kompas. Scraping berhenti otomatis jika
+              Scrape berita lokal dari <span id="scrapeSourceCount">—</span> sumber sekaligus:
+              <span id="scrapeSourceList">—</span>. Scraping berhenti otomatis jika
               menemukan berita yang sudah ada di database.
             </p>
             <p>
@@ -391,93 +388,9 @@
             >
           </div>
 
-          <!-- Radar Tegal -->
-          <div class="progress-row">
-            <div class="progress-label">
-              <span class="progress-source">Radar Tegal</span>
-              <span class="progress-status" id="status-radartegal"
-                >Menunggu...</span
-              >
-            </div>
-            <div class="progress-bar-track">
-              <div
-                class="progress-bar-fill"
-                id="bar-radartegal"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span class="progress-count" id="count-radartegal">0</span>
-          </div>
-
-          <!-- Pantura Post -->
-          <div class="progress-row">
-            <div class="progress-label">
-              <span class="progress-source">Pantura Post</span>
-              <span class="progress-status" id="status-panturapost"
-                >Menunggu...</span
-              >
-            </div>
-            <div class="progress-bar-track">
-              <div
-                class="progress-bar-fill"
-                id="bar-panturapost"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span class="progress-count" id="count-panturapost">0</span>
-          </div>
-
-          <!-- Tribun Jateng -->
-          <div class="progress-row">
-            <div class="progress-label">
-              <span class="progress-source">Tribun Jateng</span>
-              <span class="progress-status" id="status-tribunjateng"
-                >Menunggu...</span
-              >
-            </div>
-            <div class="progress-bar-track">
-              <div
-                class="progress-bar-fill"
-                id="bar-tribunjateng"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span class="progress-count" id="count-tribunjateng">0</span>
-          </div>
-          <div class="progress-row">
-            <div class="progress-label">
-              <span class="progress-source">Kompas</span>
-              <span class="progress-status" id="status-kompas"
-                >Menunggu...</span
-              >
-            </div>
-            <div class="progress-bar-track">
-              <div
-                class="progress-bar-fill"
-                id="bar-kompas"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span class="progress-count" id="count-kompas">0</span>
-          </div>
-
-          <!-- Setda Tegal -->
-          <div class="progress-row">
-            <div class="progress-label">
-              <span class="progress-source">Setda Tegal</span>
-              <span class="progress-status" id="status-setdategal"
-                >Menunggu...</span
-              >
-            </div>
-            <div class="progress-bar-track">
-              <div
-                class="progress-bar-fill"
-                id="bar-setdategal"
-                style="width: 0%"
-              ></div>
-            </div>
-            <span class="progress-count" id="count-setdategal">0</span>
-          </div>
+          <!-- Baris progres di-generate runtime oleh shared/news_sources.js.
+               JANGAN hardcode sumber di sini — lihat config/region.py::NEWS_SOURCES. -->
+          <div id="progressRows"></div>
         </div>
       </section>
 
@@ -1691,6 +1604,8 @@
 
     <script src="../static/js/layout/shell.js"></script>
     <script src="../static/js/shared/html.js"></script>
+    <script src="../static/js/shared/tags.js"></script>
+    <script src="../static/js/shared/news_sources.js"></script>
     <script src="../static/js/shared/economic_taxonomy.js"></script>
     <script src="../static/js/dashboard/app_state.js"></script>
     <script src="../static/js/dashboard/utils.js"></script>

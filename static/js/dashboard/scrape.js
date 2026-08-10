@@ -6,6 +6,9 @@ async function scrapeBerita() {
   const input = document.getElementById("maxArticles");
   maxArticlesGlobal = input.value ? parseInt(input.value) : 150;
 
+  await loadNewsSources();
+  renderProgressRows("progressRows");
+
   showProgress();
   resetProgressBars();
 
@@ -73,12 +76,17 @@ async function fetchProgress() {
 }
 
 function resetProgressBars() {
-  document.getElementById("progressSubtitle").textContent = "Memulai...";
+  const sub = document.getElementById("progressSubtitle");
+  if (sub) sub.textContent = "Memulai...";
   SOURCE_KEYS.forEach((key) => {
-    document.getElementById(`bar-${key}`).style.width = "0%";
-    document.getElementById(`bar-${key}`).className = "progress-bar-fill";
-    document.getElementById(`count-${key}`).textContent = "0";
-    document.getElementById(`status-${key}`).textContent = "Menunggu...";
+    const bar = document.getElementById(`bar-${key}`);
+    const count = document.getElementById(`count-${key}`);
+    const status = document.getElementById(`status-${key}`);
+    if (!bar || !count || !status) return;
+    bar.style.width = "0%";
+    bar.className = "progress-bar-fill";
+    count.textContent = "0";
+    status.textContent = "Menunggu...";
   });
 }
 
@@ -90,11 +98,12 @@ function updateProgressUI(progress, overall) {
     const src = progress[key];
     if (!src) return;
 
-    const pct = Math.min(100, Math.round((src.scraped / max) * 100));
     const bar = document.getElementById(`bar-${key}`);
     const count = document.getElementById(`count-${key}`);
     const status = document.getElementById(`status-${key}`);
+    if (!bar || !count || !status) return;
 
+    const pct = Math.min(100, Math.round((src.scraped / max) * 100));
     bar.style.width = pct + "%";
     count.textContent = src.scraped;
 
@@ -115,15 +124,9 @@ function updateProgressUI(progress, overall) {
   });
 
   const subtitle = document.getElementById("progressSubtitle");
+  if (!subtitle) return;
   if (runningSource) {
-    const labels = {
-      radartegal: "Radar Tegal",
-      panturapost: "Pantura Post",
-      tribunjateng: "Tribun Jateng",
-      kompas: "Kompas",
-      setdategal: "Setda Tegal",
-    };
-    subtitle.textContent = `Sedang: ${labels[runningSource] || runningSource}`;
+    subtitle.textContent = `Sedang: ${SOURCE_LABELS_UI[runningSource] || runningSource}`;
   } else if (overall && overall.active) {
     subtitle.textContent = "Menyiapkan sumber berikutnya...";
   }
@@ -136,11 +139,11 @@ function onScrapingDone(overall) {
 
   const subtitle = document.getElementById("progressSubtitle");
   const total = overall.total_inserted || 0;
-  subtitle.textContent = `Selesai — ${total} berita baru disimpan`;
+  if (subtitle) subtitle.textContent = `Selesai — ${total} berita baru disimpan`;
 
   SOURCE_KEYS.forEach((key) => {
     const bar = document.getElementById(`bar-${key}`);
-    if (bar.className.includes("running")) {
+    if (bar && bar.className.includes("running")) {
       bar.className = "progress-bar-fill done";
       bar.style.width = "100%";
     }

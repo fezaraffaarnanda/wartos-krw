@@ -25,6 +25,15 @@ def get_progress():
     return jsonify(_scraping_service.get_progress())
 
 
+@scraping_bp.route("/api/sources", methods=["GET"])
+@login_required
+@limiter.exempt
+def get_sources():
+    """Daftar sumber berita aktif (key + label). Statis, tidak menyentuh DB."""
+    payload, status_code = _scraping_service.list_sources()
+    return jsonify(payload), status_code
+
+
 @scraping_bp.route("/api/last-scrape", methods=["GET"])
 @login_required
 def get_last_scrape():

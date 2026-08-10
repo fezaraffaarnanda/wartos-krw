@@ -386,12 +386,14 @@ python app.py
 
 ### Menjalankan scraper satu per satu
 
+Daftar sumber aktif: `config/region.py::NEWS_SOURCES`. Dashboard mengambilnya
+lewat `GET /api/sources` — jangan hardcode di tempat lain.
+
 ```bash
-python -m scrapers.radartegal
-python -m scrapers.panturapost
-python -m scrapers.tribunjateng
-python -m scrapers.kompas
-python -m scrapers.setda_tegal
+python -m scrapers.inews_karawang
+python -m scrapers.karawangnews
+python -m scrapers.pemda_karawang
+python -m scrapers.radar_karawang
 ```
 
 ### Menjalankan script operasional
@@ -441,13 +443,12 @@ Setiap artikel minimal mengandung field berikut dalam pipeline:
 
 ## Scraper yang Digunakan
 
-Sumber berita yang saat ini aktif:
+Sumber berita yang saat ini aktif (`config/region.py::NEWS_SOURCES`):
 
-- Radar Tegal
-- Pantura Post
-- Tribun Jateng
-- Kompas
-- Setda Tegal
+- iNews Karawang
+- KarawangNews
+- Pemda Karawang
+- Radar Karawang
 
 ### Kontrak scraper
 

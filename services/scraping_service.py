@@ -5,8 +5,10 @@ Service layer untuk kontrol scraping.
 import threading
 from typing import Any
 
+from config.region import NEWS_SOURCES
 from config.settings import get_settings
 from repositories.scrape_log import ScrapeLogRepository
+from schemas.scraping import NewsSourceOut
 from services.article_pipeline import _classifiers, _run_kbli_backfill, _scrape_sync, _scrape_worker
 from state.scraping import _reset_progress, _scrape_overall, _scrape_progress, _scraping_lock
 
@@ -26,6 +28,14 @@ class ScrapingService:
 
     def get_progress(self) -> dict[str, Any]:
         return {"progress": _scrape_progress, "overall": _scrape_overall}
+
+    def list_sources(self) -> tuple[dict[str, Any], int]:
+        """Daftar sumber berita aktif — dipakai UI untuk merender chip & baris progres."""
+        data = [
+            NewsSourceOut.model_validate({"key": key, "label": label}).model_dump()
+            for key, label in NEWS_SOURCES
+        ]
+        return {"status": "ok", "data": data}, 200
 
     def get_last_scrape(self) -> tuple[dict[str, Any], int]:
         try:

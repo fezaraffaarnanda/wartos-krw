@@ -7,6 +7,7 @@ import threading
 import time as _time
 
 from clients.supabase import supabase
+from config.region import SOURCE_LABELS  # noqa: F401  (re-export, dipakai luas)
 from repositories.berita import _fetch_existing_urls
 from repositories.scrape_log import _log_scrape_run
 from state.scraping import (
@@ -15,21 +16,13 @@ from state.scraping import (
     _scraping_lock,
 )
 from utils.date import normalize_date, parse_date_to_iso
+from utils.tags import clean_tags
 from ai.embeddings import batch_embed_articles, embed_article, _build_embedding_client
 
 from scrapers.inews_karawang import scrape_new_articles as scrape_inews_karawang
 from scrapers.karawangnews import scrape_new_articles as scrape_karawangnews
 from scrapers.pemda_karawang import scrape_new_articles as scrape_pemda_karawang
 from scrapers.radar_karawang import scrape_new_articles as scrape_radar_karawang
-
-# ── Konstanta ───────────────────────────────────────────────────────────────
-
-SOURCE_LABELS = {
-    "inews_karawang": "iNews Karawang",
-    "karawangnews":   "KarawangNews",
-    "pemda_karawang": "Pemda Karawang",
-    "radar_karawang": "Radar Karawang",
-}
 
 
 # ── Lazy-loaded classifiers (diisi oleh app.py setelah init) ─────────────────
@@ -69,13 +62,6 @@ def _is_valid_article(article: dict | None, source_key: str) -> bool:
     if not article or not article.get("title") or not article.get("url"):
         print(f"[SKIP] {source_key}: artikel null/judul kosong dilewati")
         return False
-
-    if source_key == "tribunjateng":
-        for field in ("title", "date", "content"):
-            val = article.get(field, "")
-            if not val or str(val).strip().upper() == "NA":
-                print(f"[SKIP] {source_key}: field '{field}' kosong/NA — {article.get('url', '')}")
-                return False
 
     return True
 
@@ -148,7 +134,7 @@ def _build_article_row(article: dict, source_label: str) -> dict:
             "date_parsed":       parse_date_to_iso(normalized_date),
             "url":               article["url"],
             "content":           article["content"],
-            "tags":              article["tags"].lower() if article.get("tags") else article.get("tags"),
+            "tags":              clean_tags(article.get("tags")).lower() or None,
             "kbli":              "—",
             "aktivitas_ekonomi": "—",
             "pdrb_pengeluaran":  "—",
@@ -626,13 +612,30 @@ def _run_embedding_backfill(batch_size: int = 20) -> int:
 
 # ── Scraper config & runner ──────────────────────────────────────────────────
 
+_SCRAPER_FUNCS = {
+    "inews_karawang": scrape_inews_karawang,
+    "karawangnews":   scrape_karawangnews,
+    "pemda_karawang": scrape_pemda_karawang,
+    "radar_karawang": scrape_radar_karawang,
+}
+
+
 def _build_scraper_config(max_articles: int) -> list[tuple]:
-    """Return daftar (key, scraper_fn, kwargs) untuk semua sumber."""
+    """Return daftar (key, scraper_fn, kwargs) untuk semua sumber di SOURCE_LABELS.
+
+    Registry-driven: sumber terdaftar di config.region.NEWS_SOURCES tapi
+    tanpa fungsi scraper di _SCRAPER_FUNCS akan gagal saat scraping dipicu,
+    bukan diam-diam dilewati.
+    """
+    missing = set(SOURCE_LABELS) - set(_SCRAPER_FUNCS)
+    if missing:
+        raise RuntimeError(
+            f"Sumber terdaftar di config.region.NEWS_SOURCES tapi tidak punya "
+            f"scraper: {sorted(missing)}"
+        )
     return [
-        ("inews_karawang", scrape_inews_karawang, {"max_articles": max_articles}),
-        ("karawangnews",   scrape_karawangnews,   {"max_articles": max_articles}),
-        ("pemda_karawang", scrape_pemda_karawang, {"max_articles": max_articles}),
-        ("radar_karawang", scrape_radar_karawang, {"max_articles": max_articles}),
+        (key, _SCRAPER_FUNCS[key], {"max_articles": max_articles})
+        for key in SOURCE_LABELS
     ]
 
 

@@ -89,10 +89,7 @@ function renderArticle(d) {
 
   const tagsContainer = document.getElementById("articleTags");
   if (d.tags) {
-    const tags = d.tags
-      .split(/\s*\|\s*|,\s*/)
-      .map((t) => t.trim().replace(/^#/, ""))
-      .filter(Boolean);
+    const tags = parseTags(d.tags);
     tagsContainer.innerHTML = tags
       .map((t) => `<span class="tag-chip">#${escapeHtml(t)}</span>`)
       .join(" ");

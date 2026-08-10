@@ -13,6 +13,7 @@ from ai.pdrb_pengeluaran import (
 )
 from repositories.berita import BeritaRepository
 from schemas.berita import BeritaFilterQuery
+from utils.tags import clean_tags, split_tags
 
 
 class BeritaService:
@@ -165,11 +166,11 @@ class BeritaService:
             if not raw_tags:
                 continue
 
-            tags = [
-                tag.strip().replace("#", "")
-                for tag in raw_tags.replace(",", "|").split("|")
-                if tag.strip()
-            ]
+            # Baris lama (sebelum backfill pembersihan tag) masih bisa berisi
+            # identitas sumber/pejabat — saring lagi di sini supaya KPI top-tags
+            # tidak menunggu backfill selesai. clean_tags idempoten, jadi tidak
+            # ada efek samping untuk baris yang sudah bersih.
+            tags = split_tags(clean_tags(raw_tags))
             for tag in tags:
                 key = tag.lower()
                 tag_count[key] = tag_count.get(key, 0) + 1

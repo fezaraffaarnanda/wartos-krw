@@ -7,6 +7,13 @@ from typing import Any, Mapping
 from pydantic import BaseModel, Field
 
 
+class NewsSourceOut(BaseModel):
+    """Satu sumber berita untuk konsumsi frontend (GET /api/sources)."""
+
+    key: str = Field(pattern=r"^[a-z][a-z0-9_]*$")
+    label: str
+
+
 class ScrapeTriggerPayload(BaseModel):
     """Payload trigger scraping."""
 

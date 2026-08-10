@@ -4,14 +4,13 @@ Shared mutable state untuk alur scraping.
 
 import threading
 
+from config.region import SOURCE_KEYS
+
 _scraping_lock = threading.Lock()
 
-_scrape_progress: dict = {
-    "inews_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "karawangnews": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "pemda_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-    "radar_karawang": {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."},
-}
+_IDLE_PROGRESS = {"status": "idle", "scraped": 0, "inserted": 0, "message": "Menunggu..."}
+
+_scrape_progress: dict = {key: dict(_IDLE_PROGRESS) for key in SOURCE_KEYS}
 
 _scrape_overall: dict = {"active": False, "done": False, "total_inserted": 0, "error": ""}
 

@@ -1,25 +1,7 @@
 
-const _RE_LOCATION_WORD = /(?:tegal|kota tegal|kabupaten tegal|slawi|jawa tengah|jateng|brebes|pemalang|pekalongan|batang|kendal|pemkab|pemkot)/i;
-
-const _STOPWORD_EXACT = new Set([
-  "ini", "itu", "dan", "di", "ke", "dari", "yang", "untuk",
-  "dengan", "ada", "bisa", "juga", "sudah", "akan", "lagi",
-  "oleh", "atau", "saja", "pun", "bila", "jika", "ia", "si",
-  "hari", "bulan", "tahun", "orang", "pada", "hal", "cara",
-  "bagi", "agar", "saat", "serta", "lebih", "belum", "masih",
-  "kami", "kamu", "anda", "kita", "mereka", "dia", "nya",
-  "berita", "terbaru", "update",
-]);
-
-function _isCleanTag(raw) {
-  const t = raw.trim().replace(/^#/, "");
-  if (!t) return false;
-  if (t.length <= 2) return false;
-  if (/^\d+$/.test(t)) return false;
-  if (_RE_LOCATION_WORD.test(t)) return false;
-  if (_STOPWORD_EXACT.has(t.toLowerCase())) return false;
-  return true;
-}
+// Penyaringan tag (lokasi, stopword, identitas sumber, nama pejabat)
+// dilakukan SATU kali di server: utils/tags.py. Pemisah string tag ada di
+// static/js/shared/tags.js::parseTags. JANGAN membuat mirror aturan di JS.
 
 function parseDateID(str) {
   if (!str) return new Date(0);
@@ -29,14 +11,6 @@ function parseDateID(str) {
   const month = BULAN_ID[bulan.toLowerCase()];
   if (month === undefined) return new Date(0);
   return new Date(+year, month, +day, +hour, +min);
-}
-
-function parseTags(raw) {
-  if (!raw) return [];
-  return raw
-    .split(/\s*\|\s*|,\s*/)
-    .map((t) => t.trim().replace(/^#/, ""))
-    .filter(Boolean);
 }
 
 function parseDateToISO(str) {

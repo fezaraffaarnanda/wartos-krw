@@ -14,6 +14,12 @@ async function bootstrapDashboard() {
 
   try {
     await loadUserInfo();
+    await loadNewsSources();
+    renderSourceChips("welcomeSourceChips");
+    renderSourceCount("sourceCountInline");
+    renderSourceCount("scrapeSourceCount");
+    renderSourceListInline("scrapeSourceList");
+    renderProgressRows("progressRows");
     initSidebarNavigation();
     initOfficialStatisticsControls();
     initFloatingChat();

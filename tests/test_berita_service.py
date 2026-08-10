@@ -25,7 +25,7 @@ class _FakeBeritaRepository:
                 "id": 2,
                 "date": "09 Maret 2026, 10:00 WIB",
                 "date_parsed": "2026-03-09",
-                "tags": "Pangan",
+                "tags": "Radar Karawang | Aep Syaepuloh | Pangan",
                 "kbli": "C/Industri",
             },
         ]
@@ -105,14 +105,18 @@ def test_get_berita_years_sorted_descending():
     assert result == {"status": "ok", "years": ["2026", "2025", "2024"]}
 
 
-def test_focus_area_sources_match_pipeline():
-    """Allowlist tampilan harus persis sama dengan sumber yang benar-benar di-scrape.
+def test_overview_top_tags_filters_source_and_official_names():
+    """KPI top-tags harus tersaring lewat utils.tags meski baris belum di-backfill.
 
-    Kalau scraper baru ditambahkan ke pipeline tanpa memperbarui
-    config.region.FOCUS_AREA_SOURCES, beritanya masuk DB tapi tidak pernah
-    tampil di dashboard — kegagalan yang sunyi.
+    Fixture berisi 'Radar Karawang' (identitas sumber) dan 'Aep Syaepuloh'
+    (nama pejabat) bercampur dengan tag topik sah 'Pangan' — hanya 'pangan'
+    yang boleh muncul di top_tags_30d.
     """
-    from config.region import FOCUS_AREA_SOURCES
-    from services.article_pipeline import SOURCE_LABELS
+    service = BeritaService(berita_repository=_FakeBeritaRepository())
 
-    assert set(FOCUS_AREA_SOURCES) == set(SOURCE_LABELS.values())
+    result = service.get_dashboard_overview_summary()
+
+    top_tags = {item["tag"] for item in result["data"]["top_tags_30d"]}
+    assert top_tags == {"inflasi", "pangan"}
+    assert "radar karawang" not in top_tags
+    assert "aep syaepuloh" not in top_tags

@@ -71,13 +71,8 @@ const BULAN_ID = {
   desember: 11,
 };
 
-const SOURCE_KEYS = [
-  "radartegal",
-  "panturapost",
-  "tribunjateng",
-  "kompas",
-  "setdategal",
-];
+// NEWS_SOURCES / SOURCE_KEYS / SOURCE_LABELS_UI dipindah ke
+// static/js/shared/news_sources.js (diisi runtime dari GET /api/sources).
 
 const BULAN_NAMA_ID = [
   "Januari",

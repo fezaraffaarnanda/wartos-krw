@@ -43,11 +43,10 @@ python app.py
 
 ### Run scrapers
 ```bash
-python -m scrapers.radartegal
-python -m scrapers.panturapost
-python -m scrapers.tribunjateng
-python -m scrapers.kompas
-python -m scrapers.setda_tegal
+python -m scrapers.inews_karawang
+python -m scrapers.karawangnews
+python -m scrapers.pemda_karawang
+python -m scrapers.radar_karawang
 ```
 
 ### Run operational scripts
