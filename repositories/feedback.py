@@ -1,0 +1,85 @@
+"""
+Repository submission feedback pengguna (tabel feedback).
+"""
+
+from typing import Any
+
+from repositories.base import BaseRepository
+
+_LIST_COLUMNS = "id, username, role, rating, category, comment, page_path, trigger_source, created_at"
+
+
+class FeedbackRepository(BaseRepository):
+    """Akses data feedback pengguna."""
+
+    def insert_feedback(
+        self,
+        *,
+        user_id: int,
+        username: str,
+        role: str,
+        rating: int,
+        category: str,
+        comment: str,
+        page_path: str,
+        event_count_at_submit: int,
+        trigger_source: str,
+    ) -> dict[str, Any] | None:
+        try:
+            result = (
+                self._supabase.table("feedback")
+                .insert({
+                    "user_id": user_id,
+                    "username": username,
+                    "role": role,
+                    "rating": rating,
+                    "category": category,
+                    "comment": comment or None,
+                    "page_path": page_path or None,
+                    "event_count_at_submit": event_count_at_submit,
+                    "trigger_source": trigger_source,
+                })
+                .execute()
+            )
+            rows = result.data or []
+            return rows[0] if rows else None
+        except Exception as exc:
+            print(f"[Feedback] Gagal simpan feedback user {user_id}: {exc}")
+            return None
+
+    def list_feedback(
+        self, *, page: int = 1, per_page: int = 20, category: str = "", min_rating: int | None = None,
+    ) -> dict[str, Any]:
+        start = (page - 1) * per_page
+        end = start + per_page - 1
+        query = (
+            self._supabase.table("feedback")
+            .select(_LIST_COLUMNS, count="exact")
+            .order("created_at", desc=True)
+        )
+        if category:
+            query = query.eq("category", category)
+        if min_rating is not None:
+            query = query.gte("rating", min_rating)
+        result = query.range(start, end).execute()
+        return {"data": result.data or [], "total_items": result.count or 0}
+
+    def feedback_summary(self) -> dict[str, Any]:
+        try:
+            result = self._supabase.table("feedback").select("rating, category").execute()
+            rows = result.data or []
+        except Exception as exc:
+            print(f"[Feedback] Gagal ambil ringkasan: {exc}")
+            rows = []
+
+        count = len(rows)
+        avg_rating = round(sum(r.get("rating", 0) for r in rows) / count, 2) if count else None
+        by_category: dict[str, int] = {}
+        by_rating: dict[str, int] = {}
+        for r in rows:
+            cat = r.get("category") or "lainnya"
+            by_category[cat] = by_category.get(cat, 0) + 1
+            rating_key = str(r.get("rating"))
+            by_rating[rating_key] = by_rating.get(rating_key, 0) + 1
+
+        return {"count": count, "avg_rating": avg_rating, "by_category": by_category, "by_rating": by_rating}

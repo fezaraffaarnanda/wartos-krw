@@ -24,6 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     await loadMe();
     await loadUsers();
+    await loadFeedback();
   } finally {
     if (typeof hidePageLoadingOverlay === "function") {
       hidePageLoadingOverlay();
@@ -34,6 +35,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 const bindEvents = () => {
   document.getElementById("createUserForm").addEventListener("submit", onCreateUser);
   document.getElementById("btnRefreshUsers").addEventListener("click", loadUsers);
+  document.getElementById("btnRefreshFeedback").addEventListener("click", loadFeedback);
   document.getElementById("usernameInput").addEventListener("keydown", onUsernameInputKeydown);
   document.getElementById("usernameInput").addEventListener("paste", onUsernameInputPaste);
   document.getElementById("usernameInput").addEventListener("blur", commitCurrentInputToTokens);
@@ -171,6 +173,79 @@ const renderUsersTable = () => {
               >Hapus</button>
             </div>
           </td>
+        </tr>
+      `;
+    })
+    .join("");
+};
+
+const FEEDBACK_CATEGORY_LABELS = {
+  berita: "Data Berita",
+  ai_chat: "AI Chat",
+  ai_insight: "Insight AI",
+  statistik_resmi: "Data Official Statistic",
+  scraping: "Scraping",
+  lainnya: "Lainnya",
+};
+
+async function loadFeedback() {
+  const tbody = document.getElementById("feedbackTableBody");
+  tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Memuat data masukan...</td></tr>`;
+
+  try {
+    const response = await fetch("/api/admin/feedback?per_page=20");
+    if (response.status === 401) {
+      window.location.href = "/login";
+      return;
+    }
+    if (response.status === 403) {
+      window.location.href = "/dashboard";
+      return;
+    }
+
+    const payload = await response.json();
+    if (!response.ok || payload.status !== "ok") {
+      tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Gagal memuat masukan.</td></tr>`;
+      return;
+    }
+
+    renderFeedbackSummary(payload.summary || {});
+    renderFeedbackTable(payload.data || []);
+  } catch (_) {
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Gagal memuat masukan.</td></tr>`;
+  }
+}
+
+const renderFeedbackSummary = (summary) => {
+  document.getElementById("feedbackSummaryCount").textContent = summary.count || 0;
+  document.getElementById("feedbackSummaryAvg").textContent =
+    summary.avg_rating != null ? `${summary.avg_rating} / 5` : "—";
+};
+
+const renderFeedbackTable = (rows) => {
+  const tbody = document.getElementById("feedbackTableBody");
+  const countText = document.getElementById("feedbackCountText");
+
+  countText.textContent = `${rows.length} masukan`;
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td colspan="5" class="table-empty">Belum ada masukan.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = rows
+    .map((row) => {
+      const createdAt = row.created_at
+        ? new Date(row.created_at).toLocaleString("id-ID", { dateStyle: "medium", timeStyle: "short" })
+        : "—";
+      const category = FEEDBACK_CATEGORY_LABELS[row.category] || row.category || "—";
+      const comment = row.comment ? escapeHtml(row.comment) : `<span class="table-empty">—</span>`;
+      return `
+        <tr>
+          <td>${escapeHtml(createdAt)}</td>
+          <td>${escapeHtml(row.username || "—")}</td>
+          <td class="feedback-rating-badge">${"★".repeat(row.rating || 0)}${"☆".repeat(5 - (row.rating || 0))}</td>
+          <td>${escapeHtml(category)}</td>
+          <td>${comment}</td>
         </tr>
       `;
     })

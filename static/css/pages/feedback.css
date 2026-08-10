@@ -1,0 +1,218 @@
+/* Modal "Kirim Masukan" -- dipakai static/js/shared/feedback.js.
+   Skala warna pakai var(--*) global dari style.css supaya konsisten di
+   semua halaman (dashboard, berita, admin_users, admin_relevance). */
+
+.feedback-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(17, 24, 39, 0.48);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 3000;
+  padding: 14px;
+}
+
+.feedback-modal-backdrop.open {
+  display: flex;
+}
+
+.feedback-modal {
+  width: min(460px, 100%);
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 16px 50px rgba(0, 0, 0, 0.24);
+  border: 1px solid var(--border-color);
+  padding: 18px;
+}
+
+.feedback-modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.feedback-modal-head h3 {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-primary);
+}
+
+.feedback-modal-close {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 1rem;
+  cursor: pointer;
+  line-height: 1;
+  padding: 4px;
+  border-radius: 8px;
+}
+
+.feedback-modal-close:hover {
+  background: var(--gray-100, #f3f4f6);
+  color: var(--text-primary);
+}
+
+.feedback-modal-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.feedback-field-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-top: 10px;
+}
+
+.feedback-stars {
+  display: flex;
+  gap: 4px;
+}
+
+.feedback-star {
+  border: none;
+  background: transparent;
+  font-size: 1.6rem;
+  line-height: 1;
+  color: var(--border-color);
+  cursor: pointer;
+  padding: 2px;
+  transition: color 0.12s ease, transform 0.12s ease;
+}
+
+.feedback-star:hover {
+  transform: scale(1.08);
+}
+
+.feedback-star.active {
+  color: var(--accent);
+}
+
+.feedback-select,
+.feedback-textarea {
+  width: 100%;
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 9px 11px;
+  font-size: 0.86rem;
+  font-family: inherit;
+  color: var(--text-primary);
+  background: #fff;
+}
+
+.feedback-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.feedback-select:focus,
+.feedback-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(255, 149, 0, 0.15);
+}
+
+.feedback-error {
+  color: #dc2626;
+  font-size: 0.78rem;
+  margin: 6px 0 0;
+}
+
+.feedback-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.feedback-btn {
+  border-radius: 10px;
+  padding: 9px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.feedback-btn-ghost {
+  background: transparent;
+  border-color: var(--border-color);
+  color: var(--text-muted);
+}
+
+.feedback-btn-ghost:hover {
+  background: var(--gray-100, #f3f4f6);
+}
+
+.feedback-btn-primary {
+  background: var(--accent);
+  color: #fff;
+}
+
+.feedback-btn-primary:hover {
+  filter: brightness(1.05);
+}
+
+.feedback-btn-primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Rekap admin -- templates/admin_users.html */
+
+.feedback-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.feedback-summary-stat {
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fafafa;
+}
+
+.feedback-summary-stat .value {
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.feedback-summary-stat .label {
+  font-size: 0.74rem;
+  color: var(--text-muted);
+}
+
+.feedback-list-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+}
+
+.feedback-list-table th,
+.feedback-list-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.feedback-list-table th {
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 0.74rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.feedback-rating-badge {
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}

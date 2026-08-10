@@ -381,6 +381,7 @@ async function sendChatMessage(event) {
     _appendChatMessage("user", message, []);
     input.value = "";
     _toggleChatLoading(true);
+    if (typeof trackEvent === "function") trackEvent("ai_chat_message");
 
     const assistantBubble = _appendChatMessage("assistant", "", []);
     let streamedText = "";

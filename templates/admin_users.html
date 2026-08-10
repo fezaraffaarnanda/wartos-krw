@@ -12,6 +12,7 @@
         rel="stylesheet" />
     <link rel="stylesheet" href="../static/css/style.css" />
     <link rel="stylesheet" href="../static/css/pages/admin_users.css" />
+    <link rel="stylesheet" href="../static/css/pages/feedback.css" />
     <link rel="icon" type="image/svg+xml" href="../static/bps.svg" />
 </head>
 
@@ -72,6 +73,10 @@
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9.5 15a3.5 3.5 0 0 0 5 0" /></svg>
                     <span class="sidebar-link-label">Pengaturan LLM</span>
                 </a>
+                <button class="sidebar-link" id="feedbackSidebarBtn" type="button">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.7 1.6 6.8L12 17l-6.2 3.5 1.6-6.8-5.2-4.7 6.9-.7z" /></svg>
+                    <span class="sidebar-link-label">Kirim Masukan</span>
+                </button>
             </nav>
             <div class="sidebar-footer">
                 <span class="header-user" id="headerUser"></span>
@@ -176,6 +181,46 @@
                     <button type="button" class="btn-admin ghost" id="btnRefreshUsers">Refresh</button>
                 </div>
             </section>
+
+            <section class="admin-card">
+                <h2>Masukan Pengguna</h2>
+                <p>Rekap feedback yang dikirim pengguna lewat tombol "Kirim Masukan" atau prompt otomatis.</p>
+
+                <div class="feedback-summary-grid" id="feedbackSummaryGrid">
+                    <div class="feedback-summary-stat">
+                        <div class="value" id="feedbackSummaryCount">0</div>
+                        <div class="label">Total masukan</div>
+                    </div>
+                    <div class="feedback-summary-stat">
+                        <div class="value" id="feedbackSummaryAvg">—</div>
+                        <div class="label">Rata-rata rating</div>
+                    </div>
+                </div>
+
+                <div class="admin-table-wrap">
+                    <table class="feedback-list-table" aria-label="Daftar masukan pengguna">
+                        <thead>
+                            <tr>
+                                <th>Waktu</th>
+                                <th>Pengguna</th>
+                                <th>Rating</th>
+                                <th>Kategori</th>
+                                <th>Komentar</th>
+                            </tr>
+                        </thead>
+                        <tbody id="feedbackTableBody">
+                            <tr>
+                                <td colspan="5" class="table-empty">Memuat data masukan...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="admin-meta-row">
+                    <span id="feedbackCountText">0 masukan</span>
+                    <button type="button" class="btn-admin ghost" id="btnRefreshFeedback">Refresh</button>
+                </div>
+            </section>
         </div>
             </main>
 
@@ -226,6 +271,9 @@
 
             <script src="../static/js/layout/shell.js"></script>
             <script src="../static/js/shared/html.js"></script>
+            <script src="../static/js/shared/toast.js"></script>
+            <script src="../static/js/shared/activity.js"></script>
+            <script src="../static/js/shared/feedback.js"></script>
             <script src="../static/js/shared/dialog.js"></script>
             <script src="../static/js/admin/users.js"></script>
             <!-- Vercel Web Analytics -->

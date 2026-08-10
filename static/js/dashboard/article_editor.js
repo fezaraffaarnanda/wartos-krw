@@ -79,6 +79,7 @@ function populateArticleEditorOptions() {
 }
 
 function openArticleEditor(article) {
+  if (typeof trackEvent === "function") trackEvent("berita_detail_open");
   initArticleEditor();
 
   _articleEditorState = {

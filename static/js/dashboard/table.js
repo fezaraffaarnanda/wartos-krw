@@ -287,6 +287,8 @@ async function downloadExcel() {
     console.warn("Export fetch gagal, pakai data tabel saja:", e);
   }
 
+  if (typeof trackEvent === "function") trackEvent("export_data");
+
   const rows = exportData.map((item, i) => ({
     No: i + 1,
     Judul: item.title || "",

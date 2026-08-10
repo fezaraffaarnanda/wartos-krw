@@ -15,6 +15,7 @@ from routes.ai_chat     import ai_chat_bp
 from routes.official_statistics import official_statistics_bp
 from routes.scraping    import scraping_bp
 from routes.admin       import admin_bp
+from routes.feedback    import feedback_bp
 
 from services.article_pipeline import (
     set_classifiers,
@@ -60,6 +61,7 @@ def create_app() -> Flask:
     app.register_blueprint(official_statistics_bp)
     app.register_blueprint(scraping_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(feedback_bp)
 
     app.before_request(enforce_must_change_password)
 

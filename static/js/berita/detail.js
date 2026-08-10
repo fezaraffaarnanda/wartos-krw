@@ -68,6 +68,7 @@ async function loadArticle(id) {
     }
 
     renderArticle(json.data);
+    if (typeof trackEvent === "function") trackEvent("berita_detail_open");
   } catch (_) {
     showError("Gagal memuat berita. Coba lagi nanti.");
   }

@@ -10,9 +10,11 @@ from flask_login import UserMixin, current_user, login_required, login_user, log
 from config.extensions import limiter, login_manager
 from schemas.auth import ChangePasswordPayload, LoginPayload, ResetPasswordPayload
 from services.auth_service import AuthService
+from services.feedback_service import FeedbackService
 
 auth_bp = Blueprint("auth", __name__)
 _auth_service = AuthService()
+_feedback_service = FeedbackService()
 
 
 class User(UserMixin):
@@ -138,12 +140,14 @@ def logout():
 @auth_bp.route("/api/me", methods=["GET"])
 @login_required
 def api_me():
+    feedback_prompt = _feedback_service.evaluate_prompt_state(user_id=int(current_user.id))
     return jsonify(
         {
             "status": "ok",
             "username": current_user.username,
             "role": current_user.role,
             "must_change_password": current_user.must_change_password,
+            "feedback_prompt": feedback_prompt,
         }
     )
 

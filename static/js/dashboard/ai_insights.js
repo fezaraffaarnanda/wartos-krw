@@ -388,6 +388,7 @@ async function loadAIInsights({
 
   setAILoading(true);
   if (!forceRefresh) _showAISkeleton();
+  if (typeof trackEvent === "function") trackEvent("ai_insight_generate");
 
   try {
     const params = new URLSearchParams({ period: selectedPeriod });

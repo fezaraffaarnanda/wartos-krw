@@ -27,6 +27,7 @@ async function scrapeBerita() {
     const json = await res.json();
 
     if (json.status === "started") {
+      if (typeof trackEvent === "function") trackEvent("scrape_run");
       startPolling();
     } else {
       alert("Error: " + (json.message || "Terjadi kesalahan."));
