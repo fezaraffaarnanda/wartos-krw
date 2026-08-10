@@ -132,6 +132,7 @@ async function loadUserInfo() {
       if (userEl) userEl.textContent = json.username;
       const adminUsersLink = document.getElementById("adminUsersLink");
       const adminRelevanceLink = document.getElementById("adminRelevanceLink");
+      const adminLlmLink = document.getElementById("adminLlmLink");
       const guideUserCard = document.getElementById("guideUserCard");
       const guideAdminCard = document.getElementById("guideAdminCard");
 
@@ -140,6 +141,7 @@ async function loadUserInfo() {
       if (json.role === "admin") {
         if (adminUsersLink) adminUsersLink.style.display = "inline-flex";
         if (adminRelevanceLink) adminRelevanceLink.style.display = "inline-flex";
+        if (adminLlmLink) adminLlmLink.style.display = "inline-flex";
         if (guideAdminCard) guideAdminCard.style.display = "block";
         if (guideUserCard) guideUserCard.style.display = "none";
       } else {
@@ -147,6 +149,7 @@ async function loadUserInfo() {
         if (scrapeSection) scrapeSection.style.display = "none";
         if (adminUsersLink) adminUsersLink.style.display = "none";
         if (adminRelevanceLink) adminRelevanceLink.style.display = "none";
+        if (adminLlmLink) adminLlmLink.style.display = "none";
         if (guideUserCard) guideUserCard.style.display = "block";
         if (guideAdminCard) guideAdminCard.style.display = "none";
 

@@ -3,7 +3,20 @@
 from schemas.admin import CreateUserPayload, CreateUsersPayload
 from schemas.auth import ChangePasswordPayload, LoginPayload, ResetPasswordPayload
 from schemas.berita import BeritaFilterQuery
-from schemas.scraping import ScrapeTriggerPayload
+from schemas.relevance import (
+    AuditSamplePayload,
+    BulkLabelPayload,
+    FewShotExportQuery,
+    HumanLabelPayload,
+    PromptApplyPayload,
+    PromptDraftPayload,
+    PromptEvalPayload,
+    PromptRollbackPayload,
+    ReclassifyBulkPayload,
+    RelevanceMetricsQuery,
+    RelevanceQueueQuery,
+)
+from schemas.scraping import NewsSourceOut, ScrapeTriggerPayload
 
 __all__ = [
     "BeritaFilterQuery",
@@ -13,4 +26,16 @@ __all__ = [
     "CreateUserPayload",
     "CreateUsersPayload",
     "ScrapeTriggerPayload",
+    "NewsSourceOut",
+    "RelevanceQueueQuery",
+    "HumanLabelPayload",
+    "BulkLabelPayload",
+    "ReclassifyBulkPayload",
+    "AuditSamplePayload",
+    "PromptDraftPayload",
+    "PromptEvalPayload",
+    "PromptApplyPayload",
+    "PromptRollbackPayload",
+    "FewShotExportQuery",
+    "RelevanceMetricsQuery",
 ]

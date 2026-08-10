@@ -7,6 +7,7 @@ Format output: "9/Aktivitas industri makanan dan minuman selain CPO"
 """
 
 import re
+import time
 
 # ── Label Aktivitas Ekonomi ──────────────────────────────────────────────────
 
@@ -226,6 +227,10 @@ def predict_aktivitas_label(
         text_parts.append(f"Konten:\n{content_clean[:MAX_CONTENT]}")
     user_text = "\n\n".join(text_parts)
 
+    from clients.llm import log_usage, provider_from_model
+    provider = provider_from_model(llm_model)
+    t0 = time.perf_counter()
+
     try:
         resp = llm_client.chat.completions.create(
             model=llm_model,
@@ -236,8 +241,23 @@ def predict_aktivitas_label(
             temperature=0,
             max_tokens=10,
         )
+        log_usage(
+            feature="aktivitas",
+            provider=provider,
+            model=llm_model,
+            usage=getattr(resp, "usage", None),
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
         raw = (resp.choices[0].message.content or "").strip()
     except Exception as exc:
+        log_usage(
+            feature="aktivitas",
+            provider=provider,
+            model=llm_model,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            success=False,
+            error=str(exc),
+        )
         print(f"[Aktivitas] Gagal prediksi LLM: {exc}")
         return None
 

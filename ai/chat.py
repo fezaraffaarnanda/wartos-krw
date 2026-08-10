@@ -469,7 +469,9 @@ def stream_gemini_answer(user_prompt: str, history: list[dict] | None = None):
     # Pesan saat ini: pertanyaan + konteks berita
     messages.append({"role": "user", "content": user_prompt})
 
-    stream = client.chat.completions.create(
+    from clients.llm import log_usage, provider_from_model
+    provider = provider_from_model(model)
+    kwargs = dict(
         model=model,
         messages=messages,
         temperature=0.2,
@@ -477,13 +479,43 @@ def stream_gemini_answer(user_prompt: str, history: list[dict] | None = None):
         stream=True,
     )
 
-    for chunk in stream:
-        try:
-            delta = chunk.choices[0].delta.content or ""
-        except Exception:
-            delta = ""
-        if delta:
-            yield delta
+    t0 = perf_counter()
+    try:
+        stream = client.chat.completions.create(**kwargs, stream_options={"include_usage": True})
+    except Exception:
+        # Provider gak support stream_options — retry tanpa itu (usage gak kecatat, stream tetap jalan)
+        stream = client.chat.completions.create(**kwargs)
+
+    usage = None
+    try:
+        for chunk in stream:
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage = chunk_usage
+            try:
+                delta = chunk.choices[0].delta.content or ""
+            except Exception:
+                delta = ""
+            if delta:
+                yield delta
+    except Exception as exc:
+        log_usage(
+            feature="chat",
+            provider=provider,
+            model=model,
+            latency_ms=(perf_counter() - t0) * 1000,
+            success=False,
+            error=str(exc),
+        )
+        raise
+    else:
+        log_usage(
+            feature="chat",
+            provider=provider,
+            model=model,
+            usage=usage,
+            latency_ms=(perf_counter() - t0) * 1000,
+        )
 
 
 def generate_rag_answer(

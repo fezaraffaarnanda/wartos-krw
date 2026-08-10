@@ -12,55 +12,8 @@
         rel="stylesheet" />
     <link rel="stylesheet" href="../static/css/style.css" />
     <link rel="stylesheet" href="../static/css/pages/admin_users.css" />
+    <link rel="stylesheet" href="../static/css/pages/admin_relevance.css" />
     <link rel="icon" type="image/svg+xml" href="../static/bps.svg" />
-    <style>
-        .rel-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 18px; }
-        .rel-metric-card { background: var(--surface, #fff); border: 1px solid rgba(0,0,0,.08); border-radius: 12px; padding: 14px 16px; }
-        .rel-metric-card .rel-metric-val { font-size: 1.6rem; font-weight: 800; }
-        .rel-metric-card .rel-metric-lbl { font-size: .78rem; opacity: .7; text-transform: uppercase; letter-spacing: .04em; }
-        .rel-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 14px; }
-        .rel-tab { padding: 6px 14px; border-radius: 999px; border: 1px solid rgba(0,0,0,.12); background: transparent; cursor: pointer; font-size: .85rem; }
-        .rel-tab.active { background: #1d4ed8; color: #fff; border-color: #1d4ed8; }
-        .rel-score { font-weight: 700; }
-        .rel-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .75rem; font-weight: 600; }
-        .rel-pill.yes { background: #dcfce7; color: #166534; }
-        .rel-pill.no { background: #fee2e2; color: #991b1b; }
-        .rel-pill.na { background: #e5e7eb; color: #374151; }
-        .rel-reason { font-size: .8rem; opacity: .85; max-width: 360px; }
-        .rel-actions button { margin-right: 6px; }
-        .rel-actions button:disabled { opacity: .5; cursor: wait; }
-        .rel-confusion { font-size: .8rem; opacity: .75; margin-bottom: 14px; }
-        .rel-export-modal { position: fixed; inset: 0; background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center; z-index: 9999; }
-        .rel-export-modal.hidden { display: none; }
-        .rel-export-box { background: #fff; border-radius: 16px; padding: 28px; max-width: 680px; width: 94%; max-height: 80vh; display: flex; flex-direction: column; gap: 14px; box-shadow: 0 8px 40px rgba(0,0,0,.18); }
-        .rel-export-box h3 { margin: 0; font-size: 1.05rem; }
-        .rel-export-meta { font-size: .82rem; opacity: .7; }
-        .rel-export-box textarea { flex: 1; min-height: 260px; font-family: monospace; font-size: .8rem; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; padding: 12px; resize: vertical; }
-        .rel-export-actions { display: flex; gap: 8px; justify-content: flex-end; }
-        .rel-pagination { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
-        .rel-prompt-box { max-width: 1080px; }
-        .rel-prompt-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; }
-        .rel-prompt-col { display: flex; flex-direction: column; gap: 6px; min-height: 0; }
-        .rel-prompt-col h4 { margin: 0; font-size: .85rem; }
-        .rel-prompt-col textarea { flex: 1; min-height: 300px; font-family: monospace; font-size: .75rem; border: 1px solid rgba(0,0,0,.15); border-radius: 8px; padding: 10px; resize: vertical; }
-        .rel-prompt-warning { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; border-radius: 10px; padding: 12px 14px; font-size: .82rem; line-height: 1.5; }
-        .rel-prompt-confirm { display: flex; gap: 8px; align-items: center; }
-        .rel-prompt-confirm input { flex: 1; padding: 8px 12px; border: 1px solid rgba(0,0,0,.2); border-radius: 8px; font-size: .85rem; }
-        .rel-prompt-notes { font-size: .82rem; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af; border-radius: 10px; padding: 10px 14px; }
-        @media (max-width: 860px) { .rel-prompt-cols { grid-template-columns: 1fr; } }
-        .rel-toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 10000; display: flex; flex-direction: column; gap: 10px; max-width: 380px; }
-        .rel-toast { display: flex; align-items: flex-start; gap: 10px; padding: 13px 16px; border-radius: 12px; font-size: .86rem; line-height: 1.45; box-shadow: 0 6px 24px rgba(0,0,0,.14); animation: relToastIn .25s ease; background: #fff; border: 1px solid rgba(0,0,0,.08); }
-        .rel-toast.info    { border-left: 4px solid #1d4ed8; }
-        .rel-toast.success { border-left: 4px solid #16a34a; }
-        .rel-toast.warning { border-left: 4px solid #d97706; }
-        .rel-toast.error   { border-left: 4px solid #dc2626; }
-        .rel-toast .rel-toast-icon { flex-shrink: 0; font-size: 1rem; margin-top: 1px; }
-        .rel-toast .rel-toast-close { margin-left: auto; flex-shrink: 0; background: none; border: none; cursor: pointer; opacity: .5; font-size: .95rem; padding: 0 2px; }
-        .rel-toast .rel-toast-close:hover { opacity: 1; }
-        .rel-toast.leaving { animation: relToastOut .2s ease forwards; }
-        @keyframes relToastIn  { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
-        @keyframes relToastOut { to { opacity: 0; transform: translateX(24px); } }
-    </style>
 </head>
 
 <body>
@@ -102,6 +55,10 @@
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
                     <span class="sidebar-link-label">Audit Relevance</span>
                 </a>
+                <a class="sidebar-link sidebar-link-anchor" href="/admin/llm">
+                    <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9.5 15a3.5 3.5 0 0 0 5 0" /></svg>
+                    <span class="sidebar-link-label">Pengaturan LLM</span>
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <span class="header-user" id="headerUser"></span>
@@ -124,7 +81,7 @@
                         </button>
                         <div class="header-text">
                             <h1>Audit Classifier Relevance</h1>
-                            <p class="header-subtitle">Pantau & koreksi keputusan filter tahap-1</p>
+                            <p class="header-subtitle">Label cepat, ukur akurasi, dan iterasi prompt tahap-1</p>
                         </div>
                     </div>
                     <div class="header-actions">
@@ -134,42 +91,102 @@
             </header>
 
             <main class="admin-shell">
-                <div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px;">
-                    <button type="button" class="btn-admin ghost" id="btnExportFewShot">Export Few-Shot untuk Prompt</button>
-                    <button type="button" class="btn-admin" id="btnUpdatePrompt">Update Prompt (AI)</button>
-                </div>
-                <div class="rel-metrics" id="relMetrics"></div>
-                <div class="rel-confusion" id="relConfusion"></div>
-
-                <div class="rel-tabs" id="relTabs">
-                    <button class="rel-tab active" data-mode="borderline">Borderline (40–59)</button>
-                    <button class="rel-tab" data-mode="unlabeled">Belum dilabeli</button>
-                    <button class="rel-tab" data-mode="disagreement">Disagreement</button>
-                    <button class="rel-tab" data-mode="all">Semua</button>
-                </div>
-
-                <section class="admin-card">
-                    <div class="admin-table-wrap">
-                        <table class="admin-table" aria-label="Antrian review relevance">
-                            <thead>
-                                <tr>
-                                    <th>Judul</th>
-                                    <th>Sumber</th>
-                                    <th>Skor</th>
-                                    <th>Mesin</th>
-                                    <th>Alasan</th>
-                                    <th>Label Manusia</th>
-                                    <th>Aksi Override</th>
-                                </tr>
-                            </thead>
-                            <tbody id="relTableBody">
-                                <tr><td colspan="7" class="table-empty">Memuat...</td></tr>
-                            </tbody>
-                        </table>
+                <div class="admin-topbar">
+                    <div class="admin-topbar-left">
+                        <div>
+                            <h2 class="admin-topbar-title">Audit Gerbang Relevansi</h2>
+                            <p class="admin-topbar-sub">Setiap berita melewati gerbang tahap-1 sebelum diklasifikasi KBLI/Aktivitas/PDRB. Halaman ini memeriksa & memperbaiki keputusannya.</p>
+                        </div>
                     </div>
+                    <div class="admin-topbar-actions" style="display:flex;gap:8px;flex-wrap:wrap;">
+                        <button type="button" class="btn-admin ghost" id="btnDrawAuditSample">Tarik Sampel Audit</button>
+                        <button type="button" class="btn-admin ghost" id="btnExportFewShot">Export Few-Shot</button>
+                        <button type="button" class="btn-admin" id="btnManagePrompt">Kelola Prompt</button>
+                    </div>
+                </div>
+
+                <!-- Panduan "Apa ini?" -->
+                <section class="admin-card rel-guide" id="relGuide" data-collapsed="false">
+                    <button type="button" class="rel-guide-toggle" id="relGuideToggle"
+                            aria-expanded="true" aria-controls="relGuideBody">
+                        <span class="rel-guide-badge">Apa ini?</span>
+                        <span class="rel-guide-heading">Audit Gerbang Relevansi — panduan singkat</span>
+                        <svg class="rel-guide-caret" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                             stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"
+                             aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                    </button>
+                    <div class="rel-guide-body" id="relGuideBody">
+                        <div class="rel-guide-grid">
+                            <article class="rel-guide-block">
+                                <h3>1 · Apa yang dinilai</h3>
+                                <p>Setiap berita hasil scraping lebih dulu melewati <strong>gerbang relevansi (tahap-1)</strong>. LLM memberi skor 0–100 dari empat kriteria: angka ekonomi konkret (0–30), entitas usaha teridentifikasi (0–25), dampak produksi/distribusi/konsumsi (0–25), dan skala dampak (0–20). Skor ≥ 50 → relevan. Gerbang ini ada supaya klasifikasi KBLI/Aktivitas/PDRB yang mahal tidak terbuang untuk berita seremonial, politik murni, kriminal, atau human interest.</p>
+                            </article>
+                            <article class="rel-guide-block">
+                                <h3>2 · Kenapa perlu diperiksa manusia</h3>
+                                <p>Gerbang bisa salah dua arah: berita ekonomi asli ikut terbuang (hilang diam-diam), atau berita sampah ikut diklasifikasi (boros biaya). Mayoritas berita saat ini ditolak gerbang, dan tanpa label manusia tidak ada yang tahu apakah itu benar. <strong>Label Anda adalah kebenaran acuan</strong> — angka di kartu atas dihitung dari label itu, bukan tebakan mesin.</p>
+                            </article>
+                            <article class="rel-guide-block rel-guide-block-wide">
+                                <h3>3 · Yang perlu Anda lakukan</h3>
+                                <ol class="rel-guide-steps">
+                                    <li>Labeli antrean <strong>Prioritas</strong> — kasus paling meragukan, paling cepat memperbaiki gerbang.</li>
+                                    <li>Sesekali tarik <strong>Sampel Audit</strong> acak dan labeli seluruhnya — satu-satunya cara memperoleh angka akurasi yang jujur.</li>
+                                    <li>Bereskan tab <strong>Gagal Diklasifikasi</strong> agar tidak ada berita menggantung.</li>
+                                    <li>Bila label sudah cukup: susun <strong>draft prompt</strong> → uji kering ke set berlabel → aktifkan hanya bila skornya lebih baik.</li>
+                                </ol>
+                            </article>
+                        </div>
+                        <p class="rel-guide-warn" role="note">
+                            <strong>Perhatian:</strong> label yang hanya diambil dari antrean Prioritas itu bias — kasus meragukan tidak mewakili seluruh korpus, sehingga Precision/Recall terlihat lebih buruk daripada kenyataan. Hanya Sampel Audit yang memberi estimasi tak bias (ditandai "audit:" pada kartu metrik).
+                        </p>
+                        <div class="rel-guide-foot">
+                            <button type="button" class="btn-admin ghost" data-help-tab="panduan">Panduan lengkap</button>
+                            <button type="button" class="btn-admin ghost" data-help-tab="pintasan">Pintasan keyboard (?)</button>
+                        </div>
+                    </div>
+                </section>
+
+                <p class="rel-bias-banner admin-message" id="relBiasBanner" style="display:none;"></p>
+
+                <div class="cards-grid" id="relMetrics"></div>
+
+                <section class="admin-card rel-workbench">
+                    <div class="rel-tabs" id="relTabs">
+                        <button class="rel-tab active" data-mode="uncertainty">Prioritas</button>
+                        <button class="rel-tab" data-mode="audit">Sampel Audit</button>
+                        <button class="rel-tab" data-mode="failed">Gagal Diklasifikasi</button>
+                        <button class="rel-tab" data-mode="labeled">Berlabel</button>
+                        <button class="rel-tab" data-mode="disagreement">Beda Pendapat</button>
+                        <button class="rel-tab" data-mode="all">Semua</button>
+                    </div>
+                    <p class="rel-tab-hint" id="relTabHint" aria-live="polite"></p>
+
+                    <div class="rel-toolbar">
+                        <input type="search" id="relSearch" placeholder="Cari judul... (/)" />
+                        <select id="relSourceFilter">
+                            <option value="">Semua sumber</option>
+                            <option value="iNews Karawang">iNews Karawang</option>
+                            <option value="KarawangNews">KarawangNews</option>
+                            <option value="Pemda Karawang">Pemda Karawang</option>
+                            <option value="Radar Karawang">Radar Karawang</option>
+                        </select>
+                        <button type="button" class="btn-admin ghost" id="btnRefreshRel">Refresh</button>
+                    </div>
+
+                    <div class="rel-split">
+                        <div class="rel-queue" id="relQueueBody"></div>
+                        <div class="rel-detail" id="relDetail">
+                            <div class="rel-detail-empty">Memuat antrean...</div>
+                        </div>
+                    </div>
+
                     <div class="admin-meta-row">
                         <div class="rel-pagination" id="relPagination"></div>
-                        <button type="button" class="btn-admin ghost" id="btnRefreshRel">Refresh</button>
+                        <div class="rel-bulk-bar" id="relBulkBar" style="display:none;">
+                            <span id="relBulkCount">0 dipilih</span>
+                            <button type="button" class="btn-mini" id="btnBulkLabelRelevan">Label Relevan</button>
+                            <button type="button" class="btn-mini" id="btnBulkLabelTidak">Label Tidak Relevan</button>
+                            <button type="button" class="btn-mini" id="btnBulkReclassify">Klasifikasi Ulang</button>
+                        </div>
                     </div>
                 </section>
             </main>
@@ -181,308 +198,134 @@
         <div class="rel-export-box">
             <h3>Export Few-Shot untuk Iterasi Prompt</h3>
             <p class="rel-export-meta" id="exportMeta"></p>
-            <p style="font-size:.82rem;line-height:1.5;opacity:.8;">
-                Pilih <strong>maks 6-8 contoh total</strong> (3-4 per tipe) untuk di-paste ke
-                <code>SYSTEM_PROMPT</code> di <code>ai/relevance.py</code>, lalu bump
-                <code>PROMPT_VERSION</code>. Jangan paste semua — terlalu banyak contoh menurunkan performa LLM.
+            <p style="font-size:.82rem;line-height:1.5;color:var(--text-muted);">
+                Dibangun dari SEMUA label manusia (koreksi + konfirmasi), bukan hanya disagreement.
+                Pilih maks 6-8 contoh untuk di-paste manual, atau langsung pakai fitur <strong>Kelola Prompt</strong>
+                di atas untuk menyusun draft otomatis.
             </p>
             <textarea id="exportTextarea" readonly></textarea>
             <div class="rel-export-actions">
                 <button class="btn-admin ghost" type="button" id="btnCopyExport">Salin Semua</button>
-                <button class="btn-admin ghost" type="button" onclick="document.getElementById('exportModal').classList.add('hidden')">Tutup</button>
+                <button class="btn-admin ghost" type="button" data-close-modal="exportModal">Tutup</button>
             </div>
         </div>
     </div>
 
-    <!-- Modal: AI prompt update -->
+    <!-- Modal: Siklus hidup prompt (Draft -> Dry-Run -> Aktifkan) -->
     <div class="rel-export-modal hidden" id="promptModal">
         <div class="rel-export-box rel-prompt-box">
-            <h3>Update System Prompt (Draft AI) — <span id="promptVersions"></span></h3>
-            <p class="rel-export-meta" id="promptMeta"></p>
-            <div class="rel-prompt-notes" id="promptNotes" style="display:none;"></div>
-            <div class="rel-prompt-cols">
-                <div class="rel-prompt-col">
-                    <h4>Prompt Aktif (<span id="promptCurrentVersion"></span>)</h4>
-                    <textarea id="promptCurrentText" readonly></textarea>
+            <h3>Kelola Prompt Classifier Relevance</h3>
+            <div class="rel-prompt-stage-tabs">
+                <button type="button" class="btn-admin ghost active" data-stage="draft">1. Draft</button>
+                <button type="button" class="btn-admin ghost" data-stage="eval">2. Dry-Run</button>
+                <button type="button" class="btn-admin ghost" data-stage="apply">3. Aktifkan</button>
+            </div>
+
+            <div data-prompt-stage="draft">
+                <div style="margin:10px 0;">
+                    <button type="button" class="btn-admin" id="btnGenerateDraft">Susun Draft (AI)</button>
                 </div>
-                <div class="rel-prompt-col">
-                    <h4>Draft Baru (<span id="promptNextVersion"></span>) — boleh diedit</h4>
-                    <textarea id="promptDraftText"></textarea>
+                <div class="rel-prompt-notes" id="promptNotes" style="display:none;"></div>
+                <div class="rel-prompt-cols">
+                    <div class="rel-prompt-col">
+                        <h4>Prompt Aktif (<span id="promptCurrentVersion"></span>)</h4>
+                        <textarea id="promptCurrentText" readonly></textarea>
+                    </div>
+                    <div class="rel-prompt-col">
+                        <h4>Draft Baru (<span id="promptNextVersion"></span>) — boleh diedit</h4>
+                        <textarea id="promptDraftText"></textarea>
+                    </div>
+                </div>
+                <div style="margin-top:10px;display:flex;gap:8px;justify-content:flex-end;">
+                    <button type="button" class="btn-admin ghost" id="btnEvalDraft" disabled>Uji Kering (Dry-Run)</button>
+                    <button type="button" class="btn-admin ghost" id="btnSkipEval">Lewati Dry-Run →</button>
                 </div>
             </div>
-            <div class="rel-prompt-warning">
-                <strong>⚠ Peringatan:</strong> Mengaktifkan prompt baru mengubah perilaku classifier untuk
-                SEMUA klasifikasi berikutnya. Row lama tetap bertag versi lama. Aksi ini tidak bisa
-                di-undo dari UI (tapi versi lama tersimpan di DB).
-                Ketik persis <code>yes, update system prompt</code> untuk melanjutkan.
+
+            <div data-prompt-stage="eval" style="display:none;">
+                <p style="font-size:.82rem;color:var(--text-muted);">Draft dijalankan pada set berlabel (prioritas sampel audit) tanpa mengaktifkannya.</p>
+                <div class="rel-prompt-eval-summary" id="promptEvalSummary"></div>
+                <p id="promptEvalFlips" style="font-size:.8rem;color:var(--text-muted);margin-top:8px;"></p>
+                <div style="margin-top:10px;display:flex;justify-content:flex-end;">
+                    <button type="button" class="btn-admin" id="btnGoToApply" disabled>Lanjut ke Aktivasi →</button>
+                </div>
             </div>
-            <div class="rel-prompt-confirm">
-                <input type="text" id="promptConfirmInput" placeholder='Ketik: yes, update system prompt' autocomplete="off" />
-                <button class="btn-admin" type="button" id="btnApplyPrompt" disabled>Aktifkan Prompt Baru</button>
-                <button class="btn-admin ghost" type="button" onclick="document.getElementById('promptModal').classList.add('hidden')">Batal</button>
+
+            <div data-prompt-stage="apply" style="display:none;">
+                <div class="rel-prompt-warning">
+                    <strong>⚠ Peringatan:</strong> Mengaktifkan prompt baru mengubah perilaku classifier untuk
+                    SEMUA klasifikasi berikutnya. Row lama tetap bertag versi lama agar metrik antar versi bisa
+                    dibandingkan. Ketik persis <code>yes, update system prompt</code> untuk melanjutkan.
+                </div>
+                <div class="rel-prompt-confirm" style="margin-top:10px;">
+                    <input type="text" id="promptConfirmInput" placeholder="Ketik: yes, update system prompt" autocomplete="off" />
+                    <button class="btn-admin" type="button" id="btnApplyPrompt" disabled>Aktifkan Prompt Baru</button>
+                </div>
+
+                <div class="rel-prompt-history" style="margin-top:16px;">
+                    <h4 style="font-size:.85rem;margin-bottom:8px;">Riwayat Versi</h4>
+                    <table>
+                        <thead><tr><th>Versi</th><th>Status</th><th>Diaktifkan</th><th></th></tr></thead>
+                        <tbody id="promptHistoryBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div style="margin-top:14px;text-align:right;">
+                <button class="btn-admin ghost" type="button" data-close-modal="promptModal">Tutup</button>
             </div>
         </div>
     </div>
 
-    <!-- Toast notifications -->
-    <div class="rel-toast-wrap" id="relToastWrap"></div>
+    <!-- Modal: Bantuan (Panduan / Pintasan) -->
+    <div class="rel-export-modal hidden" id="relHelpModal">
+        <div class="rel-export-box">
+            <h3>Bantuan Audit Relevance</h3>
+            <div class="rel-help-tabs" role="tablist">
+                <button class="rel-help-tab active" role="tab" type="button" data-tab="panduan">Panduan</button>
+                <button class="rel-help-tab" role="tab" type="button" data-tab="pintasan">Pintasan</button>
+            </div>
+            <div class="rel-help-pane" data-pane="panduan">
+                <p style="font-size:.86rem;line-height:1.6;">
+                    Gerbang relevansi (tahap-1) menilai 0–100 apakah berita layak diklasifikasi lanjut ke
+                    KBLI/Aktivitas/PDRB. Label manusia di halaman ini adalah kebenaran acuan untuk mengukur dan
+                    memperbaiki gerbang tersebut. Labeli antrean <strong>Prioritas</strong> untuk perbaikan tercepat,
+                    tarik <strong>Sampel Audit</strong> untuk estimasi akurasi yang jujur, bereskan
+                    <strong>Gagal Diklasifikasi</strong> agar tidak ada berita menggantung, dan gunakan
+                    <strong>Kelola Prompt</strong> untuk menyusun & menguji revisi rubrik sebelum mengaktifkannya.
+                </p>
+            </div>
+            <div class="rel-help-pane is-hidden" data-pane="pintasan">
+                <table class="rel-shortcut-table">
+                    <tr><td><kbd class="rel-key">R</kbd> / <kbd class="rel-key">1</kbd></td><td>Label Relevan, lanjut otomatis</td></tr>
+                    <tr><td><kbd class="rel-key">T</kbd> / <kbd class="rel-key">2</kbd></td><td>Label Tidak Relevan, lanjut otomatis</td></tr>
+                    <tr><td><kbd class="rel-key">S</kbd> / Space</td><td>Lewati item ini</td></tr>
+                    <tr><td><kbd class="rel-key">J</kbd> / ↓</td><td>Item berikutnya</td></tr>
+                    <tr><td><kbd class="rel-key">K</kbd> / ↑</td><td>Item sebelumnya</td></tr>
+                    <tr><td><kbd class="rel-key">U</kbd></td><td>Batalkan label terakhir</td></tr>
+                    <tr><td><kbd class="rel-key">C</kbd></td><td>Klasifikasi ulang item ini</td></tr>
+                    <tr><td><kbd class="rel-key">O</kbd></td><td>Buka artikel asli di tab baru</td></tr>
+                    <tr><td><kbd class="rel-key">N</kbd></td><td>Fokus ke catatan label</td></tr>
+                    <tr><td><kbd class="rel-key">X</kbd></td><td>Pilih/batal untuk aksi massal</td></tr>
+                    <tr><td><kbd class="rel-key">[</kbd> / <kbd class="rel-key">]</kbd></td><td>Tab sebelumnya / berikutnya</td></tr>
+                    <tr><td><kbd class="rel-key">/</kbd></td><td>Fokus ke pencarian</td></tr>
+                    <tr><td><kbd class="rel-key">?</kbd></td><td>Buka bantuan ini</td></tr>
+                    <tr><td>Esc</td><td>Tutup modal</td></tr>
+                </table>
+            </div>
+            <div style="margin-top:14px;text-align:right;">
+                <button class="btn-admin ghost" type="button" data-close-modal="relHelpModal">Tutup</button>
+            </div>
+        </div>
+    </div>
 
-    <script>
-        const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
-
-        const TOAST_ICONS = { info: "ℹ️", success: "✅", warning: "⚠️", error: "❌" };
-
-        function showToast(message, type = "info", duration = 5000) {
-            const wrap = document.getElementById("relToastWrap");
-            const el = document.createElement("div");
-            el.className = `rel-toast ${type}`;
-            el.innerHTML = `
-                <span class="rel-toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</span>
-                <span>${esc(message)}</span>
-                <button class="rel-toast-close" aria-label="Tutup">✕</button>`;
-            const remove = () => {
-                el.classList.add("leaving");
-                setTimeout(() => el.remove(), 200);
-            };
-            el.querySelector(".rel-toast-close").addEventListener("click", remove);
-            wrap.appendChild(el);
-            if (duration > 0) setTimeout(remove, duration);
-        }
-        let currentMode = "borderline";
-        let currentPage = 1;
-        let totalPages = 1;
-        const PER_PAGE = 25;
-
-        function pill(val) {
-            if (val === true) return '<span class="rel-pill yes">Relevan</span>';
-            if (val === false) return '<span class="rel-pill no">Tidak</span>';
-            return '<span class="rel-pill na">—</span>';
-        }
-
-        async function loadMetrics() {
-            try {
-                const r = await fetch("/api/admin/relevance/metrics");
-                const d = await r.json();
-                if (d.status !== "ok") return;
-                const pct = (x) => x === null ? "—" : (x * 100).toFixed(1) + "%";
-                document.getElementById("relMetrics").innerHTML = `
-                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.precision)}</div><div class="rel-metric-lbl">Precision</div></div>
-                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.recall)}</div><div class="rel-metric-lbl">Recall</div></div>
-                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.accuracy)}</div><div class="rel-metric-lbl">Accuracy</div></div>
-                    <div class="rel-metric-card"><div class="rel-metric-val">${pct(d.f1)}</div><div class="rel-metric-lbl">F1</div></div>
-                    <div class="rel-metric-card"><div class="rel-metric-val">${d.labeled_count}</div><div class="rel-metric-lbl">Berlabel</div></div>`;
-                const c = d.confusion;
-                document.getElementById("relConfusion").textContent =
-                    `Confusion (positive = relevan): TP=${c.tp}  FP=${c.fp}  TN=${c.tn}  FN=${c.fn}`;
-            } catch (e) { console.error(e); }
-        }
-
-        async function loadQueue(page = 1) {
-            currentPage = page;
-            const body = document.getElementById("relTableBody");
-            body.innerHTML = '<tr><td colspan="7" class="table-empty">Memuat...</td></tr>';
-            try {
-                const r = await fetch(`/api/admin/relevance/review-queue?mode=${currentMode}&page=${page}&per_page=${PER_PAGE}`);
-                const d = await r.json();
-                const rows = d.data || [];
-                totalPages = Number(d.total_pages || 1);
-                renderPagination(d.total_items ?? rows.length);
-                if (!rows.length) {
-                    body.innerHTML = '<tr><td colspan="7" class="table-empty">Tidak ada data.</td></tr>';
-                    return;
-                }
-                body.innerHTML = rows.map(row => `
-                    <tr data-id="${row.id}">
-                        <td><a href="/berita/${row.id}" target="_blank">${esc(row.title)}</a></td>
-                        <td>${esc(row.source)}</td>
-                        <td class="rel-score">${row.relevance_score ?? "—"}</td>
-                        <td>${pill(row.is_relevant)}</td>
-                        <td class="rel-reason">${esc(row.relevance_reason)}</td>
-                        <td class="rel-human-cell">${pill(row.human_label)}</td>
-                        <td class="rel-actions">
-                            <button class="btn-admin ghost" onclick="setLabel(${row.id}, true, this)">Relevan</button>
-                            <button class="btn-admin ghost" onclick="setLabel(${row.id}, false, this)">Tidak</button>
-                        </td>
-                    </tr>`).join("");
-            } catch (e) {
-                body.innerHTML = '<tr><td colspan="7" class="table-empty">Gagal memuat.</td></tr>';
-            }
-        }
-
-        function getPageRange(current, total, size) {
-            let start = Math.max(1, current - Math.floor(size / 2));
-            const end = Math.min(total, start + size - 1);
-            start = Math.max(1, end - size + 1);
-            const range = [];
-            for (let p = start; p <= end; p++) range.push(p);
-            return range;
-        }
-
-        function renderPagination(totalItems) {
-            const container = document.getElementById("relPagination");
-            if (totalPages <= 1) {
-                container.innerHTML = `<span class="page-info">${totalItems} berita</span>`;
-                return;
-            }
-            let html = `<button class="page-btn" ${currentPage === 1 ? "disabled" : ""} onclick="goPage(${currentPage - 1})">‹</button>`;
-            const range = getPageRange(currentPage, totalPages, 5);
-            if (range[0] > 1) {
-                html += `<button class="page-btn" onclick="goPage(1)">1</button>`;
-                if (range[0] > 2) html += `<span class="page-info">…</span>`;
-            }
-            for (const p of range) {
-                html += `<button class="page-btn ${p === currentPage ? "active" : ""}" onclick="goPage(${p})">${p}</button>`;
-            }
-            if (range[range.length - 1] < totalPages) {
-                if (range[range.length - 1] < totalPages - 1) html += `<span class="page-info">…</span>`;
-                html += `<button class="page-btn" onclick="goPage(${totalPages})">${totalPages}</button>`;
-            }
-            html += `<button class="page-btn" ${currentPage === totalPages ? "disabled" : ""} onclick="goPage(${currentPage + 1})">›</button>`;
-            html += `<span class="page-info">${totalItems} berita</span>`;
-            container.innerHTML = html;
-        }
-
-        function goPage(p) {
-            if (p < 1 || p > totalPages || p === currentPage) return;
-            loadQueue(p);
-        }
-
-        async function setLabel(id, isRelevant, btnEl) {
-            const row = btnEl.closest("tr");
-            const buttons = row.querySelectorAll(".rel-actions button");
-            buttons.forEach(b => b.disabled = true);
-            try {
-                const r = await fetch(`/api/admin/berita/${id}/human-label`, {
-                    method: "PATCH",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ is_relevant: isRelevant }),
-                });
-                const d = await r.json();
-                if (d.status !== "ok") { showToast(d.message || "Gagal menyimpan label.", "error"); return; }
-                // update pill label manusia in-place, tanpa reload tabel
-                row.querySelector(".rel-human-cell").innerHTML = pill(isRelevant);
-                loadMetrics();
-            } catch (e) {
-                showToast("Gagal menyimpan label.", "error");
-            } finally {
-                buttons.forEach(b => b.disabled = false);
-            }
-        }
-
-        document.getElementById("relTabs").addEventListener("click", (e) => {
-            const btn = e.target.closest(".rel-tab");
-            if (!btn) return;
-            document.querySelectorAll(".rel-tab").forEach(b => b.classList.remove("active"));
-            btn.classList.add("active");
-            currentMode = btn.dataset.mode;
-            loadQueue(1);
-        });
-        document.getElementById("btnRefreshRel").addEventListener("click", () => { loadMetrics(); loadQueue(currentPage); });
-
-        document.getElementById("btnExportFewShot").addEventListener("click", async () => {
-            const btn = document.getElementById("btnExportFewShot");
-            btn.textContent = "Memuat...";
-            btn.disabled = true;
-            try {
-                const r = await fetch("/api/admin/relevance/disagreement-export?limit=20");
-                const d = await r.json();
-                if (d.status !== "ok") { showToast(d.message || "Gagal memuat export.", "warning", 7000); return; }
-                document.getElementById("exportMeta").textContent =
-                    `Total disagreement: ${d.total_disagreements} kasus — FP (mesin salah relevan): ${d.false_positives.length}, FN (mesin salah tidak relevan): ${d.false_negatives.length}`;
-                document.getElementById("exportTextarea").value = d.formatted_prompt;
-                document.getElementById("exportModal").classList.remove("hidden");
-            } catch (e) {
-                showToast("Gagal memuat export.", "error");
-            } finally {
-                btn.textContent = "Export Few-Shot untuk Prompt";
-                btn.disabled = false;
-            }
-        });
-
-        document.getElementById("btnCopyExport").addEventListener("click", () => {
-            const ta = document.getElementById("exportTextarea");
-            navigator.clipboard.writeText(ta.value).then(() => {
-                const btn = document.getElementById("btnCopyExport");
-                btn.textContent = "Tersalin!";
-                setTimeout(() => { btn.textContent = "Salin Semua"; }, 2000);
-            });
-        });
-
-        document.getElementById("exportModal").addEventListener("click", (e) => {
-            if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
-        });
-
-        // ── Update Prompt (AI) ────────────────────────────────────────────────
-        const CONFIRM_PHRASE = "yes, update system prompt";
-
-        document.getElementById("btnUpdatePrompt").addEventListener("click", async () => {
-            const btn = document.getElementById("btnUpdatePrompt");
-            btn.textContent = "Menyusun draft (AI)...";
-            btn.disabled = true;
-            try {
-                const r = await fetch("/api/admin/relevance/prompt-draft", { method: "POST" });
-                const d = await r.json();
-                if (d.status !== "ok") { showToast(d.message || "Gagal generate draft.", "warning", 8000); return; }
-                document.getElementById("promptMeta").textContent =
-                    `Draft disusun dari ${d.disagreement_count} kasus disagreement. Review & edit sebelum apply.`;
-                document.getElementById("promptCurrentVersion").textContent = d.current_version;
-                document.getElementById("promptNextVersion").textContent = d.next_version;
-                document.getElementById("promptVersions").textContent = `${d.current_version} → ${d.next_version}`;
-                document.getElementById("promptCurrentText").value = d.current_prompt;
-                document.getElementById("promptDraftText").value = d.draft_prompt;
-                const notesEl = document.getElementById("promptNotes");
-                if (d.notes) { notesEl.textContent = "Catatan AI: " + d.notes; notesEl.style.display = "block"; }
-                else { notesEl.style.display = "none"; }
-                window._promptDraftNotes = d.notes || "";
-                document.getElementById("promptConfirmInput").value = "";
-                document.getElementById("btnApplyPrompt").disabled = true;
-                document.getElementById("promptModal").classList.remove("hidden");
-            } catch (e) {
-                showToast("Gagal generate draft prompt.", "error");
-            } finally {
-                btn.textContent = "Update Prompt (AI)";
-                btn.disabled = false;
-            }
-        });
-
-        document.getElementById("promptConfirmInput").addEventListener("input", (e) => {
-            document.getElementById("btnApplyPrompt").disabled = e.target.value !== CONFIRM_PHRASE;
-        });
-
-        document.getElementById("btnApplyPrompt").addEventListener("click", async () => {
-            const btn = document.getElementById("btnApplyPrompt");
-            btn.textContent = "Menyimpan...";
-            btn.disabled = true;
-            try {
-                const r = await fetch("/api/admin/relevance/prompt-apply", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        draft_prompt: document.getElementById("promptDraftText").value,
-                        confirmation: document.getElementById("promptConfirmInput").value,
-                        notes: window._promptDraftNotes || "",
-                    }),
-                });
-                const d = await r.json();
-                if (d.status !== "ok") { showToast(d.message || "Gagal apply prompt.", "error", 8000); return; }
-                showToast(d.message || `Prompt ${d.version} aktif.`, "success", 8000);
-                document.getElementById("promptModal").classList.add("hidden");
-            } catch (e) {
-                showToast("Gagal apply prompt.", "error");
-            } finally {
-                btn.textContent = "Aktifkan Prompt Baru";
-                btn.disabled = true;
-            }
-        });
-
-        document.getElementById("promptModal").addEventListener("click", (e) => {
-            if (e.target === e.currentTarget) e.currentTarget.classList.add("hidden");
-        });
-
-        loadMetrics();
-        loadQueue(1);
-    </script>
     <script src="../static/js/layout/shell.js"></script>
+    <script src="../static/js/shared/html.js"></script>
+    <script src="../static/js/shared/tags.js"></script>
+    <script src="../static/js/shared/toast.js"></script>
+    <script src="../static/js/shared/dialog.js"></script>
+    <script src="../static/js/admin/relevance_guide.js"></script>
+    <script src="../static/js/admin/relevance.js"></script>
 </body>
 
 </html>

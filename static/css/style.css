@@ -4820,3 +4820,73 @@ body.chat-view-lock {
         height: calc(100vh - 74px);
     }
 }
+
+/* ── Shared toast notification (static/js/shared/toast.js) ─────────────────
+   Dipromosikan dari templates/admin_relevance.html -- global karena halaman
+   lain (feedback, dsb.) juga butuh notifikasi transien. */
+
+.shared-toast-wrap {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    max-width: 380px;
+}
+
+.shared-toast {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 13px 16px;
+    border-radius: var(--radius-md);
+    font-size: 0.86rem;
+    line-height: 1.45;
+    box-shadow: var(--shadow-lg);
+    animation: sharedToastIn 0.25s ease;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+}
+
+.shared-toast.info { border-left: 4px solid var(--accent); }
+.shared-toast.success { border-left: 4px solid #16a34a; }
+.shared-toast.warning { border-left: 4px solid var(--orange-500); }
+.shared-toast.error { border-left: 4px solid #dc2626; }
+
+.shared-toast .shared-toast-icon {
+    flex-shrink: 0;
+    font-size: 1rem;
+    margin-top: 1px;
+}
+
+.shared-toast .shared-toast-close {
+    margin-left: auto;
+    flex-shrink: 0;
+    background: none;
+    border: none;
+    cursor: pointer;
+    opacity: 0.5;
+    font-size: 0.95rem;
+    padding: 0 2px;
+    color: inherit;
+}
+
+.shared-toast .shared-toast-close:hover {
+    opacity: 1;
+}
+
+.shared-toast.leaving {
+    animation: sharedToastOut 0.2s ease forwards;
+}
+
+@keyframes sharedToastIn {
+    from { opacity: 0; transform: translateX(24px); }
+    to { opacity: 1; transform: none; }
+}
+
+@keyframes sharedToastOut {
+    to { opacity: 0; transform: translateX(24px); }
+}

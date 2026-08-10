@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Manajemen Pengguna — Dashboard BPS Kab. Karawang</title>
+    <title>Pengaturan LLM — Dashboard BPS Kab. Karawang</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,6 +13,19 @@
     <link rel="stylesheet" href="../static/css/style.css" />
     <link rel="stylesheet" href="../static/css/pages/admin_users.css" />
     <link rel="icon" type="image/svg+xml" href="../static/bps.svg" />
+    <style>
+        .llm-provider-options { display: flex; flex-direction: column; gap: 10px; margin: 14px 0; }
+        .llm-provider-option { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border: 1px solid rgba(0,0,0,.12); border-radius: 12px; cursor: pointer; }
+        .llm-provider-option.selected { border-color: #1d4ed8; background: rgba(29,78,216,.06); }
+        .llm-provider-option input { margin-top: 3px; }
+        .llm-provider-name { font-weight: 700; }
+        .llm-provider-meta { font-size: .8rem; opacity: .7; }
+        .llm-key-pill { display: inline-block; padding: 2px 9px; border-radius: 999px; font-size: .72rem; font-weight: 600; margin-left: 6px; }
+        .llm-key-pill.yes { background: #dcfce7; color: #166534; }
+        .llm-key-pill.no { background: #fee2e2; color: #991b1b; }
+        .llm-warning { font-size: .82rem; color: #92400e; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 12px; margin-top: 10px; }
+        .llm-usage-days { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    </style>
 </head>
 
 <body>
@@ -60,7 +73,7 @@
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>
                     <span class="sidebar-link-label">AI Chat</span>
                 </a>
-                <a class="sidebar-link sidebar-link-anchor active" href="/admin/users" aria-current="page">
+                <a class="sidebar-link sidebar-link-anchor" href="/admin/users">
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>
                     <span class="sidebar-link-label">Manajemen User</span>
                 </a>
@@ -68,7 +81,7 @@
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>
                     <span class="sidebar-link-label">Audit Relevance</span>
                 </a>
-                <a class="sidebar-link sidebar-link-anchor" href="/admin/llm">
+                <a class="sidebar-link sidebar-link-anchor active" href="/admin/llm" aria-current="page">
                     <svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9.5 15a3.5 3.5 0 0 0 5 0" /></svg>
                     <span class="sidebar-link-label">Pengaturan LLM</span>
                 </a>
@@ -93,7 +106,7 @@
                             </svg>
                         </button>
                         <div class="header-text">
-                            <h1>Manajemen Pengguna</h1>
+                            <h1>Pengaturan LLM</h1>
                             <p class="header-subtitle">Badan Pusat Statistik Kabupaten Karawang</p>
                         </div>
                     </div>
@@ -104,130 +117,84 @@
             </header>
 
             <main class="admin-shell">
-        <div class="admin-topbar">
-            <div class="admin-topbar-left">
-                <div>
-                    <h2 class="admin-topbar-title">Kelola Akun Pengguna</h2>
-                    <p class="admin-topbar-sub">Buat user baru, generate kode reset, dan pantau status keamanan akun.</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="admin-grid">
-            <section class="admin-card">
-                <h2>Tambah Pengguna Baru</h2>
-                <p>Admin dapat menambahkan satu atau beberapa username sekaligus. Pisahkan dengan koma atau spasi untuk membuat chip username.</p>
-
-                <form id="createUserForm" class="admin-create-form" novalidate>
-                    <div class="admin-field-group">
-                        <label class="admin-field-label" for="usernameInput">Username pengguna</label>
-                        <div class="admin-token-input" id="usernameTokenInput">
-                            <div class="admin-token-list" id="usernameTokenList" aria-live="polite"></div>
-                            <input
-                                id="usernameInput"
-                                class="admin-token-field"
-                                type="text"
-                                maxlength="50"
-                                placeholder="Ketik username lalu tekan koma atau spasi"
-                                autocomplete="off"
-                            />
+                <div class="admin-topbar">
+                    <div class="admin-topbar-left">
+                        <div>
+                            <h2 class="admin-topbar-title">Provider &amp; Usage LLM</h2>
+                            <p class="admin-topbar-sub">Pilih provider LLM default (Gemini/DeepSeek) yang dipakai semua fitur AI, dan pantau konsumsi token per fitur.</p>
                         </div>
                     </div>
-
-                    <div class="admin-form-actions">
-                        <span class="admin-queue-text" id="queuedUserText">Belum ada username yang siap dibuat.</span>
-                        <button type="submit" class="btn-admin" id="btnCreateUser">Buat Pengguna</button>
-                    </div>
-                </form>
-                <div class="admin-hint">Aturan username: 3–50 karakter, hanya huruf, angka, underscore (_), atau dash (-).</div>
-                <div id="createUserMessage" class="admin-message"></div>
-
-                <div class="sec-note">
-                    <strong>Catatan Keamanan:</strong> Password sementara dan kode autentikasi hanya ditampilkan sekali.
-                    Pastikan admin menyalurkannya ke user secara aman.
-                </div>
-            </section>
-
-            <section class="admin-card">
-                <h2>Daftar Pengguna</h2>
-                <p>Kelola user aktif dan bantu reset password jika user lupa kredensial terbaru.</p>
-
-                <div class="admin-table-wrap">
-                    <table class="admin-table" aria-label="Daftar pengguna">
-                        <thead>
-                            <tr>
-                                <th>Username</th>
-                                <th>Role</th>
-                                <th>Status Password</th>
-                                <th>Kode Reset</th>
-                                <th>Aksi</th>
-                            </tr>
-                        </thead>
-                        <tbody id="usersTableBody">
-                            <tr>
-                                <td colspan="5" class="table-empty">Memuat data pengguna...</td>
-                            </tr>
-                        </tbody>
-                    </table>
                 </div>
 
-                <div class="admin-meta-row">
-                    <span id="userCountText">0 pengguna</span>
-                    <button type="button" class="btn-admin ghost" id="btnRefreshUsers">Refresh</button>
+                <div class="admin-grid">
+                    <section class="admin-card">
+                        <h2>Provider Default</h2>
+                        <p>Dipakai oleh relevance gate, klasifikasi KBLI/Aktivitas/PDRB, AI Chat, AI Insights, dan generator draft prompt. Embedding tetap pakai Gemini (DeepSeek tidak punya embedding API).</p>
+
+                        <div class="llm-provider-options" id="llmProviderOptions">
+                            <label class="llm-provider-option" data-provider="deepseek">
+                                <input type="radio" name="llmProvider" value="deepseek" />
+                                <div>
+                                    <div class="llm-provider-name">DeepSeek <span class="llm-key-pill" id="keyPillDeepseek">-</span></div>
+                                    <div class="llm-provider-meta">deepseek-v4-flash — api.deepseek.com</div>
+                                </div>
+                            </label>
+                            <label class="llm-provider-option" data-provider="gemini">
+                                <input type="radio" name="llmProvider" value="gemini" />
+                                <div>
+                                    <div class="llm-provider-name">Gemini <span class="llm-key-pill" id="keyPillGemini">-</span></div>
+                                    <div class="llm-provider-meta">gemini-3.1-flash-lite-preview</div>
+                                </div>
+                            </label>
+                        </div>
+
+                        <div id="llmProviderWarning" class="llm-warning" style="display:none;"></div>
+
+                        <div class="admin-form-actions">
+                            <span class="admin-queue-text" id="llmProviderStatusText"></span>
+                            <button type="button" class="btn-admin" id="btnSaveProvider">Simpan Provider</button>
+                        </div>
+                        <div id="llmProviderMessage" class="admin-message"></div>
+                    </section>
+
+                    <section class="admin-card">
+                        <h2>Ringkasan Usage</h2>
+                        <p>Token &amp; jumlah request per fitur, dihitung sejak fitur pencatatan usage ini aktif (data sebelumnya tidak tersedia).</p>
+
+                        <div class="llm-usage-days">
+                            <label for="llmUsageDays">Rentang:</label>
+                            <select id="llmUsageDays">
+                                <option value="7">7 hari terakhir</option>
+                                <option value="30" selected>30 hari terakhir</option>
+                                <option value="90">90 hari terakhir</option>
+                            </select>
+                            <button type="button" class="btn-admin ghost" id="btnRefreshUsage">Refresh</button>
+                        </div>
+
+                        <div class="admin-table-wrap">
+                            <table class="admin-table" aria-label="Ringkasan usage LLM">
+                                <thead>
+                                    <tr>
+                                        <th>Fitur</th>
+                                        <th>Provider</th>
+                                        <th>Model</th>
+                                        <th>Request</th>
+                                        <th>Gagal</th>
+                                        <th>Total Token</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="llmUsageTableBody">
+                                    <tr><td colspan="6" class="table-empty">Memuat data usage...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </section>
                 </div>
-            </section>
-        </div>
             </main>
-
-    <!-- Modal: Tampilkan password sementara -->
-    <div class="admin-modal-backdrop" id="passwordModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
-        <div class="admin-modal">
-            <h3 id="passwordModalTitle">Pengguna Berhasil Dibuat</h3>
-            <p id="passwordModalDescription">Password sementara hanya ditampilkan <strong>sekali</strong>. Simpan dan berikan ke user secara aman.</p>
-
-            <div class="secret-list" id="createdUsersList"></div>
-
-            <div class="modal-actions">
-                <button class="btn-admin ghost" type="button" id="copyAllCredentialsBtn" onclick="copyAllCredentials()">Salin Semua</button>
-                <button class="btn-admin" type="button" onclick="closeModal('passwordModalBackdrop')">Tutup</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Modal: Tampilkan kode autentikasi -->
-    <div class="admin-modal-backdrop" id="codeModalBackdrop" role="dialog" aria-modal="true" aria-labelledby="codeModalTitle">
-        <div class="admin-modal">
-            <h3 id="codeModalTitle">Kode Autentikasi Reset Password</h3>
-            <p>Kode ini berlaku 1 jam dan hanya dapat digunakan sekali.</p>
-
-            <div class="secret-box">
-                <div class="secret-label">Username</div>
-                <input id="codeUsernameValue" class="secret-value" readonly />
-            </div>
-
-            <div class="secret-box">
-                <div class="secret-label">Kode</div>
-                <div class="secret-row">
-                    <input id="authCodeValue" class="secret-value" readonly />
-                    <button class="btn-admin ghost" type="button" onclick="copySecret('authCodeValue')">Salin</button>
-                </div>
-            </div>
-
-            <div class="secret-box">
-                <div class="secret-label">Berlaku Hingga</div>
-                <input id="authCodeExpiryValue" class="secret-value" readonly />
-            </div>
-
-            <div class="modal-actions">
-                <button class="btn-admin" type="button" onclick="closeModal('codeModalBackdrop')">Tutup</button>
-            </div>
-        </div>
-    </div>
 
             <script src="../static/js/layout/shell.js"></script>
             <script src="../static/js/shared/html.js"></script>
-            <script src="../static/js/shared/dialog.js"></script>
-            <script src="../static/js/admin/users.js"></script>
+            <script src="../static/js/admin/llm.js"></script>
             <!-- Vercel Web Analytics -->
             <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
         </div>

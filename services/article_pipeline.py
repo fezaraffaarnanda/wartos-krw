@@ -5,6 +5,7 @@ backfill KBLI/Aktivitas/Embedding, serta worker thread scraping.
 
 import threading
 import time as _time
+from datetime import datetime, timezone
 
 from clients.supabase import supabase
 from config.region import SOURCE_LABELS  # noqa: F401  (re-export, dipakai luas)
@@ -75,7 +76,13 @@ def _is_kbli_irrelevant(kbli: str | None) -> bool:
 
 def _classify_relevance_for_article(article: dict) -> dict:
     """
-    Jalankan classifier tahap-1. Return dict field relevance siap masuk row.
+    Jalankan classifier tahap-1. Return dict field relevance siap masuk row,
+    plus dua flag kontrol:
+      checked   : True hanya kalau classifier BERHASIL menghasilkan skor —
+                  dipakai set relevance_checked_at (watermark klasifikasi).
+      attempted : True kalau LLM benar-benar dipanggil — dipakai naikkan
+                  relevance_attempts. Beda dengan checked karena panggilan
+                  yang gagal tetap "dicoba", client None berarti belum sempat.
     Fallback aman: jika classifier tidak tersedia / gagal → anggap relevan
     (jangan buang data diam-diam), skor None.
     """
@@ -85,11 +92,16 @@ def _classify_relevance_for_article(article: dict) -> dict:
     model  = _classifiers["relevance_llm_model"]
 
     if client is None:
+        # Classifier belum siap (mis. startup) -- BUKAN percobaan gagal, jadi
+        # attempts tidak naik dan backfill akan mencoba lagi begitu classifier ada.
         return {
             "is_relevant":      True,
             "relevance_score":  None,
             "relevance_reason": None,
             "classifier_model": None,
+            "prompt_version":   None,
+            "checked":          False,
+            "attempted":        False,
         }
 
     result = classify_relevance(
@@ -100,11 +112,16 @@ def _classify_relevance_for_article(article: dict) -> dict:
     )
     if result is None:
         # Gagal klasifikasi — fallback konservatif: tetap proses sebagai relevan.
+        # attempted=True (LLM benar-benar dipanggil) sehingga relevance_attempts
+        # naik dan backfill berhenti retry setelah max_attempts.
         return {
             "is_relevant":      True,
             "relevance_score":  None,
             "relevance_reason": "Classifier relevance gagal/menghasilkan output tak valid — fallback dianggap relevan.",
             "classifier_model": None,
+            "prompt_version":   None,
+            "checked":          False,
+            "attempted":        True,
         }
 
     return {
@@ -112,6 +129,9 @@ def _classify_relevance_for_article(article: dict) -> dict:
         "relevance_score":  result["score"],
         "relevance_reason": result["reason"],
         "classifier_model": result["classifier_model"],
+        "prompt_version":   result["prompt_version"],
+        "checked":          True,
+        "attempted":        True,
     }
 
 
@@ -122,9 +142,20 @@ def _build_article_row(article: dict, source_label: str) -> dict:
     from ai.pdrb_pengeluaran import predict_pdrb_pengeluaran_label
 
     normalized_date = normalize_date(article["date"])
+    clean_tags_value = clean_tags(article.get("tags")).lower() or None
 
     # ── Gerbang tahap-1: relevance ────────────────────────────────────────────
     rel = _classify_relevance_for_article(article)
+    relevance_fields = {
+        "is_relevant":              rel["is_relevant"],
+        "relevance_score":          rel["relevance_score"],
+        "relevance_reason":         rel["relevance_reason"],
+        "classifier_model":         rel["classifier_model"],
+        "relevance_prompt_version": rel["prompt_version"],
+        "relevance_attempts":       1 if rel["attempted"] else 0,
+    }
+    if rel["checked"]:
+        relevance_fields["relevance_checked_at"] = datetime.now(timezone.utc).isoformat()
 
     if not rel["is_relevant"]:
         # Tidak relevan secara ekonomi → lewati classifier mahal (hemat cost).
@@ -134,15 +165,12 @@ def _build_article_row(article: dict, source_label: str) -> dict:
             "date_parsed":       parse_date_to_iso(normalized_date),
             "url":               article["url"],
             "content":           article["content"],
-            "tags":              clean_tags(article.get("tags")).lower() or None,
+            "tags":              clean_tags_value,
             "kbli":              "—",
             "aktivitas_ekonomi": "—",
             "pdrb_pengeluaran":  "—",
             "source":            article.get("source") or source_label,
-            "is_relevant":       False,
-            "relevance_score":   rel["relevance_score"],
-            "relevance_reason":  rel["relevance_reason"],
-            "classifier_model":  rel["classifier_model"],
+            **relevance_fields,
         }
 
     kbli = predict_kbli_label(
@@ -177,15 +205,12 @@ def _build_article_row(article: dict, source_label: str) -> dict:
         "date_parsed":       parse_date_to_iso(normalized_date),
         "url":               article["url"],
         "content":           article["content"],
-        "tags":              article["tags"].lower() if article.get("tags") else article.get("tags"),
+        "tags":              clean_tags_value,
         "kbli":              kbli,
         "aktivitas_ekonomi": aktivitas,
         "pdrb_pengeluaran":  pdrb_pengeluaran,
         "source":            article.get("source") or source_label,
-        "is_relevant":       True,
-        "relevance_score":   rel["relevance_score"],
-        "relevance_reason":  rel["relevance_reason"],
-        "classifier_model":  rel["classifier_model"],
+        **relevance_fields,
     }
 
 
@@ -234,91 +259,148 @@ def _insert_articles(articles: list, source_key: str) -> int:
 
 # ── Backfill Relevance (gerbang tahap-1) ─────────────────────────────────────
 
-def _run_relevance_backfill(batch_size: int = 50) -> int:
-    """
-    Prediksi relevance untuk semua berita yang is_relevant IS NULL.
-    Untuk artikel tidak relevan, langsung set kbli/aktivitas/pdrb = "—"
-    agar backfill mahal melewatinya. Untuk artikel relevan, biarkan kbli NULL
-    supaya diproses backfill KBLI.
-    Return jumlah artikel yang berhasil diupdate.
+def _apply_reclassify_result(
+    berita_repo, berita_id: int, *, content: str, title: str, attempts: int,
+) -> dict | None:
+    """Panggil classifier untuk satu baris dan simpan hasilnya.
+
+    Dipakai bersama oleh backfill dan reclassify_article() manual supaya
+    keduanya tidak bisa diam-diam berbeda perilaku.
+    Return dict hasil classify_relevance kalau BERHASIL, None kalau gagal
+    (attempts tetap dinaikkan lewat mark_relevance_attempt_failed).
     """
     from ai.relevance import classify_relevance
 
     client = _classifiers["relevance_llm_client"]
     model  = _classifiers["relevance_llm_model"]
 
+    res = classify_relevance(content, title, client, model)
+    if res is None:
+        berita_repo.mark_relevance_attempt_failed(berita_id, attempts=attempts)
+        return None
+
+    ok = berita_repo.apply_relevance_result(
+        berita_id,
+        score=res["score"],
+        is_relevant=res["is_relevant"],
+        reason=res["reason"],
+        classifier_model=res["classifier_model"],
+        prompt_version=res["prompt_version"],
+        attempts=attempts,
+    )
+    if not ok:
+        return None
+
+    if not res["is_relevant"]:
+        # Konsisten dengan insert-time: lewati klasifikasi KBLI/aktivitas/PDRB mahal.
+        try:
+            supabase.table("berita").update({
+                "kbli": "—", "aktivitas_ekonomi": "—", "pdrb_pengeluaran": "—",
+            }).eq("id", berita_id).execute()
+        except Exception as exc:
+            print(f"[Relevance] Gagal set placeholder KBLI id={berita_id}: {exc}")
+
+    return res
+
+
+def _run_relevance_backfill(batch_size: int = 50, *, max_attempts: int = 3) -> int:
+    """
+    Prediksi relevance untuk semua berita yang BELUM PERNAH berhasil
+    diklasifikasi (relevance_checked_at IS NULL) -- predikat baru yang
+    menggantikan `is_relevant IS NULL` lama. Predikat lama tidak pernah
+    menjaring baris fail-open karena baris itu ditandai is_relevant=True
+    tanpa skor saat gagal, bukan NULL.
+
+    Untuk artikel tidak relevan, langsung set kbli/aktivitas/pdrb = "—" agar
+    backfill mahal melewatinya. Untuk artikel relevan, biarkan kbli NULL
+    supaya diproses backfill KBLI. Baris yang gagal max_attempts kali
+    berhenti di-retry otomatis -- tetap terlihat di tab "Gagal Diklasifikasi"
+    untuk re-classify manual dari UI (yang mengabaikan batas ini).
+    Return jumlah artikel yang berhasil diupdate.
+    """
+    from repositories.berita import BeritaRepository
+
+    client = _classifiers["relevance_llm_client"]
     if client is None:
         print("[Relevance Backfill] Classifier tidak tersedia, backfill dilewati.")
         return 0
 
+    berita_repo = BeritaRepository()
     total_updated = 0
     MAX_BATCHES   = 200
     iteration     = 0
 
-    print("[Relevance Backfill] Mulai memproses artikel tanpa label relevance...")
+    print("[Relevance Backfill] Mulai memproses artikel yang belum pernah berhasil diklasifikasi...")
 
     while iteration < MAX_BATCHES:
         iteration += 1
 
         try:
-            result = (
-                supabase.table("berita")
-                .select("id, title, content")
-                .is_("is_relevant", "null")
-                .limit(batch_size)
-                .execute()
-            )
+            rows = berita_repo.list_unchecked_relevance_rows(limit=batch_size, max_attempts=max_attempts)
         except Exception as exc:
             print(f"[Relevance Backfill] Gagal query DB (batch {iteration}): {exc}")
             break
 
-        rows = result.data or []
         if not rows:
             break
 
         updated_this_batch = 0
 
         for row in rows:
-            content = (row.get("content") or "").strip()
-            title   = (row.get("title")   or "").strip()
+            content  = (row.get("content") or "").strip()
+            title    = (row.get("title")   or "").strip()
+            attempts = int(row.get("relevance_attempts") or 0) + 1
 
-            res = classify_relevance(content, title, client, model)
-
-            if res is None:
-                # Fallback aman: tandai relevan tanpa skor, biar tidak dibuang.
-                update = {
-                    "is_relevant":      True,
-                    "relevance_score":  None,
-                    "relevance_reason": "Classifier relevance gagal — fallback dianggap relevan.",
-                    "classifier_model": None,
-                }
-            else:
-                update = {
-                    "is_relevant":      res["is_relevant"],
-                    "relevance_score":  res["score"],
-                    "relevance_reason": res["reason"],
-                    "classifier_model": res["classifier_model"],
-                }
-                if not res["is_relevant"]:
-                    update.update({
-                        "kbli":              "—",
-                        "aktivitas_ekonomi": "—",
-                        "pdrb_pengeluaran":  "—",
-                    })
-
-            try:
-                supabase.table("berita").update(update).eq("id", row["id"]).execute()
+            res = _apply_reclassify_result(
+                berita_repo, row["id"], content=content, title=title, attempts=attempts,
+            )
+            if res is not None:
                 updated_this_batch += 1
                 total_updated += 1
-            except Exception as exc:
-                print(f"[Relevance Backfill] Gagal update id={row['id']}: {exc}")
 
         if updated_this_batch == 0:
-            print(f"[Relevance Backfill] Batch {iteration} tidak ada update — menghentikan loop.")
+            print(f"[Relevance Backfill] Batch {iteration} tidak ada update berhasil — menghentikan loop.")
             break
 
     print(f"[Relevance Backfill] Selesai. {total_updated} artikel diperbarui dalam {iteration} batch.")
     return total_updated
+
+
+def reclassify_article(berita_id: int) -> dict | None:
+    """Klasifikasi ulang satu artikel secara manual (dipanggil endpoint admin).
+
+    Mengabaikan batas relevance_attempts backfill -- ini permintaan eksplisit
+    dari admin, bukan retry otomatis. Return dict hasil atau None kalau
+    classifier tidak tersedia / artikel tidak ditemukan / klasifikasi gagal.
+    """
+    from repositories.berita import BeritaRepository
+
+    if _classifiers["relevance_llm_client"] is None:
+        return None
+
+    berita_repo = BeritaRepository()
+    row = berita_repo.get_relevance_item(berita_id)
+    if not row:
+        return None
+
+    content  = (row.get("content") or "").strip()
+    title    = (row.get("title")   or "").strip()
+    attempts = int(row.get("relevance_attempts") or 0) + 1
+
+    res = _apply_reclassify_result(
+        berita_repo, berita_id, content=content, title=title, attempts=attempts,
+    )
+    if res is None:
+        return None
+
+    return {
+        "id":                       berita_id,
+        "relevance_score":          res["score"],
+        "is_relevant":              res["is_relevant"],
+        "relevance_reason":         res["reason"],
+        "classifier_model":         res["classifier_model"],
+        "relevance_prompt_version": res["prompt_version"],
+    }
 
 
 # ── Backfill KBLI ────────────────────────────────────────────────────────────

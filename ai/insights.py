@@ -16,6 +16,7 @@ Alur RAG:
 import json
 import os
 import re
+import time
 
 from openai import OpenAI
 
@@ -549,8 +550,11 @@ def stream_category_tokens(
 
     system_prompt: gunakan salah satu dari _ACTOR_PROMPTS (default: _SYSTEM_PROMPT_BPS).
     """
+    from clients.llm import log_usage, provider_from_model
+
     resolved_prompt = system_prompt if system_prompt is not None else _SYSTEM_PROMPT_BPS
-    stream = client.chat.completions.create(
+    provider = provider_from_model(model)
+    kwargs = dict(
         model=model,
         messages=[
             {"role": "system", "content": resolved_prompt},
@@ -561,13 +565,44 @@ def stream_category_tokens(
         stream=True,
         timeout=300,
     )
-    for chunk in stream:
-        try:
-            delta = chunk.choices[0].delta.content or ""
-        except Exception:
-            delta = ""
-        if delta:
-            yield delta
+
+    t0 = time.perf_counter()
+    try:
+        stream = client.chat.completions.create(**kwargs, stream_options={"include_usage": True})
+    except Exception:
+        # Provider gak support stream_options — retry tanpa itu (usage gak kecatat, stream tetap jalan)
+        stream = client.chat.completions.create(**kwargs)
+
+    usage = None
+    try:
+        for chunk in stream:
+            chunk_usage = getattr(chunk, "usage", None)
+            if chunk_usage is not None:
+                usage = chunk_usage
+            try:
+                delta = chunk.choices[0].delta.content or ""
+            except Exception:
+                delta = ""
+            if delta:
+                yield delta
+    except Exception as exc:
+        log_usage(
+            feature="insights",
+            provider=provider,
+            model=model,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            success=False,
+            error=str(exc),
+        )
+        raise
+    else:
+        log_usage(
+            feature="insights",
+            provider=provider,
+            model=model,
+            usage=usage,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+        )
 
 
 def normalize_inline_markers(
@@ -1011,33 +1046,56 @@ def generate_insights(
     print(f"[AI Insights] Mengirim konteks ke LLM ({model}) — {period_label}...")
     print(f"[AI Insights] ID map: {len(id_map)} artikel ditandai.")
 
+    from clients.llm import log_usage, provider_from_model
+    provider = provider_from_model(model)
+    t0 = time.perf_counter()
+
     # Gemini mendukung response_format json_object via OpenAI-compatible endpoint.
     # Jika gagal (provider tidak mendukung), tangkap dan parse manual via _extract_json.
     try:
-        response = client.chat.completions.create(
-            model=model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=0.4,
-            max_tokens=1000,
-            response_format={"type": "json_object"},
-            timeout=300,
-        )
+        try:
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                temperature=0.4,
+                max_tokens=1000,
+                response_format={"type": "json_object"},
+                timeout=300,
+            )
+        except Exception as exc:
+            # Beberapa provider tidak mendukung response_format — retry tanpa parameter ini
+            print(f"[AI Insights] response_format tidak didukung ({exc}) — retry tanpa JSON mode.")
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user",   "content": user_prompt},
+                ],
+                temperature=0.4,
+                max_tokens=1000,
+                timeout=300,
+            )
     except Exception as exc:
-        # Beberapa provider tidak mendukung response_format — retry tanpa parameter ini
-        print(f"[AI Insights] response_format tidak didukung ({exc}) — retry tanpa JSON mode.")
-        response = client.chat.completions.create(
+        log_usage(
+            feature="insights",
+            provider=provider,
             model=model,
-            messages=[
-                {"role": "system", "content": _SYSTEM_PROMPT},
-                {"role": "user",   "content": user_prompt},
-            ],
-            temperature=0.4,
-            max_tokens=1000,
-            timeout=300,
+            latency_ms=(time.perf_counter() - t0) * 1000,
+            success=False,
+            error=str(exc),
         )
+        raise
+
+    log_usage(
+        feature="insights",
+        provider=provider,
+        model=model,
+        usage=getattr(response, "usage", None),
+        latency_ms=(time.perf_counter() - t0) * 1000,
+    )
 
     raw = response.choices[0].message.content or ""
     print(f"[AI Insights] Respons diterima ({len(raw)} karakter).")

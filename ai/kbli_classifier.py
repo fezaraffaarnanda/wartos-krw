@@ -238,15 +238,26 @@ class KBLIClassifierLLM(KBLIClassifier):
         Kirim prompt ke Gemini dan return teks respons raw.
         Retry 1x jika terjadi transient error.
         """
+        from clients.llm import log_usage, provider_from_model
+
         messages = [{"role": "user", "content": prompt}]
+        provider = provider_from_model(self._model)
 
         for attempt in range(2):
+            t0 = time.perf_counter()
             try:
                 response = self._llm.chat.completions.create(
                     model       = self._model,
                     messages    = messages,
                     max_tokens  = 20,      # output hanya 1 kode, maks ~5 token
                     temperature = 0.0,     # deterministik — tidak ada kreativitas
+                )
+                log_usage(
+                    feature=  "kbli",
+                    provider= provider,
+                    model=    self._model,
+                    usage=    getattr(response, "usage", None),
+                    latency_ms=(time.perf_counter() - t0) * 1000,
                 )
                 content = response.choices[0].message.content
                 return (content or "").strip()
@@ -255,6 +266,14 @@ class KBLIClassifierLLM(KBLIClassifier):
                     print(f"[KBLI LLM] Error LLM (attempt {attempt+1}): {exc} — retry...")
                     time.sleep(1)
                 else:
+                    log_usage(
+                        feature=  "kbli",
+                        provider= provider,
+                        model=    self._model,
+                        latency_ms=(time.perf_counter() - t0) * 1000,
+                        success=  False,
+                        error=    str(exc),
+                    )
                     raise
 
         return ""

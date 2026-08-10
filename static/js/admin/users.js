@@ -5,7 +5,6 @@ let currentMe = null;
 let usersData = [];
 let pendingUsernames = [];
 let latestCreatedUsers = [];
-let adminDialogResolver = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   if (typeof initAppShell === "function") {
@@ -19,7 +18,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     });
   }
 
-  initDialogModal();
   bindEvents();
   renderPendingUsernames();
 
@@ -418,76 +416,8 @@ window.generateCode = async (userId, username) => {
   }
 };
 
-const getDialogElements = () => ({
-  backdrop: document.getElementById("adminDialogBackdrop"),
-  title: document.getElementById("adminDialogTitle"),
-  message: document.getElementById("adminDialogMessage"),
-  cancelBtn: document.getElementById("adminDialogCancelBtn"),
-  confirmBtn: document.getElementById("adminDialogConfirmBtn"),
-});
-
-const initDialogModal = () => {
-  const { backdrop, cancelBtn, confirmBtn } = getDialogElements();
-  if (!backdrop || backdrop.dataset.init === "1") {
-    return;
-  }
-
-  const close = (result) => {
-    backdrop.classList.remove("open");
-    document.body.style.overflow = "";
-    const resolver = adminDialogResolver;
-    adminDialogResolver = null;
-    if (resolver) {
-      resolver(result);
-    }
-  };
-
-  cancelBtn?.addEventListener("click", () => close(false));
-  confirmBtn?.addEventListener("click", () => close(true));
-  backdrop.addEventListener("click", (event) => {
-    if (event.target === backdrop) {
-      close(false);
-    }
-  });
-  document.addEventListener("keydown", (event) => {
-    if (event.key === "Escape" && backdrop.classList.contains("open")) {
-      close(false);
-    }
-  });
-
-  backdrop.dataset.init = "1";
-};
-
-const showDialog = ({
-  title = "Informasi",
-  message = "",
-  confirmText = "Oke",
-  cancelText = "Batal",
-  showCancel = false,
-  danger = false,
-} = {}) => {
-  const { backdrop, title: titleEl, message: messageEl, cancelBtn, confirmBtn } = getDialogElements();
-  if (!backdrop || !titleEl || !messageEl || !confirmBtn) {
-    return Promise.resolve(false);
-  }
-
-  titleEl.textContent = title;
-  messageEl.textContent = message;
-  confirmBtn.textContent = confirmText;
-  confirmBtn.classList.toggle("warn", danger);
-
-  if (cancelBtn) {
-    cancelBtn.textContent = cancelText;
-    cancelBtn.style.display = showCancel ? "" : "none";
-  }
-
-  backdrop.classList.add("open");
-  document.body.style.overflow = "hidden";
-
-  return new Promise((resolve) => {
-    adminDialogResolver = resolve;
-  });
-};
+// showDialog() dipromosikan ke static/js/shared/dialog.js -- dimuat sebagai
+// <script> terpisah, meng-inject markup #adminDialogBackdrop sendiri.
 
 const showPasswordModal = (createdUsers, message) => {
   latestCreatedUsers = createdUsers;

@@ -49,6 +49,14 @@ def serve_admin_relevance():
     return send_from_directory("templates", "admin_relevance.html")
 
 
+@pages_bp.route("/admin/llm")
+@login_required
+def serve_admin_llm():
+    if current_user.role != "admin":
+        return redirect(url_for("pages.dashboard"))
+    return send_from_directory("templates", "admin_llm.html")
+
+
 @pages_bp.route("/change-password")
 @login_required
 def serve_change_password():

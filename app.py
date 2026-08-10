@@ -3,6 +3,7 @@ import threading
 from datetime import timedelta
 
 from flask import Flask, jsonify, redirect, request, url_for
+from pydantic import ValidationError
 
 from config.extensions import bcrypt, limiter, login_manager
 from config.settings import get_settings
@@ -76,6 +77,19 @@ def create_app() -> Flask:
     @app.errorhandler(429)
     def rate_limit_exceeded(e):
         return jsonify({"status": "error", "message": "Terlalu banyak percobaan. Coba lagi dalam beberapa menit."}), 429
+
+    @app.errorhandler(ValidationError)
+    def invalid_payload(e: ValidationError):
+        """Schema payload/query (schemas/*.py) memvalidasi lewat pydantic. Tanpa
+        handler ini, input tidak valid yang lolos ke model_validate() jadi 500
+        mentah alih-alih 400 -- kebanyakan schema mengklem/mem-whitelist input
+        di classmethod from_body/from_request_args sebelum validasi sehingga
+        jarang kena, tapi field dengan constraint langsung atas input pengguna
+        (pattern, min_length, dst -- lihat schemas/relevance.py) tetap bisa
+        memicu ValidationError."""
+        first = e.errors()[0] if e.errors() else {}
+        field = ".".join(str(p) for p in first.get("loc", ())) or "field"
+        return jsonify({"status": "error", "message": f"Input tidak valid pada '{field}': {first.get('msg', 'format salah')}."}), 400
 
     return app
 
