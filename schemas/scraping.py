@@ -17,7 +17,8 @@ class NewsSourceOut(BaseModel):
 class ScrapeTriggerPayload(BaseModel):
     """Payload trigger scraping."""
 
-    max_articles: int = Field(default=150, ge=1, le=999)
+    max_articles: int = Field(default=150, ge=1, le=5000)
+    backfill: bool = Field(default=False)
 
     @classmethod
     def from_body(cls, body: Mapping[str, Any]) -> "ScrapeTriggerPayload":
@@ -25,5 +26,7 @@ class ScrapeTriggerPayload(BaseModel):
         if not raw.isdigit():
             value = 150
         else:
-            value = max(1, min(int(raw), 999))
-        return cls.model_validate({"max_articles": value})
+            value = max(1, min(int(raw), 5000))
+        backfill_raw = body.get("backfill", False)
+        backfill = backfill_raw if isinstance(backfill_raw, bool) else str(backfill_raw).strip().lower() in ("1", "true", "yes")
+        return cls.model_validate({"max_articles": value, "backfill": backfill})

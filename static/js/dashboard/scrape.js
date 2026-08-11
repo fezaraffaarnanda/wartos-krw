@@ -5,6 +5,7 @@ async function scrapeBerita() {
 
   const input = document.getElementById("maxArticles");
   maxArticlesGlobal = input.value ? parseInt(input.value) : 150;
+  const backfillMode = document.getElementById("backfillMode")?.checked || false;
 
   await loadNewsSources();
   renderProgressRows("progressRows");
@@ -16,7 +17,7 @@ async function scrapeBerita() {
     const res = await fetch("/api/scrape", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ max_articles: maxArticlesGlobal }),
+      body: JSON.stringify({ max_articles: maxArticlesGlobal, backfill: backfillMode }),
     });
 
     if (res.status === 401) {

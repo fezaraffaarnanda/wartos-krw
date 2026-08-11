@@ -72,6 +72,7 @@ def start_scrape():
 
     result, status_code = _scraping_service.start_scrape(
         max_articles=payload.max_articles,
+        backfill=payload.backfill,
         is_api_key=is_api_key,
     )
     return jsonify(result), status_code

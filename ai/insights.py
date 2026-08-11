@@ -355,8 +355,8 @@ def _get_sources(articles: list[dict], category: str) -> list[dict]:
     sources = []
     seen    = set()
     for a in matched:
-        title = a.get("title", "").strip()
-        url   = a.get("url", "").strip()
+        title = (a.get("title") or "").strip()
+        url   = (a.get("url") or "").strip()
         if title and title not in seen:
             seen.add(title)
             sources.append({"title": title, "url": url})
@@ -733,11 +733,11 @@ def _format_articles_for_prompt(
     id_map = {}
     for i, a in enumerate(articles, 1):
         tag_id     = f"{id_prefix}{i:02d}"
-        title      = a.get("title", "").strip()
-        date       = a.get("date", "").strip()
-        tags       = a.get("tags", "").strip()
-        url        = a.get("url", "").strip()
-        content    = (a.get("content", "") or "").strip()
+        title      = (a.get("title") or "").strip()
+        date       = (a.get("date") or "").strip()
+        tags       = (a.get("tags") or "").strip()
+        url        = (a.get("url") or "").strip()
+        content    = (a.get("content") or "").strip()
         similarity = a.get("similarity")   # ada jika dari semantic search
 
         if len(content) > _MAX_CONTENT_CHARS:

@@ -127,10 +127,14 @@ def scrape_new_articles(
     existing_urls: set,
     max_articles: int = 150,
     on_progress=None,
+    backfill: bool = False,
 ) -> list:
     """
     Scrape berita baru dari Radar Karawang.
     Berhenti saat menemukan URL duplikat atau mencapai max_articles.
+    backfill=True: duplikat di-skip (bukan berhenti) supaya bisa jalan terus
+    ke berita lama di halaman berikutnya -- dipakai untuk isi database dari
+    beberapa bulan ke belakang.
     on_progress(scraped_count, source_name): callback opsional.
     Kembalikan list dict {title, date, url, content, tags, source}.
     """
@@ -170,6 +174,9 @@ def scrape_new_articles(
                 continue
 
             if article_url in existing_urls:
+                if backfill:
+                    log(f"Duplikat dilewati (mode backfill): {article_url}")
+                    continue
                 log(f"Duplikat ditemukan, berhenti: {article_url}")
                 stop = True
                 break

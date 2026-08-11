@@ -49,13 +49,16 @@ class ScrapingService:
         except Exception as exc:
             return {"status": "error", "message": str(exc)}, 500
 
-    def start_scrape(self, *, max_articles: int, is_api_key: bool) -> tuple[dict[str, Any], int]:
+    def start_scrape(
+        self, *, max_articles: int, is_api_key: bool, backfill: bool = False,
+    ) -> tuple[dict[str, Any], int]:
         if is_api_key:
             print(
                 "[SCRAPE] Dipanggil via API key "
                 f"- mode synchronous, maks {max_articles} artikel"
+                f"{' (backfill)' if backfill else ''}"
             )
-            result = _scrape_sync(max_articles)
+            result = _scrape_sync(max_articles, backfill)
             status_code = 200 if result.get("status") == "ok" else 500
             return result, status_code
 
@@ -68,11 +71,11 @@ class ScrapingService:
         _reset_progress()
         threading.Thread(
             target=_scrape_worker,
-            args=(max_articles,),
+            args=(max_articles, backfill),
             daemon=True,
             name="scrape-worker-manual",
         ).start()
-        return {"status": "started", "max_articles": max_articles}, 200
+        return {"status": "started", "max_articles": max_articles, "backfill": backfill}, 200
 
     def trigger_kbli_backfill(self, *, is_admin: bool) -> tuple[dict[str, Any], int]:
         if not is_admin:

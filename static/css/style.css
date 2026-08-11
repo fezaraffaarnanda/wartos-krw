@@ -556,6 +556,30 @@ a:hover {
     font-weight: 400;
 }
 
+.scrape-backfill-group {
+    max-width: 220px;
+}
+
+.scrape-backfill-label {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 6px;
+    text-transform: none !important;
+    letter-spacing: normal !important;
+    font-size: 0.85rem !important;
+    font-weight: 600;
+    color: var(--text-primary) !important;
+    cursor: pointer;
+}
+
+.scrape-backfill-hint {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin: 0;
+}
+
 .btn-scrape {
     display: inline-flex;
     align-items: center;

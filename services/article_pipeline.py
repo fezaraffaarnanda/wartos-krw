@@ -702,12 +702,15 @@ _SCRAPER_FUNCS = {
 }
 
 
-def _build_scraper_config(max_articles: int) -> list[tuple]:
+def _build_scraper_config(max_articles: int, backfill: bool = False) -> list[tuple]:
     """Return daftar (key, scraper_fn, kwargs) untuk semua sumber di SOURCE_LABELS.
 
     Registry-driven: sumber terdaftar di config.region.NEWS_SOURCES tapi
     tanpa fungsi scraper di _SCRAPER_FUNCS akan gagal saat scraping dipicu,
     bukan diam-diam dilewati.
+
+    backfill=True: scraper skip duplikat alih-alih berhenti total, dipakai
+    untuk isi database dari berita lama beberapa bulan ke belakang.
     """
     missing = set(SOURCE_LABELS) - set(_SCRAPER_FUNCS)
     if missing:
@@ -716,7 +719,7 @@ def _build_scraper_config(max_articles: int) -> list[tuple]:
             f"scraper: {sorted(missing)}"
         )
     return [
-        (key, _SCRAPER_FUNCS[key], {"max_articles": max_articles})
+        (key, _SCRAPER_FUNCS[key], {"max_articles": max_articles, "backfill": backfill})
         for key in SOURCE_LABELS
     ]
 
@@ -750,14 +753,16 @@ def _run_scraper_source(
 
 # ── Worker thread (background scraping) ─────────────────────────────────────
 
-def _scrape_worker(max_articles: int) -> None:
+def _scrape_worker(max_articles: int, backfill: bool = False) -> None:
     try:
         existing_urls = _fetch_existing_urls()
         print(f"[SCRAPE] {len(existing_urls)} URL sudah ada di database.")
+        if backfill:
+            print("[SCRAPE] Mode backfill aktif — duplikat di-skip, bukan berhenti.")
 
         total_inserted = sum(
             _run_scraper_source(key, fn, existing_urls, kwargs)
-            for key, fn, kwargs in _build_scraper_config(max_articles)
+            for key, fn, kwargs in _build_scraper_config(max_articles, backfill)
         )
 
         _scrape_overall["total_inserted"] = total_inserted
@@ -806,7 +811,7 @@ def _scrape_worker(max_articles: int) -> None:
 
 # ── Synchronous scrape (untuk cron / Vercel serverless) ─────────────────────
 
-def _scrape_sync(max_articles: int) -> dict:
+def _scrape_sync(max_articles: int, backfill: bool = False) -> dict:
     """Jalankan scraping secara synchronous. Cocok untuk Vercel serverless."""
     results        = {}
     total_inserted = 0
@@ -815,10 +820,12 @@ def _scrape_sync(max_articles: int) -> dict:
     try:
         existing_urls = _fetch_existing_urls()
         print(f"[SCRAPE-SYNC] {len(existing_urls)} URL sudah ada di database.")
+        if backfill:
+            print("[SCRAPE-SYNC] Mode backfill aktif — duplikat di-skip, bukan berhenti.")
     except Exception as exc:
         return {"status": "error", "message": f"Gagal fetch existing URLs: {exc}"}
 
-    for key, scraper_fn, kwargs in _build_scraper_config(max_articles):
+    for key, scraper_fn, kwargs in _build_scraper_config(max_articles, backfill):
         try:
             articles       = scraper_fn(existing_urls, **kwargs)
             n              = _insert_articles(articles, key)
