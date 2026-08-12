@@ -251,9 +251,40 @@ function sortTable(field) {
 
 // ── Download Excel ────────────────────────────────────────────────────────────
 
+// SheetJS ~900 KB dan hanya dipakai di sini, jadi tidak ikut dimuat di
+// <head>. Script-nya disuntik sekali saat tombol export pertama kali dipakai.
+const XLSX_CDN_URL =
+  "https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js";
+let _xlsxPromise = null;
+
+function loadXlsxLibrary() {
+  if (typeof XLSX !== "undefined") return Promise.resolve();
+  if (_xlsxPromise) return _xlsxPromise;
+
+  _xlsxPromise = new Promise((resolve, reject) => {
+    const script = document.createElement("script");
+    script.src = XLSX_CDN_URL;
+    script.onload = () => resolve();
+    script.onerror = () => {
+      _xlsxPromise = null; // biar percobaan berikutnya bisa muat ulang
+      reject(new Error("Gagal memuat library Excel"));
+    };
+    document.head.appendChild(script);
+  });
+  return _xlsxPromise;
+}
+
 async function downloadExcel() {
   if (_tablePaginationState.total_items === 0) {
     alert("Belum ada data untuk diunduh.");
+    return;
+  }
+
+  try {
+    await loadXlsxLibrary();
+  } catch (e) {
+    console.error(e);
+    alert("Gagal memuat library Excel. Periksa koneksi lalu coba lagi.");
     return;
   }
 

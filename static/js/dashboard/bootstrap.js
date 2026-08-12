@@ -6,35 +6,41 @@ async function bootstrapDashboard() {
   if (typeof showPageLoadingOverlay === "function") {
     showPageLoadingOverlay({
       title: "Menyiapkan dashboard...",
-      subtitle: "Ringkasan dan data berita sedang dimuat agar tampilan siap digunakan.",
+      subtitle: "Ringkasan dashboard sedang dimuat agar tampilan siap digunakan.",
     });
   }
 
   startRealtimeClock();
 
   try {
-    await loadUserInfo();
-    await loadNewsSources();
+    // Dua fetch ini independen, jadi jalan paralel.
+    await Promise.all([loadUserInfo(), loadNewsSources()]);
+
     renderSourceChips("welcomeSourceChips");
     renderSourceCount("sourceCountInline");
     renderSourceCount("scrapeSourceCount");
     renderSourceListInline("scrapeSourceList");
     renderProgressRows("progressRows");
-    initSidebarNavigation();
+    _filterOptions = buildMasterFilterOptions();
     initOfficialStatisticsControls();
     initFloatingChat();
-    _filterOptions = buildMasterFilterOptions();
+
+    // Dipanggil setelah kontrol siap: resolusi hash di sini yang men-trigger
+    // lazy loader view aktif (mis. deep link ke #data atau #insight).
+    initSidebarNavigation();
+
+    // Overlay hanya menunggu data overview. Data tab lain menyusul lewat
+    // lazy loader-nya masing-masing di navigation.js.
     await loadOverviewSummary();
-    await loadBerita();
-    loadLastScrape();
-    loadAIInsights();
-    animateCards();
-    startAutoRefresh();
   } finally {
     if (typeof hidePageLoadingOverlay === "function") {
       hidePageLoadingOverlay();
     }
   }
+
+  loadLastScrape();
+  animateCards();
+  startAutoRefresh();
 }
 
 function registerDashboardTooltipDelegation() {

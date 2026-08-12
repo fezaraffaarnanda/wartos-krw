@@ -70,9 +70,11 @@ function startAutoRefresh() {
   refreshTimer = setInterval(async () => {
     // Jangan refresh kalau sedang ada polling scraping manual
     if (pollTimer) return;
-    await loadLastScrape();
-    await loadOverviewSummary();
-    await loadBerita();
+    const tasks = [loadLastScrape(), loadOverviewSummary()];
+    // Tabel berita hanya ikut di-refresh kalau tab Data memang sudah pernah
+    // dibuka — kalau belum, jangan tarik /api/berita sia-sia.
+    if (_beritaLoaded && !_beritaLoading) tasks.push(loadBerita());
+    await Promise.all(tasks);
   }, AUTO_REFRESH_MS);
 }
 
@@ -113,18 +115,33 @@ function updateTimestamp() {
 
 // ── User info ─────────────────────────────────────────────────────────────────
 
-async function loadUserInfo() {
+// loadUserInfo di-cache di level promise supaya pemanggil kedua (mis.
+// initFeedbackWidget di shared/feedback.js) reuse hasilnya, bukan hit
+// /api/me untuk kedua kalinya saat load awal.
+let _userInfoPromise = null;
+
+function loadUserInfo() {
+  if (!_userInfoPromise) _userInfoPromise = _fetchUserInfo();
+  return _userInfoPromise;
+}
+
+// Dipublikasikan dengan nama unik supaya shared/feedback.js bisa ikut memakai
+// cache ini hanya di dashboard, tanpa bentrok dengan loadUserInfo() milik
+// halaman lain (mis. static/js/berita/detail.js).
+window.getCachedUserInfo = loadUserInfo;
+
+async function _fetchUserInfo() {
   try {
     const res = await fetch("/api/me");
     if (res.status === 401) {
       window.location.href = "/login";
-      return;
+      return null;
     }
     const json = await res.json();
     if (json.status === "ok") {
       if (json.must_change_password) {
         window.location.href = "/change-password";
-        return;
+        return null;
       }
 
       currentUser = json;
@@ -161,8 +178,10 @@ async function loadUserInfo() {
         }
       }
     }
+    return json;
   } catch (e) {
     console.error("Gagal memuat info user:", e);
+    return null;
   }
 }
 

@@ -135,6 +135,13 @@ const _PERIOD_LABELS = {
   yearly: "Tahunan (Jan–Des)",
 };
 
+// Flag lazy-load per view. Data tiap tab baru diambil saat tab-nya dibuka
+// (lihat _ensureBeritaReady / _ensureAIInsightsReady di navigation.js) supaya
+// initial load hanya menunggu data yang benar-benar tampil.
+let _beritaLoading = false;
+let _beritaLoaded = false;
+let _aiInsightsLoaded = false;
+
 let _chatLoading = false;
 let _chatSessionId = "";
 let _chatModalResolver = null;

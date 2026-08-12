@@ -174,8 +174,15 @@ function initFeedbackWidget() {
     btn.addEventListener("click", () => openFeedbackModal({ triggerSource: "sidebar" }));
   }
 
-  fetch("/api/me")
-    .then((res) => (res.ok ? res.json() : null))
+  // Di dashboard, loadUserInfo() sudah men-cache /api/me — reuse hasilnya
+  // supaya tidak ada dua request identik saat load awal. Di halaman lain
+  // cache itu tidak ada, jadi fetch sendiri.
+  const userInfo =
+    typeof window.getCachedUserInfo === "function"
+      ? window.getCachedUserInfo()
+      : fetch("/api/me").then((res) => (res.ok ? res.json() : null));
+
+  Promise.resolve(userInfo)
     .then((json) => {
       if (json && json.feedback_prompt && json.feedback_prompt.should_prompt) {
         window.showFeedbackAutoPrompt();

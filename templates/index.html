@@ -17,9 +17,14 @@
     />
     <link rel="stylesheet" href="../static/css/style.css" />
     <link rel="stylesheet" href="../static/css/pages/feedback.css" />
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
-    <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <!--
+      Semua library CDN pakai defer supaya tidak memblok render awal.
+      SheetJS (xlsx) sengaja tidak dimuat di sini: ukurannya ~900 KB dan hanya
+      dipakai tombol Export Excel, jadi dimuat on-demand oleh downloadExcel()
+      di static/js/dashboard/table.js.
+    -->
+    <script defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   </head>
   <body>
     <div class="app-shell" id="appShell">
@@ -1627,27 +1632,31 @@
       </div>
     </div>
 
-    <script src="../static/js/layout/shell.js"></script>
-    <script src="../static/js/shared/html.js"></script>
-    <script src="../static/js/shared/toast.js"></script>
-    <script src="../static/js/shared/activity.js"></script>
-    <script src="../static/js/shared/feedback.js"></script>
-    <script src="../static/js/shared/tags.js"></script>
-    <script src="../static/js/shared/news_sources.js"></script>
-    <script src="../static/js/shared/economic_taxonomy.js"></script>
-    <script src="../static/js/dashboard/app_state.js"></script>
-    <script src="../static/js/dashboard/utils.js"></script>
-    <script src="../static/js/dashboard/navigation.js"></script>
-    <script src="../static/js/dashboard/overview.js"></script>
-    <script src="../static/js/dashboard/kbli_ui.js"></script>
-    <script src="../static/js/dashboard/table.js"></script>
-    <script src="../static/js/dashboard/table_filters.js"></script>
-    <script src="../static/js/dashboard/article_editor.js"></script>
-    <script src="../static/js/dashboard/scrape.js"></script>
-    <script src="../static/js/dashboard/official_statistics.js"></script>
-    <script src="../static/js/dashboard/ai_insights.js"></script>
-    <script src="../static/js/dashboard/chat.js"></script>
-    <script src="../static/js/dashboard/bootstrap.js"></script>
+    <!--
+      defer: script tetap dieksekusi berurutan dan tetap sebelum DOMContentLoaded
+      (yang dipakai bootstrap.js), tapi parsing HTML tidak lagi berhenti per file.
+    -->
+    <script defer src="../static/js/layout/shell.js"></script>
+    <script defer src="../static/js/shared/html.js"></script>
+    <script defer src="../static/js/shared/toast.js"></script>
+    <script defer src="../static/js/shared/activity.js"></script>
+    <script defer src="../static/js/shared/feedback.js"></script>
+    <script defer src="../static/js/shared/tags.js"></script>
+    <script defer src="../static/js/shared/news_sources.js"></script>
+    <script defer src="../static/js/shared/economic_taxonomy.js"></script>
+    <script defer src="../static/js/dashboard/app_state.js"></script>
+    <script defer src="../static/js/dashboard/utils.js"></script>
+    <script defer src="../static/js/dashboard/navigation.js"></script>
+    <script defer src="../static/js/dashboard/overview.js"></script>
+    <script defer src="../static/js/dashboard/kbli_ui.js"></script>
+    <script defer src="../static/js/dashboard/table.js"></script>
+    <script defer src="../static/js/dashboard/table_filters.js"></script>
+    <script defer src="../static/js/dashboard/article_editor.js"></script>
+    <script defer src="../static/js/dashboard/scrape.js"></script>
+    <script defer src="../static/js/dashboard/official_statistics.js"></script>
+    <script defer src="../static/js/dashboard/ai_insights.js"></script>
+    <script defer src="../static/js/dashboard/chat.js"></script>
+    <script defer src="../static/js/dashboard/bootstrap.js"></script>
     <!-- Vercel Web Analytics -->
     <script defer src="https://cdn.vercel-insights.com/v1/script.js"></script>
   </body>

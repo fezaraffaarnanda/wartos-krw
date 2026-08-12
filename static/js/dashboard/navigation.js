@@ -23,6 +23,30 @@ function _setActiveMenu(view) {
   });
 }
 
+// ── Lazy loader per view ──────────────────────────────────────────────────────
+// Data tab hanya diambil saat tab-nya pertama kali dibuka, mengikuti pola
+// _ensureChatReady / _ensureOfficialStatisticsReady. Tanpa ini, bootstrap harus
+// menunggu /api/berita dan stream AI Insight sebelum overview bisa tampil.
+
+async function _ensureBeritaReady() {
+  if (_beritaLoaded || _beritaLoading) return;
+  if (typeof loadBerita !== "function") return;
+  _beritaLoading = true;
+  try {
+    await loadBerita();
+    _beritaLoaded = true;
+  } finally {
+    _beritaLoading = false;
+  }
+}
+
+function _ensureAIInsightsReady() {
+  if (_aiInsightsLoaded) return;
+  if (typeof loadAIInsights !== "function") return;
+  _aiInsightsLoaded = true;
+  loadAIInsights();
+}
+
 function _setActiveView(view) {
   _activeView = view;
   _setViewHeader(view);
@@ -41,6 +65,14 @@ function _setActiveView(view) {
   }
   if (appContent) {
     appContent.classList.toggle("chat-view-active", view === "chat");
+  }
+
+  if (view === "data") {
+    _ensureBeritaReady();
+  }
+
+  if (view === "insight") {
+    _ensureAIInsightsReady();
   }
 
   if (view === "chat") {
