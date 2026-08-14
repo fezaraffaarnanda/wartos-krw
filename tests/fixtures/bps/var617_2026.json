@@ -1,0 +1,81 @@
+{
+    "status": "OK",
+    "data-availability": "available",
+    "last_update": "2026-06-05 08:50:41",
+    "subject": [
+        {
+            "val": 531,
+            "label": "Neraca Ekonomi"
+        }
+    ],
+    "var": [
+        {
+            "val": 617,
+            "label": "Produk Domestik Regional Bruto (PDRB) Triwulanan Menurut 6 Komponen Pengeluaran Atas Dasar Harga Berlaku Kabupaten Karawang",
+            "unit": "Milyar Rupiah",
+            "subj": "Produk Domestik Regional Bruto",
+            "def": " * Angka sementara\/Preliminary Figures \n ** Angka sangat sementara\/Very Preliminary Figures \n *** Angka sangat sangat sementara\/Very Very Preliminary Figures \n",
+            "decimal": 2,
+            "note": ""
+        }
+    ],
+    "turvar": [
+        {
+            "val": 1040,
+            "label": "Tahun"
+        }
+    ],
+    "labelvervar": "Komponen 6 pengeluaran ",
+    "vervar": [
+        {
+            "val": 1,
+            "label": "Pengeluaran Konsumsi Rumah Tangga"
+        },
+        {
+            "val": 2,
+            "label": "Pengeluaran Konsumsi LNPRT"
+        },
+        {
+            "val": 3,
+            "label": "Pengeluaran Konsumsi Pemerintah"
+        },
+        {
+            "val": 4,
+            "label": "Pembentukan Modal Tetap Bruto"
+        },
+        {
+            "val": 5,
+            "label": "Perubahan Inventori"
+        },
+        {
+            "val": 6,
+            "label": "Net Ekspor"
+        },
+        {
+            "val": 7,
+            "label": "Produk Domestik Regional Bruto"
+        }
+    ],
+    "tahun": [
+        {
+            "val": 126,
+            "label": "2026"
+        }
+    ],
+    "turtahun": [
+        {
+            "val": 0,
+            "label": "Tahun"
+        }
+    ],
+    "datacontent": {
+        "161710401260": 33308.04,
+        "261710401260": 178.78,
+        "361710401260": 1483.93,
+        "461710401260": 20017.67,
+        "561710401260": 14.87,
+        "661710401260": 31123.15,
+        "761710401260": 86126.44
+    },
+    "related": []
+}

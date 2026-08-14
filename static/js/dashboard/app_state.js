@@ -149,13 +149,11 @@ let _chatReady = false;
 
 let _officialStatsLoading = false;
 let _officialStatsLoaded = false;
-let _officialStatsYear = "2025";
-let _officialStatsChartPdrbAdhk = null;
-let _officialStatsChartPdrbAdhb = null;
-let _officialStatsChartTptTpak = null;
-let _officialStatsChartKemiskinan = null;
-let _officialStatsChartPdrbPengeluaranAdhk = null;
-let _officialStatsChartPdrbPengeluaranAdhb = null;
+let _officialStatsYear = "2026";
+let _officialStatsPeriod = "";
+let _officialStatsPayload = null;
+// Registry chart aktif, berkunci id canvas.
+let _officialStatsCharts = {};
 
 let _articleEditorState = {
   beritaId: null,

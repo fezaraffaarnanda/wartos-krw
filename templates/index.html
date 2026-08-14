@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dashboard Berita Lokal — BPS Kab. Karawang</title>
+    <title>Dashboard Berita Lokal</title>
     <meta
       name="description"
       content="WARTOS (Warta Online Statistik) - platform pemantauan berita ekonomi BPS Kabupaten Karawang."
@@ -1386,6 +1386,12 @@
                 <span>Tahun</span>
                 <select id="officialStatsYearSelect" class="official-stats-select"></select>
               </label>
+              <div
+                class="official-stats-period"
+                id="officialStatsPeriodControl"
+                role="group"
+                aria-label="Periode PDRB"
+              ></div>
               <button class="official-stats-refresh" id="officialStatsRefreshBtn" type="button">
                 Refresh Data
               </button>
@@ -1403,24 +1409,24 @@
               <div class="official-stat-card-head">
                 <div>
                   <p class="official-stat-card-eyebrow">PDRB</p>
-                  <h3>PDRB ADHK Lapangan Usaha</h3>
-                  <p>Struktur ekonomi atas dasar harga konstan 2010.</p>
+                  <h3>PDRB Lapangan Usaha</h3>
+                  <p>Struktur ekonomi 17 kategori, harga berlaku dan harga konstan 2010.</p>
                 </div>
-                <span class="official-stat-card-badge">ADHK</span>
+                <span class="official-stat-card-badge">17 Kategori</span>
               </div>
-              <div class="official-stat-card-body" id="officialPdrbAdhkBody"></div>
+              <div class="official-stat-card-body" id="officialPdrbLapanganUsahaBody"></div>
             </article>
 
             <article class="official-stat-card">
               <div class="official-stat-card-head">
                 <div>
                   <p class="official-stat-card-eyebrow">PDRB</p>
-                  <h3>PDRB ADHB Lapangan Usaha</h3>
-                  <p>Struktur ekonomi atas dasar harga berlaku.</p>
+                  <h3>PDRB Pengeluaran</h3>
+                  <p>Konsumsi, PMTB, dan net ekspor pada harga berlaku dan harga konstan 2010.</p>
                 </div>
-                <span class="official-stat-card-badge badge-blue">ADHB</span>
+                <span class="official-stat-card-badge badge-blue">6 Komponen</span>
               </div>
-              <div class="official-stat-card-body" id="officialPdrbAdhbBody"></div>
+              <div class="official-stat-card-body" id="officialPdrbPengeluaranBody"></div>
             </article>
 
             <article class="official-stat-card">
@@ -1445,30 +1451,6 @@
                 <span class="official-stat-card-badge badge-rose">Kemiskinan</span>
               </div>
               <div class="official-stat-card-body" id="officialKemiskinanBody"></div>
-            </article>
-
-            <article class="official-stat-card">
-              <div class="official-stat-card-head">
-                <div>
-                  <p class="official-stat-card-eyebrow">PDRB Pengeluaran</p>
-                  <h3>PDRB Pengeluaran Triwulanan ADHK</h3>
-                  <p>Tren konsumsi, PMTB, dan total PDRB per triwulan.</p>
-                </div>
-                <span class="official-stat-card-badge">ADHK</span>
-              </div>
-              <div class="official-stat-card-body" id="officialPdrbPengeluaranAdhkBody"></div>
-            </article>
-
-            <article class="official-stat-card">
-              <div class="official-stat-card-head">
-                <div>
-                  <p class="official-stat-card-eyebrow">PDRB Pengeluaran</p>
-                  <h3>PDRB Pengeluaran Triwulanan ADHB</h3>
-                  <p>Pergerakan nilai pengeluaran per triwulan pada harga berlaku.</p>
-                </div>
-                <span class="official-stat-card-badge badge-blue">ADHB</span>
-              </div>
-              <div class="official-stat-card-body" id="officialPdrbPengeluaranAdhbBody"></div>
             </article>
           </div>
         </div>

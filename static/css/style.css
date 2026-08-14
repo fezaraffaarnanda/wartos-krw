@@ -4340,6 +4340,50 @@ body.chat-view-lock {
     box-shadow: 0 0 0 3px rgba(232, 112, 10, 0.12);
 }
 
+.official-stats-period {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.92);
+}
+
+.official-stats-period[hidden] {
+    display: none;
+}
+
+.official-stats-period-btn {
+    min-height: 34px;
+    padding: 0 12px;
+    border: none;
+    border-radius: calc(var(--radius-md) - 4px);
+    background: transparent;
+    font-family: var(--font-family);
+    font-size: 0.84rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background var(--transition-fast), color var(--transition-fast);
+}
+
+.official-stats-period-btn:hover:not(:disabled):not(.is-active) {
+    background: rgba(148, 163, 184, 0.16);
+    color: var(--text-primary);
+}
+
+.official-stats-period-btn.is-active {
+    background: linear-gradient(135deg, var(--orange-500) 0%, var(--orange-400) 100%);
+    color: var(--white);
+}
+
+.official-stats-period-btn:disabled {
+    opacity: 0.42;
+    cursor: not-allowed;
+}
+
 .official-stats-refresh {
     min-height: 42px;
     padding: 0 18px;
@@ -4539,41 +4583,6 @@ body.chat-view-lock {
 
 .official-stat-card-meta-item-source {
     background: rgba(255, 247, 237, 0.9);
-}
-
-.official-stat-quarter-grid {
-    display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.official-stat-quarter-item {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    padding: 12px 14px;
-    border-radius: 16px;
-    border: 1px solid rgba(148, 163, 184, 0.16);
-    background: rgba(248, 250, 252, 0.92);
-}
-
-.official-stat-quarter-label {
-    color: var(--text-secondary);
-    font-size: 0.72rem;
-    font-weight: 800;
-    letter-spacing: 0.05em;
-    text-transform: uppercase;
-}
-
-.official-stat-quarter-value {
-    color: var(--text-primary);
-    font-size: 0.94rem;
-}
-
-.official-stat-quarter-delta {
-    color: var(--text-secondary);
-    font-size: 0.76rem;
-    line-height: 1.45;
 }
 
 .official-stat-chart-card {
@@ -4809,8 +4818,15 @@ body.chat-view-lock {
         align-items: stretch;
     }
 
+    .official-stats-period {
+        overflow-x: auto;
+    }
+
+    .official-stats-period-btn {
+        flex: 1 0 auto;
+    }
+
     .official-stat-metric-row,
-    .official-stat-quarter-grid,
     .official-stat-skeleton-grid {
         grid-template-columns: 1fr;
     }

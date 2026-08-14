@@ -8,7 +8,6 @@ daerah ke client BPS, service, atau frontend.
 
 # Kode wilayah Web API BPS
 BPS_DOMAIN_ID = 3215  # sebelumnya 3328 (Kabupaten Tegal)
-BPS_PDRB_WILAYAH_ID = 3215000
 
 # Label wilayah persis seperti yang dikirim Web API BPS pada field `vervar.label`.
 # Dipakai untuk mencocokkan baris wilayah fokus di dalam respons API.

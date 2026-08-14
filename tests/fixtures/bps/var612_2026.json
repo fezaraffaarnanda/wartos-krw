@@ -1,0 +1,147 @@
+{
+    "status": "OK",
+    "data-availability": "available",
+    "last_update": "2026-06-05 08:15:16",
+    "subject": [
+        {
+            "val": 531,
+            "label": "Neraca Ekonomi"
+        }
+    ],
+    "var": [
+        {
+            "val": 612,
+            "label": "Distribusi Produk Domestik Regional Bruto (PDRB) Triwulanan Atas Dasar Harga Berlaku Menurut 17 Kategori Lapangan Usaha  Kabupaten Karawang",
+            "unit": "Persen",
+            "subj": "Produk Domestik Regional Bruto",
+            "def": "* Angka sementara\/Preliminary Figures\n** Angka sangat sementara\/Very Preliminary Figures\n*** Angka sangat sangat sementara\/Very Very Preliminary Figures\n",
+            "decimal": 2,
+            "note": ""
+        }
+    ],
+    "turvar": [
+        {
+            "val": 1040,
+            "label": "Tahun"
+        }
+    ],
+    "labelvervar": "Lapangan usaha 17 Kategori",
+    "vervar": [
+        {
+            "val": 1,
+            "label": "Pertanian, Kehutanan dan Perikanan"
+        },
+        {
+            "val": 2,
+            "label": "Pertambangan dan Penggalian"
+        },
+        {
+            "val": 3,
+            "label": "Industri Pengolahan"
+        },
+        {
+            "val": 4,
+            "label": "Pengadaan Listrik dan Gas"
+        },
+        {
+            "val": 5,
+            "label": "Pengadaan Air, Pengelolaan Sampah, Limbah dan Daur Ulang"
+        },
+        {
+            "val": 6,
+            "label": "Konstruksi"
+        },
+        {
+            "val": 7,
+            "label": "Perdagangan Besar dan Eceran, Reparasi Mobil dan Sepeda Motor"
+        },
+        {
+            "val": 8,
+            "label": "Transportasi dan Pergudangan"
+        },
+        {
+            "val": 9,
+            "label": "Penyediaan Akomodasi dan Makan Minum"
+        },
+        {
+            "val": 10,
+            "label": "Informasi dan Komunikasi"
+        },
+        {
+            "val": 11,
+            "label": "Jasa Keuangan dan Asuransi"
+        },
+        {
+            "val": 12,
+            "label": "Real Estat"
+        },
+        {
+            "val": 13,
+            "label": "Jasa Perusahaan"
+        },
+        {
+            "val": 14,
+            "label": "Administrasi Pemerintahan, Pertahanan dan Jaminan Sosial Wajib"
+        },
+        {
+            "val": 15,
+            "label": "Jasa Pendidikan"
+        },
+        {
+            "val": 16,
+            "label": "Jasa Kesehatan dan Kegiatan Sosial"
+        },
+        {
+            "val": 17,
+            "label": "Jasa Lainnya"
+        }
+    ],
+    "tahun": [
+        {
+            "val": 126,
+            "label": "2026"
+        }
+    ],
+    "turtahun": [
+        {
+            "val": 31,
+            "label": "Triwulan I"
+        },
+        {
+            "val": 32,
+            "label": "Triwulan II"
+        },
+        {
+            "val": 33,
+            "label": "Triwulan III"
+        },
+        {
+            "val": 34,
+            "label": "Triwulan IV"
+        },
+        {
+            "val": 35,
+            "label": "Tahunan"
+        }
+    ],
+    "datacontent": {
+        "10612104012631": 1.12,
+        "11612104012631": 1.29,
+        "12612104012631": 0.34,
+        "13612104012631": 0.06,
+        "14612104012631": 0.81,
+        "15612104012631": 1.43,
+        "1612104012631": 4.13,
+        "16612104012631": 0.37,
+        "17612104012631": 1.22,
+        "2612104012631": 0.61,
+        "3612104012631": 67.78,
+        "4612104012631": 0.66,
+        "5612104012631": 0.1,
+        "6612104012631": 5.45,
+        "7612104012631": 10.11,
+        "8612104012631": 3.02,
+        "9612104012631": 1.5
+    },
+    "related": []
+}

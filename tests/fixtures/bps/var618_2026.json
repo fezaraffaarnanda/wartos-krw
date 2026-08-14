@@ -1,0 +1,97 @@
+{
+    "status": "OK",
+    "data-availability": "available",
+    "last_update": "2026-06-05 08:49:48",
+    "subject": [
+        {
+            "val": 531,
+            "label": "Neraca Ekonomi"
+        }
+    ],
+    "var": [
+        {
+            "val": 618,
+            "label": "Produk Domestik Regional Bruto (PDRB) Triwulanan Menurut 6 Komponen Pengeluaran Atas Dasar Harga Konstan (2010=100) Kabupaten Karawang",
+            "unit": "Milyar Rupiah",
+            "subj": "Produk Domestik Regional Bruto",
+            "def": " * Angka sementara\/Preliminary Figures \n ** Angka sangat sementara\/Very Preliminary Figures \n *** Angka sangat sangat sementara\/Very Very Preliminary Figures \n",
+            "decimal": 2,
+            "note": ""
+        }
+    ],
+    "turvar": [
+        {
+            "val": 1040,
+            "label": "Tahun"
+        }
+    ],
+    "labelvervar": "Komponen 6 pengeluaran ",
+    "vervar": [
+        {
+            "val": 1,
+            "label": "Pengeluaran Konsumsi Rumah Tangga"
+        },
+        {
+            "val": 2,
+            "label": "Pengeluaran Konsumsi LNPRT"
+        },
+        {
+            "val": 3,
+            "label": "Pengeluaran Konsumsi Pemerintah"
+        },
+        {
+            "val": 4,
+            "label": "Pembentukan Modal Tetap Bruto"
+        },
+        {
+            "val": 5,
+            "label": "Perubahan Inventori"
+        },
+        {
+            "val": 6,
+            "label": "Net Ekspor"
+        },
+        {
+            "val": 7,
+            "label": "Produk Domestik Regional Bruto"
+        }
+    ],
+    "tahun": [
+        {
+            "val": 126,
+            "label": "2026"
+        }
+    ],
+    "turtahun": [
+        {
+            "val": 31,
+            "label": "Triwulan I"
+        },
+        {
+            "val": 32,
+            "label": "Triwulan II"
+        },
+        {
+            "val": 33,
+            "label": "Triwulan III"
+        },
+        {
+            "val": 34,
+            "label": "Triwulan IV"
+        },
+        {
+            "val": 35,
+            "label": "Tahunan"
+        }
+    ],
+    "datacontent": {
+        "1618104012631": 17520.16,
+        "2618104012631": 103.99,
+        "3618104012631": 820.86,
+        "4618104012631": 9676.29,
+        "5618104012631": 7.38,
+        "6618104012631": 23634.93,
+        "7618104012631": 51763.61
+    },
+    "related": []
+}
