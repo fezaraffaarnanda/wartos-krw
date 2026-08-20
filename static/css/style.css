@@ -4528,6 +4528,12 @@ body.chat-view-lock {
     grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+/* Empat metrik: dibiarkan membungkus jadi 2x2 di kartu yang sempit daripada
+   dipaksa satu baris sampai angkanya terpotong. */
+.official-stat-metric-row-quad {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+}
+
 .official-stat-metric {
     min-width: 0;
     padding: 14px 15px;
@@ -4605,6 +4611,10 @@ body.chat-view-lock {
 
 .official-stat-chart-card.tone-rose {
     background: linear-gradient(180deg, rgba(255, 241, 242, 0.98), rgba(255, 255, 255, 0.98));
+}
+
+.official-stat-chart-card.tone-amber {
+    background: linear-gradient(180deg, rgba(255, 251, 235, 0.98), rgba(255, 255, 255, 0.98));
 }
 
 .official-stat-chart-head {
@@ -4703,6 +4713,17 @@ body.chat-view-lock {
 
 .official-stat-table tbody tr.is-highlight {
     background: rgba(254, 215, 170, 0.22);
+}
+
+.official-stat-note {
+    margin: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(217, 119, 6, 0.28);
+    background: rgba(254, 243, 199, 0.35);
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.5;
 }
 
 .official-stat-footnote {

@@ -14,6 +14,13 @@ BPS_DOMAIN_ID = 3215  # sebelumnya 3328 (Kabupaten Tegal)
 FOCUS_AREA_LABEL = "Kabupaten Karawang"
 PROVINCE_LABEL = "Jawa Barat"
 
+# ── Sumber non-BPS ──────────────────────────────────────────────────────────
+# Indikator kemiskinan Kabupaten Karawang tidak dirilis lewat Web API BPS untuk
+# domain 3215, jadi serinya dipelihara manual di spreadsheet dan dibaca sebagai
+# CSV. Sheet wajib dibagikan ke "siapa saja yang punya link".
+KEMISKINAN_SHEET_ID = "1GJiZooi3KyTh7ecU5YY0goDATFZZPTy-aaAEOP_NCW8"
+KEMISKINAN_SHEET_NAME = "Kemiskinan"
+
 # Identitas aplikasi
 APP_NAME = "WARTOS"
 APP_LONG_NAME = "Warta Online Statistik"

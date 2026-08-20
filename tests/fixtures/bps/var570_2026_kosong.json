@@ -1,0 +1,49 @@
+{
+    "status": "OK",
+    "data-availability": "available",
+    "last_update": null,
+    "subject": [
+        {
+            "val": 520,
+            "label": "Tenaga Kerja"
+        }
+    ],
+    "var": [
+        {
+            "val": 570,
+            "label": "Tingkat Pengangguran Terbuka Penduduk Kabupaten Karawang 2013-2025",
+            "unit": "Persen",
+            "subj": "Tenaga Kerja",
+            "def": "",
+            "decimal": 2,
+            "note": ""
+        }
+    ],
+    "turvar": [
+        {
+            "val": "0",
+            "label": "Tidak ada"
+        }
+    ],
+    "labelvervar": "Wilayah Kabupaten Sendiri",
+    "vervar": [
+        {
+            "val": 3215,
+            "label": "Karawang"
+        }
+    ],
+    "tahun": [
+        {
+            "val": 126,
+            "label": "2026"
+        }
+    ],
+    "turtahun": [
+        {
+            "val": 0,
+            "label": "Tahun"
+        }
+    ],
+    "datacontent": [],
+    "related": []
+}

@@ -11,7 +11,8 @@ from threading import Lock
 from typing import Any
 
 from clients.bps import BPSWebApiClient
-from config.region import FOCUS_AREA_LABEL, PROVINCE_LABEL
+from clients.google_sheets import GoogleSheetsClient
+from config.region import FOCUS_AREA_LABEL
 from repositories.official_statistics import (
     load_official_statistics_year_snapshots,
     upsert_official_statistics_snapshots,
@@ -65,6 +66,8 @@ class DatasetDefinition:
     # dirakit dari beberapa var BPS sekaligus.
     sources: tuple[tuple[str, str], ...]
     normalizer_method: str
+    # Client sumber data; lihat `OfficialStatisticsService._clients`.
+    client: str = "bps"
     # Hanya untuk dataset PDRB triwulanan: apakah baris diberi kode kategori.
     use_category_codes: bool = False
 
@@ -98,21 +101,54 @@ _DATASET_DEFINITIONS: tuple[DatasetDefinition, ...] = (
     DatasetDefinition(
         key="tpt_tpak",
         title="TPT dan TPAK",
-        subtitle="Perbandingan menurut jenis kelamin",
+        subtitle="Seri tahunan Kabupaten Karawang",
         period_key="annual",
-        sources=(("default", "fetch_tpt_tpak"),),
-        normalizer_method="_normalize_tpt_tpak",
+        sources=(("tpak", "fetch_tpak_series"), ("tpt", "fetch_tpt_series")),
+        normalizer_method="_normalize_ketenagakerjaan",
     ),
     DatasetDefinition(
         key="kemiskinan",
         title="Kemiskinan",
-        subtitle="Perbandingan antarwilayah",
+        subtitle="Seri tahunan Kabupaten Karawang",
         period_key="annual",
-        sources=(("default", "fetch_kemiskinan"),),
-        normalizer_method="_normalize_kemiskinan",
+        sources=(("sheet", "fetch_kemiskinan"),),
+        normalizer_method="_normalize_kemiskinan_series",
+        client="sheets",
     ),
 )
 
+
+# Label indikator ketenagakerjaan ditulis manual: label `var` dari BPS memuat nama
+# wilayah dan rentang tahun ("... Kabupaten Karawang 2013-2025") yang tidak cocok
+# dipakai sebagai judul kolom.
+_LABOR_INDICATOR_LABELS = {
+    "tpak": "TPAK (Tingkat Partisipasi Angkatan Kerja)",
+    "tpt": "TPT (Tingkat Pengangguran Terbuka)",
+}
+
+
+# Metrik kemiskinan seperti tertulis di sheet sumber. `row_label` dicocokkan ke
+# kolom pertama (huruf besar, dibawa turun kalau selnya kosong) dan `row_unit` ke
+# kolom kedua — P0 punya dua baris yang hanya dibedakan satuannya.
+_KEMISKINAN_METRICS: tuple[dict[str, Any], ...] = (
+    {"key": "poverty_rate", "row_label": "P0", "row_unit": "persen", "delta_suffix": " poin",
+     "label": "Persentase Penduduk Miskin (P0)", "unit": "Persen", "format": "decimal"},
+    {"key": "poor_population", "row_label": "P0", "row_unit": "ribuan jiwa", "delta_suffix": " ribu jiwa",
+     "label": "Jumlah Penduduk Miskin", "unit": "Ribu jiwa", "format": "decimal"},
+    {"key": "depth_index", "row_label": "P1", "row_unit": "", "delta_suffix": " poin",
+     "label": "Indeks Kedalaman Kemiskinan (P1)", "unit": "Indeks", "format": "decimal"},
+    {"key": "severity_index", "row_label": "P2", "row_unit": "", "delta_suffix": " poin",
+     "label": "Indeks Keparahan Kemiskinan (P2)", "unit": "Indeks", "format": "decimal"},
+    {"key": "poverty_line", "row_label": "GK", "row_unit": "", "delta_suffix": " rupiah",
+     "label": "Garis Kemiskinan", "unit": "Rp/kapita/bulan", "format": "integer"},
+    {"key": "gini_ratio", "row_label": "GINI RATIO", "row_unit": "", "delta_suffix": " poin",
+     "label": "Gini Ratio", "unit": "Rasio", "format": "decimal3"},
+)
+
+
+# Dinaikkan setiap kali bentuk keluaran normalizer berubah, supaya snapshot
+# lama di DB tidak dipakai ulang oleh frontend yang sudah mengharap bentuk baru.
+_SNAPSHOT_SCHEMA_VERSION = 3
 
 _ACTIVE_DATASET_KEYS = frozenset(definition.key for definition in _DATASET_DEFINITIONS)
 
@@ -120,8 +156,15 @@ _ACTIVE_DATASET_KEYS = frozenset(definition.key for definition in _DATASET_DEFIN
 class OfficialStatisticsService:
     """Orkestrasi fetch, normalisasi, cache, dan persistence statistik resmi BPS."""
 
-    def __init__(self, bps_client: BPSWebApiClient | None = None):
-        self._client = bps_client or BPSWebApiClient()
+    def __init__(
+        self,
+        bps_client: BPSWebApiClient | None = None,
+        sheets_client: GoogleSheetsClient | None = None,
+    ):
+        self._clients = {
+            "bps": bps_client or BPSWebApiClient(),
+            "sheets": sheets_client or GoogleSheetsClient(),
+        }
 
     def get_dashboard_payload(self, year: int | None = None, force_refresh: bool = False) -> dict[str, Any]:
         selected_year = self._normalize_page_year(year)
@@ -240,12 +283,15 @@ class OfficialStatisticsService:
             if cached is not None:
                 return deepcopy(cached)
 
-            # Snapshot dataset yang sudah dipensiunkan bisa tertinggal di DB;
-            # bundle hanya boleh berisi dataset yang masih terdaftar.
+            # Snapshot dataset yang sudah dipensiunkan bisa tertinggal di DB, dan
+            # snapshot lama bisa memakai bentuk normalisasi yang sudah berubah.
+            # Bundle hanya boleh berisi dataset yang masih terdaftar dan sebentuk
+            # dengan normalizer saat ini; sisanya diambil ulang dari Web API.
             persisted = {
                 key: dataset
                 for key, dataset in load_official_statistics_year_snapshots(normalized_year).items()
                 if key in _ACTIVE_DATASET_KEYS
+                and dataset.get("schema_version") == _SNAPSHOT_SCHEMA_VERSION
             }
             if self._is_complete_bundle(persisted):
                 self._write_cache(normalized_year, persisted)
@@ -285,7 +331,7 @@ class OfficialStatisticsService:
 
         for source_name, fetch_method in definition.sources:
             try:
-                fetcher = getattr(self._client, fetch_method)
+                fetcher = getattr(self._clients[definition.client], fetch_method)
                 payloads[source_name] = fetcher(year)
             except Exception as exc:
                 print(f"[BPS] Gagal fetch {definition.key}/{source_name} tahun {year}: {exc}")
@@ -321,7 +367,10 @@ class OfficialStatisticsService:
             "source": normalized_dataset.get("source"),
             "updated_at_source_text": normalized_dataset.get("updated_at"),
             "raw_payload": raw_payloads,
-            "normalized_payload": normalized_dataset,
+            "normalized_payload": {
+                **normalized_dataset,
+                "schema_version": _SNAPSHOT_SCHEMA_VERSION,
+            },
             "fetched_at": self._now_iso(),
         }
 
@@ -347,10 +396,6 @@ class OfficialStatisticsService:
         dataset_key = str(current_dataset.get("key") or "")
         if dataset_key.startswith("pdrb_"):
             return self._build_pdrb_triwulanan_comparison(current_dataset, previous_dataset)
-        if dataset_key == "tpt_tpak":
-            return self._build_tpt_tpak_comparison(current_dataset, previous_dataset)
-        if dataset_key == "kemiskinan":
-            return self._build_kemiskinan_comparison(current_dataset, previous_dataset)
         return {}
 
     def _build_pdrb_triwulanan_comparison(
@@ -396,54 +441,6 @@ class OfficialStatisticsService:
             "previous_year": previous_dataset.get("year"),
             "year_over_year": year_over_year,
             "quarter_over_quarter": quarter_over_quarter,
-        }
-
-    def _build_tpt_tpak_comparison(
-        self,
-        current_dataset: dict[str, Any],
-        previous_dataset: dict[str, Any],
-    ) -> dict[str, Any]:
-        indicators: dict[str, Any] = {}
-        for key in ("tpak", "tpt"):
-            current_indicator = (current_dataset.get("indicators") or {}).get(key, {})
-            previous_indicator = (previous_dataset.get("indicators") or {}).get(key, {})
-            indicators[key] = self._build_value_comparison(
-                current_indicator.get("total"),
-                previous_indicator.get("total"),
-                unit_suffix=" poin",
-            )
-            indicators[key]["previous_total_display"] = previous_indicator.get("total_display", "—")
-
-        return {
-            "previous_year": previous_dataset.get("year"),
-            "indicators": indicators,
-        }
-
-    def _build_kemiskinan_comparison(
-        self,
-        current_dataset: dict[str, Any],
-        previous_dataset: dict[str, Any],
-    ) -> dict[str, Any]:
-        current_metrics = current_dataset.get("focus_area_metrics") or {}
-        previous_metrics = previous_dataset.get("focus_area_metrics") or {}
-
-        return {
-            "previous_year": previous_dataset.get("year"),
-            "poverty_rate": self._build_value_comparison(
-                current_metrics.get("poverty_rate"),
-                previous_metrics.get("poverty_rate"),
-                unit_suffix=" poin",
-            ),
-            "poor_population": self._build_value_comparison(
-                current_metrics.get("poor_population"),
-                previous_metrics.get("poor_population"),
-                unit_suffix=" ribu jiwa",
-            ),
-            "poverty_line": self._build_value_comparison(
-                current_metrics.get("poverty_line"),
-                previous_metrics.get("poverty_line"),
-                unit_suffix=" rupiah",
-            ),
         }
 
     def _build_ai_topic_blocks(
@@ -565,213 +562,503 @@ class OfficialStatisticsService:
         if not dataset.get("available"):
             return ""
 
-        tpak = dataset.get("indicators") or {}
-        tpak_value = tpak.get("tpak", {})
-        tpt_value = tpak.get("tpt", {})
-        comparison = dataset.get("comparison") or {}
-        tpak_comparison = (comparison.get("indicators") or {}).get("tpak", {})
-        tpt_comparison = (comparison.get("indicators") or {}).get("tpt", {})
+        indicators = dataset.get("indicators") or {}
+        latest_year = dataset.get("latest_year")
+        lines = [
+            f"Statistik resmi BPS untuk ketenagakerjaan {FOCUS_AREA_LABEL}, "
+            f"data terakhir tahun {latest_year}:"
+        ]
 
-        lines = [f"Statistik resmi BPS tahun {year} untuk ketenagakerjaan {FOCUS_AREA_LABEL}:"]
-        lines.append(
-            f"- TPAK total {tpak_value.get('total_display', '—')} persen; laki-laki {tpak_value.get('male_display', '—')} persen; perempuan {tpak_value.get('female_display', '—')} persen."
-        )
-        if tpak_comparison.get("delta_display") and comparison.get("previous_year"):
+        for indicator_key in ("tpak", "tpt"):
+            indicator = indicators.get(indicator_key) or {}
+            if indicator.get("total") is None:
+                continue
+            line = f"- {indicator.get('label')} {latest_year}: {indicator.get('total_display')} persen."
+            change = indicator.get("change") or {}
+            if change.get("delta_display"):
+                line += (
+                    f" Dibanding {change.get('previous_year')} ({change.get('previous_total_display')} persen), "
+                    f"berubah {change.get('delta_display')} ({change.get('delta_percentage_display', '—')})."
+                )
+            lines.append(line)
+            lowest = indicator.get("lowest") or {}
+            highest = indicator.get("highest") or {}
+            if lowest.get("year") and highest.get("year"):
+                lines.append(
+                    f"  Rentang seri: terendah {lowest.get('value_display')} persen ({lowest.get('year')}), "
+                    f"tertinggi {highest.get('value_display')} persen ({highest.get('year')})."
+                )
+
+        series_text = self._build_labor_series_text(dataset.get("series") or [])
+        if series_text:
+            lines.append(f"- Seri tahunan (tahun: TPAK / TPT): {series_text}.")
+
+        if dataset.get("is_latest_fallback"):
             lines.append(
-                f"- Dibanding {comparison.get('previous_year')}, TPAK berubah {tpak_comparison.get('delta_display')} ({tpak_comparison.get('delta_percentage_display', '—')})."
+                f"- Catatan cakupan: BPS belum merilis angka {year}; angka terbaru yang resmi "
+                f"adalah tahun {latest_year}. Jangan menyebut angka TPT atau TPAK {year}."
             )
-        lines.append(
-            f"- TPT total {tpt_value.get('total_display', '—')} persen; laki-laki {tpt_value.get('male_display', '—')} persen; perempuan {tpt_value.get('female_display', '—')} persen."
-        )
-        if tpt_comparison.get("delta_display") and comparison.get("previous_year"):
-            lines.append(
-                f"- Dibanding {comparison.get('previous_year')}, TPT berubah {tpt_comparison.get('delta_display')} ({tpt_comparison.get('delta_percentage_display', '—')})."
-            )
+
         lines.append(
             "Gunakan angka resmi ini sebagai baseline. Saat menjelaskan penyebab perubahan, kaitkan dengan berita tentang rekrutmen, PHK, pelatihan kerja, atau pergeseran sektor kerja."
         )
         return "\n".join(lines)
+
+    @staticmethod
+    def _build_labor_series_text(series: list[dict[str, Any]]) -> str:
+        parts = [
+            f"{point.get('year')}: {point.get('tpak_display', '—')} / {point.get('tpt_display', '—')}"
+            for point in series
+            if point.get("tpak") is not None or point.get("tpt") is not None
+        ]
+        return "; ".join(parts)
 
     def _build_kemiskinan_ai_block(self, datasets: dict[str, Any], year: int) -> str:
         dataset = datasets.get("kemiskinan") or {}
         if not dataset.get("available"):
             return ""
 
-        focus_area_metrics = dataset.get("focus_area_metrics") or {}
-        comparison = dataset.get("comparison") or {}
-        poverty_rate_comparison = comparison.get("poverty_rate") or {}
-        poor_population_comparison = comparison.get("poor_population") or {}
+        metrics = dataset.get("metrics") or {}
+        latest_year = dataset.get("latest_year")
+        lines = [
+            f"Statistik kemiskinan {FOCUS_AREA_LABEL}, data terakhir tahun {latest_year}:"
+        ]
 
-        lines = [f"Statistik resmi BPS tahun {year} untuk kemiskinan {FOCUS_AREA_LABEL}:"]
-        lines.append(
-            (
-                f"- {FOCUS_AREA_LABEL}: garis kemiskinan {focus_area_metrics.get('poverty_line_display', '—')} rupiah/kapita/bulan, "
-                f"jumlah penduduk miskin {focus_area_metrics.get('poor_population_display', '—')} ribu jiwa, "
-                f"persentase penduduk miskin {focus_area_metrics.get('poverty_rate_display', '—')} persen."
+        for metric_key in (
+            "poverty_rate",
+            "poor_population",
+            "poverty_line",
+            "depth_index",
+            "severity_index",
+            "gini_ratio",
+        ):
+            metric = metrics.get(metric_key) or {}
+            if metric.get("value") is None:
+                continue
+            line = (
+                f"- {metric.get('label')} {metric.get('latest_year')}: "
+                f"{metric.get('value_display')} {metric.get('unit')}."
             )
-        )
-        if poverty_rate_comparison.get("delta_display") and comparison.get("previous_year"):
+            change = metric.get("change") or {}
+            if change.get("delta_display"):
+                line += (
+                    f" Dibanding {change.get('previous_year')} "
+                    f"({change.get('previous_value_display')}), berubah "
+                    f"{change.get('delta_display')} ({change.get('delta_percentage_display', '\u2014')})."
+                )
+            lines.append(line)
+
+        poverty_rate = metrics.get("poverty_rate") or {}
+        lowest = poverty_rate.get("lowest") or {}
+        highest = poverty_rate.get("highest") or {}
+        if lowest.get("year") and highest.get("year"):
             lines.append(
-                f"- Dibanding {comparison.get('previous_year')}, persentase penduduk miskin berubah {poverty_rate_comparison.get('delta_display')} ({poverty_rate_comparison.get('delta_percentage_display', '—')})."
+                f"- Rentang seri persentase penduduk miskin: terendah {lowest.get('value_display')} persen "
+                f"({lowest.get('year')}), tertinggi {highest.get('value_display')} persen ({highest.get('year')})."
             )
-        if poor_population_comparison.get("delta_display") and comparison.get("previous_year"):
+
+        series_text = self._build_kemiskinan_series_text(dataset.get("series") or [])
+        if series_text:
             lines.append(
-                f"- Jumlah penduduk miskin berubah {poor_population_comparison.get('delta_display')} ({poor_population_comparison.get('delta_percentage_display', '—')}) dibanding {comparison.get('previous_year')}."
+                f"- Seri tahunan (tahun: P0 persen / jumlah ribu jiwa): {series_text}."
             )
+
+        if dataset.get("is_latest_fallback"):
+            lines.append(
+                f"- Catatan cakupan: angka {year} belum tersedia; rilis terakhir adalah tahun "
+                f"{latest_year}. Jangan menyebut angka kemiskinan {year}."
+            )
+
         lines.append(
             "Gunakan angka resmi ini sebagai acuan utama. Jika menjelaskan penyebab, kaitkan dengan berita tentang daya beli, pangan, bansos, pekerjaan, atau tekanan biaya hidup."
         )
         return "\n".join(lines)
 
-    def _normalize_tpt_tpak(
+    @staticmethod
+    def _build_kemiskinan_series_text(series: list[dict[str, Any]]) -> str:
+        parts = [
+            f"{point.get('year')}: {point.get('poverty_rate_display', '\u2014')} / "
+            f"{point.get('poor_population_display', '\u2014')}"
+            for point in series
+            if point.get("poverty_rate") is not None or point.get("poor_population") is not None
+        ]
+        return "; ".join(parts)
+
+    def _normalize_ketenagakerjaan(
         self,
         definition: DatasetDefinition,
         payloads: dict[str, dict[str, Any]],
         year: int,
     ) -> dict[str, Any]:
-        payload = payloads.get("default") or {}
-        if payload.get("status") != "OK":
-            return self._build_unavailable_dataset(definition, year, payload.get("message", "Data tidak tersedia."))
+        """Rakit seri tahunan TPAK (var 571) dan TPT (var 570) jadi satu dataset.
 
-        var_items = payload.get("var") or []
-        turvar_items = payload.get("turvar") or []
-        vervar_items = payload.get("vervar") or []
-        tahun_items = payload.get("tahun") or []
-        turtahun_items = payload.get("turtahun") or []
-        datacontent = payload.get("datacontent") or {}
+        Kedua var hanya punya satu nilai per tahun untuk Kabupaten Karawang, jadi
+        nilai tunggal tahun terpilih terlalu miskin untuk dijadikan kartu. Yang
+        dipakai adalah serinya, dipotong sampai tahun terpilih supaya selektor
+        tahun tetap berarti.
+        """
+        series_by_indicator: dict[str, dict[int, float]] = {}
+        sources: list[str] = []
+        updates: list[str] = []
 
-        if not var_items or not turvar_items or not vervar_items or not tahun_items or not datacontent:
-            return self._build_unavailable_dataset(definition, year, "Tidak ada data TPT/TPAK untuk tahun ini.")
+        for indicator_key in _LABOR_INDICATOR_LABELS:
+            payload = payloads.get(indicator_key) or {}
+            values, source_note, last_update = self._parse_annual_series(payload, year)
+            series_by_indicator[indicator_key] = values
+            if source_note:
+                sources.append(source_note)
+            if last_update:
+                updates.append(last_update)
 
-        var_id = str(var_items[0].get("val"))
-        year_id = str(tahun_items[0].get("val"))
-        period_id = str((turtahun_items[0] if turtahun_items else {}).get("val", 0))
+        covered_years = sorted(
+            {point_year for values in series_by_indicator.values() for point_year in values}
+        )
+        if not covered_years:
+            return self._build_unavailable_dataset(
+                definition, year, "Tidak ada data TPT/TPAK untuk tahun ini."
+            )
 
-        gender_map = {str(item.get("val")): str(item.get("label") or "") for item in turvar_items}
-        indicator_map = {str(item.get("val")): str(item.get("label") or "") for item in vervar_items}
-
-        indicators: dict[str, Any] = {}
-        chart_groups: list[dict[str, Any]] = []
-
-        for indicator_id, indicator_label in indicator_map.items():
-            indicator_key = "tpak" if "TPAK" in indicator_label else "tpt"
-            values_by_gender: dict[str, float | None] = {}
-
-            for gender_id, gender_label in gender_map.items():
-                composite_key = f"{indicator_id}{var_id}{gender_id}{year_id}{period_id}"
-                numeric_value = self._to_float(datacontent.get(composite_key))
-                values_by_gender[gender_label] = numeric_value
-                chart_groups.append(
-                    {
-                        "indicator": indicator_label,
-                        "indicator_key": indicator_key,
-                        "gender": gender_label,
-                        "value": numeric_value,
-                    }
-                )
-
-            indicators[indicator_key] = {
-                "label": indicator_label,
-                "male": values_by_gender.get("Laki-laki"),
-                "female": values_by_gender.get("Perempuan"),
-                "total": values_by_gender.get("Jumlah"),
-                "male_display": self._format_decimal(values_by_gender.get("Laki-laki")),
-                "female_display": self._format_decimal(values_by_gender.get("Perempuan")),
-                "total_display": self._format_decimal(values_by_gender.get("Jumlah")),
+        series = [
+            {
+                "year": point_year,
+                "year_label": str(point_year),
+                **{
+                    field: value
+                    for indicator_key, values in series_by_indicator.items()
+                    for field, value in (
+                        (indicator_key, values.get(point_year)),
+                        (
+                            f"{indicator_key}_display",
+                            self._format_decimal(values.get(point_year)),
+                        ),
+                    )
+                },
             }
+            for point_year in covered_years
+        ]
+
+        latest_year = covered_years[-1]
+        indicators = {
+            indicator_key: self._build_labor_indicator(indicator_key, values, covered_years)
+            for indicator_key, values in series_by_indicator.items()
+        }
 
         return {
             "key": definition.key,
             "title": definition.title,
             "subtitle": definition.subtitle,
-            "available": bool(indicators),
+            "available": True,
             "year": year,
             "unit": "Persen",
-            "updated_at": str(payload.get("last_update") or "").strip(),
-            "source": self._strip_html(var_items[0].get("note")) or "Web API BPS",
+            "updated_at": max(updates) if updates else "",
+            "source": sources[0] if sources else "Web API BPS",
+            "series": series,
             "indicators": indicators,
-            "chart_groups": chart_groups,
+            "latest_year": latest_year,
+            # BPS merilis data tahunan ini terlambat, jadi tahun terpilih sering
+            # belum terisi. Kartu tetap menampilkan tahun terakhir yang ada, tapi
+            # menandainya supaya tidak terbaca sebagai angka tahun berjalan.
+            "is_latest_fallback": latest_year != int(year),
         }
 
-    def _normalize_kemiskinan(
+    def _build_labor_indicator(
+        self,
+        indicator_key: str,
+        values: dict[int, float],
+        covered_years: list[int],
+    ) -> dict[str, Any]:
+        filled_years = [point_year for point_year in covered_years if values.get(point_year) is not None]
+        if not filled_years:
+            return {
+                "key": indicator_key,
+                "label": _LABOR_INDICATOR_LABELS[indicator_key],
+                "latest_year": None,
+                "total": None,
+                "total_display": "—",
+                "change": {},
+                "lowest": {},
+                "highest": {},
+            }
+
+        latest_year = filled_years[-1]
+        latest_value = values[latest_year]
+        change = (
+            self._build_value_comparison(
+                latest_value, values[filled_years[-2]], unit_suffix=" poin"
+            )
+            if len(filled_years) > 1
+            else {}
+        )
+        if change:
+            change["previous_year"] = filled_years[-2]
+            change["previous_total_display"] = self._format_decimal(values[filled_years[-2]])
+
+        lowest_year = min(filled_years, key=lambda point_year: values[point_year])
+        highest_year = max(filled_years, key=lambda point_year: values[point_year])
+
+        return {
+            "key": indicator_key,
+            "label": _LABOR_INDICATOR_LABELS[indicator_key],
+            "latest_year": latest_year,
+            "total": latest_value,
+            "total_display": self._format_decimal(latest_value),
+            "change": change,
+            "lowest": {
+                "year": lowest_year,
+                "value": values[lowest_year],
+                "value_display": self._format_decimal(values[lowest_year]),
+            },
+            "highest": {
+                "year": highest_year,
+                "value": values[highest_year],
+                "value_display": self._format_decimal(values[highest_year]),
+            },
+        }
+
+    def _parse_annual_series(
+        self,
+        payload: dict[str, Any],
+        max_year: int,
+    ) -> tuple[dict[int, float], str, str]:
+        """Baca payload `list/model/data` satu var tanpa rincian, jadi peta tahun → nilai."""
+        if payload.get("status") != "OK":
+            return {}, "", ""
+
+        var_items = payload.get("var") or []
+        vervar_items = payload.get("vervar") or []
+        tahun_items = payload.get("tahun") or []
+        datacontent = payload.get("datacontent") or {}
+        if not var_items or not vervar_items or not tahun_items or not datacontent:
+            return {}, "", ""
+
+        var_id = str(var_items[0].get("val"))
+        region_id = str(vervar_items[0].get("val"))
+        turvar_ids = [str(item.get("val")) for item in (payload.get("turvar") or [])] or ["0"]
+        period_ids = [str(item.get("val")) for item in (payload.get("turtahun") or [])] or ["0"]
+
+        values: dict[int, float] = {}
+        for item in tahun_items:
+            point_year = self._to_int(item.get("label"))
+            year_id = str(item.get("val"))
+            if point_year is None or point_year > int(max_year):
+                continue
+            for turvar_id in turvar_ids:
+                for period_id in period_ids:
+                    # Key komposit dirakit, bukan di-parse: gabungan digit tanpa
+                    # pemisah tidak bisa dipecah balik secara aman.
+                    numeric = self._to_float(
+                        datacontent.get(f"{region_id}{var_id}{turvar_id}{year_id}{period_id}")
+                    )
+                    if numeric is not None:
+                        values[point_year] = numeric
+                        break
+                if point_year in values:
+                    break
+
+        return values, self._strip_html(var_items[0].get("note")), str(payload.get("last_update") or "").strip()
+
+    def _normalize_kemiskinan_series(
         self,
         definition: DatasetDefinition,
         payloads: dict[str, dict[str, Any]],
         year: int,
     ) -> dict[str, Any]:
-        payload = payloads.get("default") or {}
+        """Rakit seri kemiskinan dari sheet manual jadi dataset per tahun.
+
+        Sumbernya matriks lebar: kolom = tahun (menurun dari terbaru), baris =
+        metrik. Dibalik jadi seri menaik supaya sebentuk dengan dataset lain,
+        lalu dipotong sampai tahun terpilih agar selektor tahun tetap berarti.
+        """
+        payload = payloads.get("sheet") or {}
         if payload.get("status") != "OK":
-            return self._build_unavailable_dataset(definition, year, payload.get("message", "Data tidak tersedia."))
+            return self._build_unavailable_dataset(
+                definition, year, payload.get("message", "Data kemiskinan tidak tersedia.")
+            )
 
-        var_items = payload.get("var") or []
-        turvar_items = payload.get("turvar") or []
-        vervar_items = payload.get("vervar") or []
-        tahun_items = payload.get("tahun") or []
-        turtahun_items = payload.get("turtahun") or []
-        datacontent = payload.get("datacontent") or {}
+        rows = payload.get("rows") or []
+        year_columns = self._parse_sheet_year_columns(rows, year)
+        values_by_metric = self._parse_kemiskinan_rows(rows, year_columns)
 
-        if not var_items or not turvar_items or not vervar_items or not tahun_items or not datacontent:
-            return self._build_unavailable_dataset(definition, year, "Tidak ada data kemiskinan untuk tahun ini.")
-
-        var_id = str(var_items[0].get("val"))
-        year_id = str(tahun_items[0].get("val"))
-        period_id = str((turtahun_items[0] if turtahun_items else {}).get("val", 0))
-        metric_map = {str(item.get("val")): str(item.get("label") or "") for item in turvar_items}
-
-        rows: list[dict[str, Any]] = []
-        focus_area_metrics: dict[str, Any] = {}
-
-        for area in vervar_items:
-            area_id = str(area.get("val"))
-            label = str(area.get("label") or "").strip()
-            row: dict[str, Any] = {"label": label, "is_focus_area": label == FOCUS_AREA_LABEL}
-
-            for metric_id, metric_label in metric_map.items():
-                composite_key = f"{area_id}{var_id}{metric_id}{year_id}{period_id}"
-                numeric_value = self._to_float(datacontent.get(composite_key))
-                if "Garis Kemiskinan" in metric_label:
-                    row["poverty_line"] = numeric_value
-                elif "Jumlah Penduduk Miskin" in metric_label:
-                    row["poor_population"] = numeric_value
-                elif "Persentase Penduduk Miskin" in metric_label:
-                    row["poverty_rate"] = numeric_value
-
-            if any(row.get(name) is not None for name in ("poverty_line", "poor_population", "poverty_rate")):
-                row["poverty_line_display"] = self._format_integer(row.get("poverty_line"))
-                row["poor_population_display"] = self._format_decimal(row.get("poor_population"))
-                row["poverty_rate_display"] = self._format_decimal(row.get("poverty_rate"))
-                rows.append(row)
-
-            if row["is_focus_area"]:
-                focus_area_metrics = row
-
-        comparison_rows = sorted(
-            [row for row in rows if row.get("label") != PROVINCE_LABEL],
-            key=lambda item: item.get("poverty_rate") or -1,
-            reverse=True,
+        covered_years = sorted(
+            {point_year for values in values_by_metric.values() for point_year in values}
         )
+        if not covered_years:
+            return self._build_unavailable_dataset(
+                definition, year, "Tidak ada data kemiskinan sampai tahun ini."
+            )
 
-        highest_area = comparison_rows[0] if comparison_rows else {}
+        series = [
+            {
+                "year": point_year,
+                "year_label": str(point_year),
+                **{
+                    field: value
+                    for metric in _KEMISKINAN_METRICS
+                    for field, value in (
+                        (metric["key"], values_by_metric[metric["key"]].get(point_year)),
+                        (
+                            f"{metric['key']}_display",
+                            self._format_kemiskinan_value(
+                                values_by_metric[metric["key"]].get(point_year), metric["format"]
+                            ),
+                        ),
+                    )
+                },
+            }
+            for point_year in covered_years
+        ]
+
+        latest_year = covered_years[-1]
+        metrics = {
+            metric["key"]: self._build_kemiskinan_metric(
+                metric, values_by_metric[metric["key"]], covered_years
+            )
+            for metric in _KEMISKINAN_METRICS
+        }
 
         return {
             "key": definition.key,
             "title": definition.title,
             "subtitle": definition.subtitle,
-            "available": bool(rows),
+            "available": True,
             "year": year,
             "unit": "Persen / ribu jiwa / rupiah",
-            "updated_at": str(payload.get("last_update") or "").strip(),
-            "source": self._strip_html(var_items[0].get("note")) or "Web API BPS",
-            "focus_area_metrics": focus_area_metrics,
-            "comparison_rows": comparison_rows,
-            "highest_poverty_area": {
-                "label": highest_area.get("label"),
-                "value": highest_area.get("poverty_rate"),
-                "display_value": highest_area.get("poverty_rate_display"),
-            }
-            if highest_area
-            else {},
+            "updated_at": "",
+            "source": f"Sheet {payload.get('sheet_name') or 'Kemiskinan'}, olahan BPS Kabupaten Karawang",
+            "series": series,
+            "metrics": metrics,
+            "latest_year": latest_year,
+            "is_latest_fallback": latest_year != int(year),
         }
+
+    def _parse_sheet_year_columns(self, rows: list[list[str]], max_year: int) -> dict[int, int]:
+        """Peta tahun ke indeks kolom dari baris header, dibatasi sampai `max_year`."""
+        header = rows[0] if rows else []
+        columns: dict[int, int] = {}
+        for index, cell in enumerate(header):
+            point_year = self._to_int(cell)
+            if point_year is None or not 1900 < point_year <= int(max_year):
+                continue
+            columns[point_year] = index
+        return columns
+
+    def _parse_kemiskinan_rows(
+        self,
+        rows: list[list[str]],
+        year_columns: dict[int, int],
+    ) -> dict[str, dict[int, float]]:
+        values_by_metric: dict[str, dict[int, float]] = {
+            metric["key"]: {} for metric in _KEMISKINAN_METRICS
+        }
+
+        current_label = ""
+        for row in rows[1:]:
+            if not row:
+                continue
+            # Sel label kosong berarti baris lanjutan dari metrik di atasnya
+            # (P0 punya baris "Persen" dan "Ribuan Jiwa" di bawah satu label).
+            current_label = self._clean_label(row[0]).upper() or current_label
+            row_unit = self._clean_label(row[1] if len(row) > 1 else "").lower()
+
+            metric = self._match_kemiskinan_metric(current_label, row_unit)
+            if metric is None:
+                continue
+
+            for point_year, column_index in year_columns.items():
+                if column_index >= len(row):
+                    continue
+                numeric = self._to_float_sheet(row[column_index])
+                if numeric is not None:
+                    values_by_metric[metric["key"]][point_year] = numeric
+
+        return values_by_metric
+
+    @staticmethod
+    def _match_kemiskinan_metric(row_label: str, row_unit: str) -> dict[str, Any] | None:
+        """Cocokkan satu baris sheet ke metrik, pakai satuan sebagai pembeda."""
+        candidates = [
+            metric for metric in _KEMISKINAN_METRICS if row_label.startswith(metric["row_label"])
+        ]
+        if not candidates:
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        # Label yang dipakai beberapa baris (P0) hanya bisa dipilah lewat satuan;
+        # baris dengan satuan tak dikenal sengaja dibuang daripada salah masuk.
+        return next((metric for metric in candidates if metric["row_unit"] == row_unit), None)
+
+    def _build_kemiskinan_metric(
+        self,
+        metric: dict[str, Any],
+        values: dict[int, float],
+        covered_years: list[int],
+    ) -> dict[str, Any]:
+        filled_years = [
+            point_year for point_year in covered_years if values.get(point_year) is not None
+        ]
+        base = {"key": metric["key"], "label": metric["label"], "unit": metric["unit"]}
+        if not filled_years:
+            return {**base, "latest_year": None, "value": None, "value_display": "\u2014", "change": {}}
+
+        latest_year = filled_years[-1]
+        latest_value = values[latest_year]
+        change = (
+            self._build_value_comparison(latest_value, values[filled_years[-2]])
+            if len(filled_years) > 1
+            else {}
+        )
+        if change:
+            change["previous_year"] = filled_years[-2]
+            change["previous_value_display"] = self._format_kemiskinan_value(
+                values[filled_years[-2]], metric["format"]
+            )
+            # Delta ikut format dan satuan metriknya: selisih garis kemiskinan
+            # adalah rupiah utuh, bukan "poin" dua desimal.
+            change["delta_display"] = (
+                f"{'+' if change['delta_value'] > 0 else ''}"
+                f"{self._format_kemiskinan_value(change['delta_value'], metric['format'])}"
+                f"{metric['delta_suffix']}"
+            )
+
+        lowest_year = min(filled_years, key=lambda point_year: values[point_year])
+        highest_year = max(filled_years, key=lambda point_year: values[point_year])
+
+        return {
+            **base,
+            "latest_year": latest_year,
+            "value": latest_value,
+            "value_display": self._format_kemiskinan_value(latest_value, metric["format"]),
+            "change": change,
+            "lowest": {
+                "year": lowest_year,
+                "value": values[lowest_year],
+                "value_display": self._format_kemiskinan_value(values[lowest_year], metric["format"]),
+            },
+            "highest": {
+                "year": highest_year,
+                "value": values[highest_year],
+                "value_display": self._format_kemiskinan_value(values[highest_year], metric["format"]),
+            },
+        }
+
+    @classmethod
+    def _format_kemiskinan_value(cls, value: float | None, fmt: str) -> str:
+        if fmt == "integer":
+            return cls._format_integer(value)
+        if fmt == "decimal3":
+            return cls._format_decimal(value, 3)
+        return cls._format_decimal(value)
+
+    @staticmethod
+    def _to_float_sheet(value: Any) -> float | None:
+        """Baca sel sheet: koma di sana pemisah ribuan ("617,901"), bukan desimal."""
+        text = str(value or "").strip().replace(",", "")
+        if not text:
+            return None
+        try:
+            return float(text)
+        except ValueError:
+            return None
 
     def _normalize_pdrb_triwulanan(
         self,
@@ -1104,6 +1391,13 @@ class OfficialStatisticsService:
         raw = html.unescape(str(value or "")).replace("<br>", " ").replace("<br/>", " ")
         clean = re.sub(r"<[^>]+>", " ", raw)
         return re.sub(r"\s+", " ", clean).strip(" -\n\t")
+
+    @staticmethod
+    def _to_int(value: Any) -> int | None:
+        try:
+            return int(str(value).strip())
+        except (TypeError, ValueError):
+            return None
 
     @staticmethod
     def _to_float(value: Any) -> float | None:

@@ -13,8 +13,13 @@ from config.settings import get_settings
 
 _BPS_BASE_URL = "https://webapi.bps.go.id/v1/api"
 _USER_AGENT = f"Mozilla/5.0 (compatible; {APP_NAME}-BPS/1.0)"
-_TPT_TPAK_VAR_ID = 420
-_KEMISKINAN_VAR_ID = 944
+
+# Ketenagakerjaan Kabupaten Karawang. Kedua var hanya punya satu nilai per tahun
+# (tanpa rincian gender), jadi yang dipakai adalah serinya, bukan satu titik.
+_TPAK_VAR_ID = 571
+_TPT_VAR_ID = 570
+# Panjang jendela seri yang diminta ke Web API, dihitung mundur dari tahun terpilih.
+_LABOR_SERIES_YEARS_BACK = 12
 
 # PDRB triwulanan Kabupaten Karawang. Semua var di bawah memakai endpoint
 # dinamis `list/model/data` pada domain yang sama, jadi cukup `_build_dynamic_url`.
@@ -36,11 +41,11 @@ class BPSWebApiClient:
         self._api_key = str(api_key or settings.BPS_API_KEY or "").strip()
         self._ssl_fallback_logged = False
 
-    def fetch_tpt_tpak(self, year: int) -> dict[str, Any]:
-        return self._request_json(self._build_dynamic_url(_TPT_TPAK_VAR_ID, year))
+    def fetch_tpak_series(self, year: int) -> dict[str, Any]:
+        return self._request_json(self._build_series_url(_TPAK_VAR_ID, year))
 
-    def fetch_kemiskinan(self, year: int) -> dict[str, Any]:
-        return self._request_json(self._build_dynamic_url(_KEMISKINAN_VAR_ID, year))
+    def fetch_tpt_series(self, year: int) -> dict[str, Any]:
+        return self._request_json(self._build_series_url(_TPT_VAR_ID, year))
 
     def fetch_pdrb_lu_adhb(self, year: int) -> dict[str, Any]:
         return self._request_json(self._build_dynamic_url(_PDRB_LU_ADHB_VAR_ID, year))
@@ -59,6 +64,16 @@ class BPSWebApiClient:
 
     def fetch_pdrb_pengeluaran_distribusi(self, year: int) -> dict[str, Any]:
         return self._request_json(self._build_dynamic_url(_PDRB_PENGELUARAN_DISTRIBUSI_VAR_ID, year))
+
+    def _build_series_url(self, var_id: int, year: int) -> str:
+        """URL untuk deret tahunan: Web API menerima daftar `th` yang dipisah koma."""
+        end_id = self._to_bps_year_id(year)
+        start_id = end_id - _LABOR_SERIES_YEARS_BACK
+        year_ids = ",".join(str(year_id) for year_id in range(start_id, end_id + 1))
+        return (
+            f"{_BPS_BASE_URL}/list/model/data/lang/ind/domain/{_DOMAIN_ID}/"
+            f"var/{var_id}/th/{year_ids}/key/{self._api_key}"
+        )
 
     def _build_dynamic_url(self, var_id: int, year: int) -> str:
         year_id = self._to_bps_year_id(year)
