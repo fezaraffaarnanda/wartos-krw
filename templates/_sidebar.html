@@ -1,0 +1,74 @@
+{# Sidebar tunggal untuk seluruh halaman.
+
+   Sebelumnya markup ini disalin di lima template dan pelan-pelan menyimpang:
+   halaman Pengaturan LLM kehilangan "Kirim Masukan", halaman detail berita
+   kehilangan seluruh menu admin. Satu partial = menu yang sama di mana pun.
+
+   Variabel:
+     is_admin      -- role pengguna dari server, bukan ditebak di klien
+     active        -- kunci menu yang sedang dibuka (lihat data-view/href)
+     is_dashboard  -- True hanya di /dashboard, tempat menu utama berupa
+                      tombol view SPA; di halaman lain menu yang sama jadi
+                      tautan ke anchor dashboard.
+#}
+{% macro nav_item(key, label, view, href, icon) %}
+  {%- set is_active = (active == key) -%}
+  {%- if is_dashboard and view -%}
+    <button class="sidebar-link{{ ' active' if is_active else '' }}" data-view="{{ view }}" type="button">
+      {{ icon }}
+      <span class="sidebar-link-label">{{ label }}</span>
+    </button>
+  {%- else -%}
+    <a class="sidebar-link sidebar-link-anchor{{ ' active' if is_active else '' }}" href="{{ href }}"{% if is_active %} aria-current="page"{% endif %}>
+      {{ icon }}
+      <span class="sidebar-link-label">{{ label }}</span>
+    </a>
+  {%- endif -%}
+{% endmacro %}
+
+{% set icon_overview %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12l9-9 9 9" /><path d="M9 21V9h6v12" /></svg>{% endset %}
+{% set icon_data %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5h18" /><path d="M3 12h18" /><path d="M3 19h18" /></svg>{% endset %}
+{% set icon_stats %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19h16" /><path d="M7 15V9" /><path d="M12 15V5" /><path d="M17 15v-3" /></svg>{% endset %}
+{% set icon_insight %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V10" /><path d="M18 20V4" /><path d="M6 20v-6" /></svg>{% endset %}
+{% set icon_chat %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /><path d="M8 9h8" /><path d="M8 13h6" /></svg>{% endset %}
+{% set icon_scrape %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 11-6.22-8.56" /><path d="M21 3v6h-6" /></svg>{% endset %}
+{% set icon_users %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M23 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" /></svg>{% endset %}
+{% set icon_relevance %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" /></svg>{% endset %}
+{% set icon_llm %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="3" /><path d="M9 9h.01" /><path d="M15 9h.01" /><path d="M9.5 15a3.5 3.5 0 0 0 5 0" /></svg>{% endset %}
+{% set icon_feedback %}<svg class="sidebar-link-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2.9 6.3 6.9.7-5.2 4.7 1.6 6.8L12 17l-6.2 3.5 1.6-6.8-5.2-4.7 6.9-.7z" /></svg>{% endset %}
+
+<aside class="app-sidebar" id="appSidebar">
+    <div class="sidebar-brand">
+        <img src="/static/bps.svg" alt="BPS Logo" height="34" />
+        <div>
+            <h1>WARTOS</h1>
+            <p>BPS Kabupaten Karawang</p>
+        </div>
+    </div>
+
+    <nav class="sidebar-nav" aria-label="Menu utama">
+        {{ nav_item("overview", "Ringkasan Dashboard", "overview", "/dashboard#overview", icon_overview) }}
+        {{ nav_item("data", "Data Berita", "data", "/dashboard#data", icon_data) }}
+        {{ nav_item("official-statistics", "Data Official Statistic", "official-statistics", "/dashboard#official-statistics", icon_stats) }}
+        {{ nav_item("insight", "Insight AI", "insight", "/dashboard#insight", icon_insight) }}
+        {{ nav_item("chat", "AI Chat", "chat", "/dashboard#chat", icon_chat) }}
+        {% if is_admin %}
+        {{ nav_item("scrape", "Scraping Manual", "scrape", "/dashboard#scrape", icon_scrape) }}
+        {{ nav_item("users", "Manajemen User", none, "/admin/users", icon_users) }}
+        {{ nav_item("relevance", "Audit Relevance", none, "/admin/relevance", icon_relevance) }}
+        {{ nav_item("llm", "Pengaturan LLM", none, "/admin/llm", icon_llm) }}
+        {# Admin mengelola masukan, bukan sekadar mengirimnya. #}
+        {{ nav_item("feedback", "Masukan Pengguna", none, "/admin/feedback", icon_feedback) }}
+        {% else %}
+        <button class="sidebar-link" id="feedbackSidebarBtn" type="button">
+            {{ icon_feedback }}
+            <span class="sidebar-link-label">Kirim Masukan</span>
+        </button>
+        {% endif %}
+    </nav>
+
+    <div class="sidebar-footer">
+        <span class="header-user" id="headerUser"></span>
+        <a href="/logout" class="btn-logout" id="btnLogout">Keluar</a>
+    </div>
+</aside>

@@ -216,3 +216,55 @@
   font-weight: 700;
   white-space: nowrap;
 }
+
+/* ── Kelola masukan (halaman admin) ──────────────────────────────────────── */
+
+.feedback-status-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.feedback-status-pill.baru {
+  background: var(--orange-50);
+  color: var(--orange-700);
+}
+
+.feedback-status-pill.dibaca {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.feedback-status-pill.ditindaklanjuti {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.feedback-admin-note {
+  margin-top: 4px;
+  font-size: 0.76rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.feedback-actions-cell {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+/* Kutipan masukan di modal tindak lanjut: dibaca, bukan diedit. */
+.feedback-quote {
+  margin: 10px 0 14px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--accent);
+  background: var(--accent-bg);
+  border-radius: var(--radius-sm);
+  font-size: 0.85rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  white-space: pre-wrap;
+}

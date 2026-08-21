@@ -3,7 +3,12 @@
 from schemas.admin import CreateUserPayload, CreateUsersPayload
 from schemas.auth import ChangePasswordPayload, LoginPayload, ResetPasswordPayload
 from schemas.berita import BeritaFilterQuery
-from schemas.feedback import ActivityTrackPayload, FeedbackListQuery, FeedbackSubmitPayload
+from schemas.feedback import (
+    ActivityTrackPayload,
+    FeedbackListQuery,
+    FeedbackStatusPayload,
+    FeedbackSubmitPayload,
+)
 from schemas.relevance import (
     AuditSamplePayload,
     BulkLabelPayload,
@@ -42,4 +47,5 @@ __all__ = [
     "ActivityTrackPayload",
     "FeedbackSubmitPayload",
     "FeedbackListQuery",
+    "FeedbackStatusPayload",
 ]

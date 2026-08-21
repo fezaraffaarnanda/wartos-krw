@@ -1,12 +1,26 @@
 """
-Blueprint: halaman HTML statis.
-Semua route di sini hanya menyajikan file HTML dari folder templates/.
+Blueprint: halaman HTML.
+
+Halaman yang memakai sidebar dirender lewat Jinja (`render_template`) supaya
+menu datang dari satu partial `_sidebar.html` dan role dibaca di server --
+bukan disalin ke tiap template lalu disembunyikan belakangan oleh JS.
+Halaman tanpa sidebar (login, reset password) tetap file statis.
 """
 
-from flask import Blueprint, redirect, send_from_directory, url_for
+from flask import Blueprint, redirect, render_template, send_from_directory, url_for
 from flask_login import current_user, login_required
 
 pages_bp = Blueprint("pages", __name__)
+
+
+def _render_app_page(template: str):
+    return render_template(template, is_admin=(current_user.role == "admin"))
+
+
+def _admin_page(template: str):
+    if current_user.role != "admin":
+        return redirect(url_for("pages.dashboard"))
+    return _render_app_page(template)
 
 
 @pages_bp.route("/login")
@@ -24,37 +38,37 @@ def index():
 @pages_bp.route("/dashboard")
 @login_required
 def dashboard():
-    return send_from_directory("templates", "index.html")
+    return _render_app_page("index.html")
 
 
 @pages_bp.route("/berita/<int:berita_id>")
 @login_required
 def berita_detail(berita_id):
-    return send_from_directory("templates", "berita.html")
+    return _render_app_page("berita.html")
 
 
 @pages_bp.route("/admin/users")
 @login_required
 def serve_admin_users():
-    if current_user.role != "admin":
-        return redirect(url_for("pages.dashboard"))
-    return send_from_directory("templates", "admin_users.html")
+    return _admin_page("admin_users.html")
 
 
 @pages_bp.route("/admin/relevance")
 @login_required
 def serve_admin_relevance():
-    if current_user.role != "admin":
-        return redirect(url_for("pages.dashboard"))
-    return send_from_directory("templates", "admin_relevance.html")
+    return _admin_page("admin_relevance.html")
 
 
 @pages_bp.route("/admin/llm")
 @login_required
 def serve_admin_llm():
-    if current_user.role != "admin":
-        return redirect(url_for("pages.dashboard"))
-    return send_from_directory("templates", "admin_llm.html")
+    return _admin_page("admin_llm.html")
+
+
+@pages_bp.route("/admin/feedback")
+@login_required
+def serve_admin_feedback():
+    return _admin_page("admin_feedback.html")
 
 
 @pages_bp.route("/change-password")

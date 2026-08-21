@@ -8,14 +8,23 @@ from services.relevance_feedback_service import (
 
 
 class _FakeBeritaRepo:
+    """Row audit dikenali dari kolom `label_source`, sama seperti di DB.
+
+    `audit_rows` masih diterima demi tes lama, tapi isinya digabung ke satu
+    daftar: service hanya boleh menarik confusion rows sekali."""
+
     def __init__(self, confusion_rows=None, audit_rows=None, band_population=None):
-        self._confusion_rows = confusion_rows or []
-        self._audit_rows = audit_rows if audit_rows is not None else []
+        self._confusion_rows = list(confusion_rows or [])
+        for row in audit_rows or []:
+            if row not in self._confusion_rows:
+                self._confusion_rows.append(row)
         self._band_population = band_population or {}
+        self.confusion_calls = 0
 
     def relevance_confusion_rows(self, *, label_source=None, prompt_version=None):
+        self.confusion_calls += 1
         if label_source == "audit":
-            return self._audit_rows
+            return [r for r in self._confusion_rows if r.get("label_source") == "audit"]
         return self._confusion_rows
 
     def count_scored_by_band(self):
@@ -114,12 +123,14 @@ def test_service_metrics_warns_when_zero_audit_labels():
 
 def test_service_metrics_produces_audit_block_when_enough_labels():
     audit_rows = [
-        {"is_relevant": True, "human_label": True, "relevance_score": 10, "relevance_prompt_version": "rel-v1"}
+        {
+            "is_relevant": True, "human_label": True, "relevance_score": 10,
+            "relevance_prompt_version": "rel-v1", "label_source": "audit",
+        }
         for _ in range(35)
     ]
     repo = _FakeBeritaRepo(
         confusion_rows=audit_rows,
-        audit_rows=audit_rows,
         band_population={"b00_19": 35, "b20_39": 0, "b40_59": 0, "b60_79": 0, "b80_100": 0},
     )
     svc = RelevanceFeedbackService(berita_repository=repo, label_event_repository=object(), audit_repository=object())
@@ -127,3 +138,24 @@ def test_service_metrics_produces_audit_block_when_enough_labels():
     assert status == 200
     assert payload["audit"] is not None
     assert payload["bias"]["warning"] is None
+
+
+def test_service_metrics_reads_confusion_rows_only_once():
+    """Blok audit diturunkan dari daftar yang sama, bukan query kedua."""
+    rows = [
+        {
+            "is_relevant": True, "human_label": True, "relevance_score": 90,
+            "relevance_prompt_version": "rel-v1", "label_source": "targeted",
+        },
+        {
+            "is_relevant": False, "human_label": True, "relevance_score": 30,
+            "relevance_prompt_version": "rel-v1", "label_source": "audit",
+        },
+    ]
+    repo = _FakeBeritaRepo(confusion_rows=rows)
+    svc = RelevanceFeedbackService(berita_repository=repo, label_event_repository=object(), audit_repository=object())
+    payload, _status = svc.metrics()
+
+    assert repo.confusion_calls == 1
+    assert payload["bias"]["audit_labels"] == 1
+    assert payload["bias"]["targeted_labels"] == 1

@@ -205,13 +205,22 @@ class RelevanceFeedbackService:
             "data": result["data"],
         }, 200
 
-    def get_review_item(self, berita_id: int) -> tuple[dict[str, Any], int]:
+    def get_review_item(
+        self, berita_id: int, *, include_history: bool = False,
+    ) -> tuple[dict[str, Any], int]:
+        """Detail satu item untuk panel review.
+
+        `include_history` default False: panel tidak merender riwayat label,
+        sementara endpoint ini dipanggil untuk setiap navigasi item plus
+        prefetch beberapa item ke depan -- satu query per pemanggilan yang
+        tidak pernah terpakai itu langsung terasa saat labeling cepat.
+        """
         if berita_id <= 0:
             return {"status": "error", "message": "ID tidak valid."}, 400
         row = self._berita.get_relevance_item(berita_id)
         if not row:
             return {"status": "error", "message": "Berita tidak ditemukan."}, 404
-        history = self._events.list_for_berita(berita_id, limit=10)
+        history = self._events.list_for_berita(berita_id, limit=10) if include_history else []
         return {"status": "ok", "data": row, "label_history": history}, 200
 
     # ── Label manusia ─────────────────────────────────────────────────────────
@@ -228,7 +237,7 @@ class RelevanceFeedbackService:
         if berita_id <= 0:
             return {"status": "error", "message": "ID tidak valid."}, 400
 
-        current = self._berita.get_relevance_item(berita_id)
+        current = self._berita.get_relevance_label_context(berita_id)
         if not current:
             return {"status": "error", "message": "Berita tidak ditemukan."}, 404
 
@@ -507,7 +516,9 @@ class RelevanceFeedbackService:
         all_rows = self._berita.relevance_confusion_rows(prompt_version=prompt_version)
         sample_block = _confusion_block(all_rows)
 
-        audit_rows = self._berita.relevance_confusion_rows(label_source="audit", prompt_version=prompt_version)
+        # Diturunkan dari all_rows, bukan query kedua: `label_source` sudah
+        # termasuk kolom yang di-select dan filternya identik.
+        audit_rows = [row for row in all_rows if row.get("label_source") == "audit"]
         audit_labels = len(audit_rows)
         audit_block = None
         if audit_labels >= MIN_AUDIT_LABELS_FOR_METRICS:

@@ -10,6 +10,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 _CATEGORY_VALUES = ("berita", "ai_chat", "ai_insight", "statistik_resmi", "scraping", "lainnya")
+_STATUS_VALUES = ("baru", "dibaca", "ditindaklanjuti")
 _EVENT_TYPE_VALUES = (
     "berita_detail_open", "ai_chat_message", "ai_insight_generate", "scrape_run", "export_data",
 )
@@ -66,6 +67,25 @@ class FeedbackSubmitPayload(BaseModel):
         })
 
 
+class FeedbackStatusPayload(BaseModel):
+    """PATCH /api/admin/feedback/<id>.
+
+    Hanya kolom tindak lanjut: isi masukan milik pengirim, bukan admin."""
+
+    status: Literal["baru", "dibaca", "ditindaklanjuti"]
+    admin_note: str = Field(default="", max_length=2000)
+
+    @classmethod
+    def from_body(cls, body: Mapping[str, Any]) -> "FeedbackStatusPayload | None":
+        status = str(body.get("status", "")).strip().lower()
+        if status not in _STATUS_VALUES:
+            return None
+        return cls.model_validate({
+            "status": status,
+            "admin_note": str(body.get("admin_note", "")).strip()[:2000],
+        })
+
+
 class FeedbackListQuery(BaseModel):
     """GET /api/admin/feedback."""
 
@@ -73,14 +93,17 @@ class FeedbackListQuery(BaseModel):
     per_page: int = Field(default=20, ge=1, le=100)
     category: str = Field(default="")
     min_rating: int | None = Field(default=None, ge=1, le=5)
+    status: str = Field(default="")
 
     @classmethod
     def from_request_args(cls, args: Mapping[str, Any]) -> "FeedbackListQuery":
         raw_category = str(args.get("category", "")).strip().lower()
         min_rating_raw = str(args.get("min_rating", "")).strip()
+        raw_status = str(args.get("status", "")).strip().lower()
         return cls.model_validate({
             "page": _safe_int(args.get("page"), default=1, min_value=1, max_value=5000),
             "per_page": _safe_int(args.get("per_page"), default=20, min_value=1, max_value=100),
             "category": raw_category if raw_category in _CATEGORY_VALUES else "",
             "min_rating": int(min_rating_raw) if min_rating_raw in ("1", "2", "3", "4", "5") else None,
+            "status": raw_status if raw_status in _STATUS_VALUES else "",
         })

@@ -111,9 +111,12 @@ class FeedbackService:
         return {"status": "ok", "snoozed_until": row.get("prompt_snoozed_until")}, 200
 
     def list_feedback(
-        self, *, page: int = 1, per_page: int = 20, category: str = "", min_rating: int | None = None,
+        self, *, page: int = 1, per_page: int = 20, category: str = "",
+        min_rating: int | None = None, status: str = "",
     ) -> tuple[dict[str, Any], int]:
-        result = self._feedback.list_feedback(page=page, per_page=per_page, category=category, min_rating=min_rating)
+        result = self._feedback.list_feedback(
+            page=page, per_page=per_page, category=category, min_rating=min_rating, status=status,
+        )
         total_items = result["total_items"]
         summary = self._feedback.feedback_summary()
         return {
@@ -125,3 +128,22 @@ class FeedbackService:
             "data": result["data"],
             "summary": summary,
         }, 200
+
+    def update_feedback_status(
+        self, feedback_id: int, *, status: str, admin_note: str, username: str,
+    ) -> tuple[dict[str, Any], int]:
+        if feedback_id <= 0:
+            return {"status": "error", "message": "ID tidak valid."}, 400
+        row = self._feedback.update_status(
+            feedback_id, status=status, admin_note=admin_note, handled_by=username,
+        )
+        if not row:
+            return {"status": "error", "message": "Masukan tidak ditemukan."}, 404
+        return {"status": "ok", "data": row}, 200
+
+    def delete_feedback(self, feedback_id: int) -> tuple[dict[str, Any], int]:
+        if feedback_id <= 0:
+            return {"status": "error", "message": "ID tidak valid."}, 400
+        if not self._feedback.delete_feedback(feedback_id):
+            return {"status": "error", "message": "Masukan tidak ditemukan."}, 404
+        return {"status": "ok", "message": "Masukan dihapus."}, 200

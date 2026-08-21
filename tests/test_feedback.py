@@ -1,6 +1,11 @@
 from datetime import datetime, timedelta, timezone
 
-from schemas.feedback import ActivityTrackPayload, FeedbackListQuery, FeedbackSubmitPayload
+from schemas.feedback import (
+    ActivityTrackPayload,
+    FeedbackListQuery,
+    FeedbackStatusPayload,
+    FeedbackSubmitPayload,
+)
 from services.feedback_service import FeedbackService
 
 
@@ -152,3 +157,78 @@ def test_submit_feedback_ok_on_success():
     )
     assert status == 200
     assert payload["status"] == "ok"
+
+
+# ── tindak lanjut admin ──────────────────────────────────────────────────
+
+def test_status_payload_rejects_unknown_status():
+    assert FeedbackStatusPayload.from_body({"status": "selesai"}) is None
+    assert FeedbackStatusPayload.from_body({}) is None
+
+
+def test_status_payload_accepts_known_status_and_trims_note():
+    p = FeedbackStatusPayload.from_body({"status": "Ditindaklanjuti", "admin_note": "  sudah  "})
+    assert p.status == "ditindaklanjuti"
+    assert p.admin_note == "sudah"
+
+
+def test_status_payload_ignores_user_owned_fields():
+    """Isi masukan milik pengirim: rating/kategori/komentar tidak boleh ikut
+    tertulis lewat endpoint admin, sekalipun dikirim di body."""
+    p = FeedbackStatusPayload.from_body({
+        "status": "dibaca", "rating": 1, "category": "berita", "comment": "diganti admin",
+    })
+    assert not hasattr(p, "rating")
+    assert not hasattr(p, "comment")
+    assert p.model_dump() == {"status": "dibaca", "admin_note": ""}
+
+
+def test_list_query_accepts_status_filter_and_drops_bogus_one():
+    assert FeedbackListQuery.from_request_args({"status": "baru"}).status == "baru"
+    assert FeedbackListQuery.from_request_args({"status": "ngawur"}).status == ""
+
+
+class _FakeAdminFeedbackRepo:
+    def __init__(self, updated=None, deleted=True):
+        self.updated = updated
+        self.deleted = deleted
+        self.update_args = None
+        self.deleted_id = None
+
+    def update_status(self, feedback_id, *, status, admin_note, handled_by):
+        self.update_args = (feedback_id, status, admin_note, handled_by)
+        return self.updated
+
+    def delete_feedback(self, feedback_id):
+        self.deleted_id = feedback_id
+        return self.deleted
+
+
+def test_update_status_records_who_handled_it():
+    repo = _FakeAdminFeedbackRepo(updated={"id": 3, "status": "dibaca"})
+    svc = FeedbackService(feedback_repository=repo, activity_repository=object())
+    payload, status = svc.update_feedback_status(3, status="dibaca", admin_note="cek", username="admin")
+
+    assert status == 200
+    assert repo.update_args == (3, "dibaca", "cek", "admin")
+    assert payload["data"]["status"] == "dibaca"
+
+
+def test_update_status_on_missing_row_is_not_found():
+    svc = FeedbackService(feedback_repository=_FakeAdminFeedbackRepo(updated=None), activity_repository=object())
+    _payload, status = svc.update_feedback_status(99, status="baru", admin_note="", username="admin")
+    assert status == 404
+
+
+def test_delete_feedback_reports_missing_row():
+    svc = FeedbackService(feedback_repository=_FakeAdminFeedbackRepo(deleted=False), activity_repository=object())
+    _payload, status = svc.delete_feedback(99)
+    assert status == 404
+
+
+def test_delete_feedback_rejects_invalid_id_before_touching_repo():
+    repo = _FakeAdminFeedbackRepo()
+    svc = FeedbackService(feedback_repository=repo, activity_repository=object())
+    _payload, status = svc.delete_feedback(0)
+    assert status == 400
+    assert repo.deleted_id is None

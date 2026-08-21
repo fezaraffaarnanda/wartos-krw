@@ -6,7 +6,11 @@ Repository sampel audit acak berstrata classifier relevance
 from datetime import datetime, timezone
 from typing import Any
 
+from config.region import FOCUS_AREA_SOURCES
 from repositories.base import BaseRepository
+
+# `any(...)` di sisi Postgres menerima array; kirim list, bukan tuple.
+_FOCUS_AREA_SOURCE_LIST = list(FOCUS_AREA_SOURCES)
 
 
 class RelevanceAuditRepository(BaseRepository):
@@ -19,6 +23,9 @@ class RelevanceAuditRepository(BaseRepository):
                 "p_batch_key": batch_key,
                 "p_per_band": per_band,
                 "p_created_by": created_by,
+                # Sampel "tak bias" hanya bermakna kalau populasinya wilayah
+                # fokus saja; daftarnya tetap satu sumber di config/region.py.
+                "p_sources": _FOCUS_AREA_SOURCE_LIST,
             }).execute()
             data = result.data
             if isinstance(data, list):

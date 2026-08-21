@@ -27,6 +27,11 @@ RELEVANCE_QUEUE_COLUMNS = (
     "human_label, human_labeled_at, human_labeled_by, label_source"
 )
 RELEVANCE_DETAIL_COLUMNS = RELEVANCE_QUEUE_COLUMNS + ", content, human_label_note"
+# Cukup untuk mencatat event label; sengaja tanpa `content` (isi artikel
+# penuh) yang tidak dipakai sama sekali di jalur penyimpanan label.
+RELEVANCE_LABEL_CONTEXT_COLUMNS = (
+    "id, human_label, is_relevant, relevance_score, relevance_prompt_version"
+)
 _RELEVANCE_LABEL_FIELDS = (
     "id", "human_label", "human_labeled_at", "human_labeled_by", "label_source",
 )
@@ -38,6 +43,15 @@ _RELEVANCE_SCORE_BANDS = (
 
 class BeritaRepository(BaseRepository):
     """Akses data berita dengan dukungan filtering dan pagination."""
+
+    def _scope_focus_area(self, query: Any) -> Any:
+        """Batasi ke sumber berita wilayah fokus.
+
+        Tabel `berita` masih menyimpan baris warisan wilayah lama; baris itu
+        sengaja tidak dihapus, tapi tidak boleh muncul di antrean audit, ikut
+        dihitung sebagai metrik classifier, atau memakan kuota backfill.
+        """
+        return query.in_("source", _FOCUS_AREA_SOURCE_LIST)
 
     def list_berita(
         self,
@@ -263,7 +277,10 @@ class BeritaRepository(BaseRepository):
                 query = query.gte("relevance_score", score_min)
             if score_max is not None:
                 query = query.lte("relevance_score", score_max)
-            return query
+            # Lewat _apply_common, bukan per-cabang: mode 'disagreement'
+            # menyaring di Python setelah execute(), jadi kalau filter sumber
+            # ditempel per-cabang mode itu akan terlewat.
+            return self._scope_focus_area(query)
 
         if mode == "disagreement":
             query = self._supabase.table("berita").select(RELEVANCE_QUEUE_COLUMNS)
@@ -299,6 +316,26 @@ class BeritaRepository(BaseRepository):
         sort_col = "relevance_uncertainty" if mode in ("uncertainty",) else "relevance_score"
         result = query.order(sort_col, desc=False, nullsfirst=False).range(start, end).execute()
         return {"data": result.data or [], "total_items": result.count or 0}
+
+    def get_relevance_label_context(self, berita_id: int) -> dict[str, Any] | None:
+        """Field minimum yang dibutuhkan set_human_label untuk mencatat event.
+
+        Bukan get_relevance_item(): fungsi itu menarik kolom `content` juga,
+        dan memindahkan isi artikel penuh per label membuat sprint labeling
+        keyboard terasa berat tanpa alasan.
+        """
+        try:
+            result = (
+                self._supabase.table("berita")
+                .select(RELEVANCE_LABEL_CONTEXT_COLUMNS)
+                .eq("id", berita_id)
+                .single()
+                .execute()
+            )
+            return result.data
+        except Exception as exc:
+            print(f"[BERITA] Gagal ambil konteks label berita {berita_id}: {exc}")
+            return None
 
     def get_relevance_item(self, berita_id: int) -> dict[str, Any] | None:
         """Detail satu item untuk panel review (termasuk content penuh)."""
@@ -358,10 +395,12 @@ class BeritaRepository(BaseRepository):
         """Row yang belum pernah berhasil diklasifikasi. Predikat backfill yang baru
         (menggantikan `is_relevant IS NULL` lama yang tidak pernah menjaring baris
         fail-open, karena baris itu ditandai is_relevant=True tanpa skor)."""
-        result = (
+        query = self._scope_focus_area(
             self._supabase.table("berita")
             .select("id, title, content, relevance_attempts")
-            .is_("relevance_checked_at", "null")
+        )
+        result = (
+            query.is_("relevance_checked_at", "null")
             .lt("relevance_attempts", max_attempts)
             .limit(limit)
             .execute()
@@ -370,12 +409,10 @@ class BeritaRepository(BaseRepository):
 
     def count_unchecked_relevance(self) -> int:
         """Jumlah row gagal klasifikasi (badge tab 'Gagal Diklasifikasi')."""
-        result = (
-            self._supabase.table("berita")
-            .select("id", count="exact")
-            .is_("relevance_checked_at", "null")
-            .execute()
+        query = self._scope_focus_area(
+            self._supabase.table("berita").select("id", count="exact")
         )
+        result = query.is_("relevance_checked_at", "null").execute()
         return result.count or 0
 
     def list_labeled_rows(
@@ -393,11 +430,9 @@ class BeritaRepository(BaseRepository):
         page_size = 500
         start = 0
         while len(rows) < limit:
-            query = (
-                self._supabase.table("berita")
-                .select(cols)
-                .not_.is_("human_label", "null")
-            )
+            query = self._scope_focus_area(
+                self._supabase.table("berita").select(cols)
+            ).not_.is_("human_label", "null")
             if label_source:
                 query = query.eq("label_source", label_source)
             result = query.order("id").range(start, start + page_size - 1).execute()
@@ -418,11 +453,10 @@ class BeritaRepository(BaseRepository):
         page_size = 1000
         start = 0
         while True:
-            query = (
+            query = self._scope_focus_area(
                 self._supabase.table("berita")
                 .select("is_relevant, human_label, relevance_score, label_source, relevance_prompt_version")
-                .not_.is_("human_label", "null")
-            )
+            ).not_.is_("human_label", "null")
             if label_source:
                 query = query.eq("label_source", label_source)
             if prompt_version:
@@ -438,34 +472,24 @@ class BeritaRepository(BaseRepository):
     def count_scored_by_band(self) -> dict[str, int]:
         """Populasi per band skor (0-19/20-39/40-59/60-79/80-100) untuk bobot
         strata metrik audit. Hanya baris aktif yang berskor."""
-        counts = {band: 0 for band, _lo, _hi in _RELEVANCE_SCORE_BANDS}
-        rows: list[dict[str, Any]] = []
-        page_size = 1000
-        start = 0
-        while True:
-            result = (
-                self._supabase.table("berita")
-                .select("relevance_score")
-                .not_.is_("relevance_score", "null")
-                .eq("is_archived", False)
-                .order("id")
-                .range(start, start + page_size - 1)
-                .execute()
-            )
-            batch = result.data or []
-            rows.extend(batch)
-            if len(batch) < page_size:
-                break
-            start += page_size
-
-        for row in rows:
-            score = row.get("relevance_score")
-            if score is None:
-                continue
-            for band, lo, hi in _RELEVANCE_SCORE_BANDS:
-                if lo <= score <= hi:
-                    counts[band] += 1
-                    break
+        # Satu count query per band. Versi lama menarik SELURUH baris berskor
+        # (ribuan) 1000-per-halaman hanya untuk menghitungnya di Python.
+        counts: dict[str, int] = {}
+        for band, lo, hi in _RELEVANCE_SCORE_BANDS:
+            try:
+                result = (
+                    self._scope_focus_area(
+                        self._supabase.table("berita").select("id", count="exact")
+                    )
+                    .eq("is_archived", False)
+                    .gte("relevance_score", lo)
+                    .lte("relevance_score", hi)
+                    .execute()
+                )
+                counts[band] = result.count or 0
+            except Exception as exc:
+                print(f"[BERITA] Gagal hitung band {band}: {exc}")
+                counts[band] = 0
         return counts
 
     def get_berita_by_id(self, berita_id: int) -> dict[str, Any] | None:

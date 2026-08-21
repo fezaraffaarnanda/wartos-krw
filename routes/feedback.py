@@ -8,7 +8,12 @@ from flask_login import current_user, login_required
 
 from config.extensions import limiter
 from routes.auth import admin_required
-from schemas.feedback import ActivityTrackPayload, FeedbackListQuery, FeedbackSubmitPayload
+from schemas.feedback import (
+    ActivityTrackPayload,
+    FeedbackListQuery,
+    FeedbackStatusPayload,
+    FeedbackSubmitPayload,
+)
 from services.feedback_service import FeedbackService
 
 feedback_bp = Blueprint("feedback", __name__)
@@ -70,6 +75,38 @@ def api_admin_feedback_list():
     """Rekap feedback untuk admin: daftar + ringkasan (rata-rata rating, per kategori)."""
     q = FeedbackListQuery.from_request_args(request.args)
     payload, status_code = _feedback_service.list_feedback(
-        page=q.page, per_page=q.per_page, category=q.category, min_rating=q.min_rating,
+        page=q.page, per_page=q.per_page, category=q.category,
+        min_rating=q.min_rating, status=q.status,
     )
+    return jsonify(payload), status_code
+
+
+@feedback_bp.route("/api/admin/feedback/<int:feedback_id>", methods=["PATCH"])
+@admin_required
+@limiter.limit("300 per hour")
+def api_admin_feedback_update(feedback_id: int):
+    """Tandai tindak lanjut satu masukan. Body: {status, admin_note?}.
+
+    Sengaja tidak menerima rating/kategori/komentar: isi masukan adalah
+    kesaksian pengirim dan tidak boleh ditulis ulang oleh admin."""
+    body = request.get_json(silent=True) or {}
+    payload_in = FeedbackStatusPayload.from_body(body)
+    if payload_in is None:
+        return jsonify({"status": "error", "message": "Status tidak dikenali."}), 400
+
+    payload, status_code = _feedback_service.update_feedback_status(
+        feedback_id,
+        status=payload_in.status,
+        admin_note=payload_in.admin_note,
+        username=current_user.username,
+    )
+    return jsonify(payload), status_code
+
+
+@feedback_bp.route("/api/admin/feedback/<int:feedback_id>", methods=["DELETE"])
+@admin_required
+@limiter.limit("100 per hour")
+def api_admin_feedback_delete(feedback_id: int):
+    """Hapus satu masukan (spam / salah kirim). Permanen."""
+    payload, status_code = _feedback_service.delete_feedback(feedback_id)
     return jsonify(payload), status_code

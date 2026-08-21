@@ -70,15 +70,24 @@
   gap: 14px;
 }
 
+/* Dua kolom tetap, bukan auto-fit: blok "wide" di bawah memakai `1 / -1`
+   sehingga tidak ada track yang benar-benar kosong, dan auto-fit pun berhenti
+   menciut -- sisa track melebar jadi ruang kosong di kanan. */
 .rel-guide-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 22px;
   margin-top: 14px;
 }
 
 .rel-guide-block-wide {
   grid-column: 1 / -1;
+}
+
+@media (max-width: 860px) {
+  .rel-guide-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 .rel-guide-block h3 {
@@ -136,6 +145,14 @@
 }
 
 /* ── Kartu metrik (audit-weighted di samping nilai mentah) ──────────────── */
+
+/* `.stat-card` di style.css mulai dari `opacity: 0` dan baru terlihat setelah
+   observer dashboard menambah `.visible`. Halaman ini merender kartunya sendiri
+   lewat innerHTML tanpa observer itu, jadi kartunya harus terlihat sejak awal. */
+.rel-metric-card {
+  opacity: 1;
+  transform: none;
+}
 
 .rel-metric-card .stat-value-sub {
   font-size: 0.72rem;
@@ -212,20 +229,18 @@
 /* ── Split-pane workbench ────────────────────────────────────────────────── */
 
 .rel-split {
+  /* Tinggi pane dipatok supaya kedua kolom sejajar dan hanya isinya yang
+     bergulir. Sebelumnya `align-items: start` membuat antrean berhenti di item
+     terakhir sementara kolom detail di sebelahnya jauh lebih tinggi. */
+  --rel-pane-height: clamp(420px, calc(100vh - 260px), 820px);
   display: grid;
   grid-template-columns: 380px 1fr;
   gap: 16px;
-  align-items: start;
-}
-
-@media (max-width: 1100px) {
-  .rel-split {
-    grid-template-columns: 1fr;
-  }
+  align-items: stretch;
 }
 
 .rel-queue {
-  max-height: 70vh;
+  height: var(--rel-pane-height);
   overflow-y: auto;
   border: 1px solid var(--border-color);
   border-radius: var(--radius-md);
@@ -304,8 +319,13 @@
   border-radius: var(--radius-md);
   background: var(--white);
   padding: 16px;
-  position: sticky;
-  top: 16px;
+  /* Tinggi tetap + kolom flex: tombol verdict dan kotak catatan tidak ikut
+     terdorong turun oleh artikel panjang, hanya .rel-detail-body yang scroll.
+     Sticky tidak diperlukan lagi karena pane-nya sendiri sudah tidak bergerak. */
+  height: var(--rel-pane-height);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
 }
 
 .rel-detail-empty {
@@ -398,7 +418,8 @@
 }
 
 .rel-detail-body {
-  max-height: 46vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   font-size: 0.86rem;
   line-height: 1.65;
@@ -408,6 +429,29 @@
   border-bottom: 1px solid var(--border-color);
   padding: 12px 0;
   margin-bottom: 12px;
+}
+
+/* Satu kolom: biarkan halaman mengalir normal, jangan dua kotak scroll
+   bertumpuk di layar sempit. */
+@media (max-width: 1100px) {
+  .rel-split {
+    grid-template-columns: 1fr;
+  }
+
+  .rel-queue {
+    height: auto;
+    max-height: 60vh;
+  }
+
+  .rel-detail {
+    height: auto;
+    overflow: visible;
+  }
+
+  .rel-detail-body {
+    flex: none;
+    max-height: 46vh;
+  }
 }
 
 .rel-detail-actions {

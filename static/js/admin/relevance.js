@@ -28,7 +28,16 @@ let relState = {
   checkedIds: new Set(),
   itemCache: new Map(), // id -> detail row
   undoing: false,
+  pendingLabels: new Set(), // id label yang PATCH-nya belum mendarat
 };
+
+// Berapa item ke depan yang detailnya ditarik lebih dulu. Sprint labeling
+// keyboard bergerak lebih cepat dari satu round-trip, jadi jendelanya dibuat
+// lebih dalam daripada satu-dua item.
+const REL_PREFETCH_AHEAD = 5;
+// Penyegaran metrik dikoalisasikan: satu sprint 20 label cukup memicu sekali.
+const REL_METRICS_DEBOUNCE_MS = 2000;
+let relMetricsTimer = null;
 
 let relDraft = { current: null, draft: null, evalResult: null };
 
@@ -38,6 +47,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initRelevanceGuide();
   bindRelTabs();
   bindRelToolbar();
+  bindRelQueueEvents();
   bindRelDetailActions();
   bindRelModals();
   bindRelKeyboard();
@@ -122,6 +132,9 @@ async function loadRelQueue(page = 1) {
     relState.rows = data.data || [];
     relState.totalPages = Number(data.total_pages || 1);
     relState.totalItems = Number(data.total_items || 0);
+    // Antrean berganti isi: cache detail lama tidak akan dipakai lagi dan
+    // hanya menumpuk memori selama sesi labeling panjang.
+    relState.itemCache.clear();
     renderRelQueue();
     renderRelPagination();
 
@@ -158,32 +171,57 @@ function renderRelQueue() {
         ${bulkAllowed ? `<input type="checkbox" data-check-id="${row.id}" ${checked ? "checked" : ""} aria-label="Pilih untuk aksi massal" />` : ""}
         <div class="rel-queue-item-body">
           <div class="rel-queue-item-title">${escapeHtml(row.title || "(tanpa judul)")}</div>
-          <div class="rel-queue-item-meta">
-            <span class="rel-score-chip">${row.relevance_score ?? "—"}</span>
-            ${relPill(row.is_relevant)}
-            ${row.human_label !== null && row.human_label !== undefined ? relPill(row.human_label) : ""}
-            <span>${escapeHtml(row.source || "")}</span>
-          </div>
+          <div class="rel-queue-item-meta">${relQueueMetaHtml(row)}</div>
         </div>
       </div>`;
     })
     .join("");
 
-  body.querySelectorAll(".rel-queue-item").forEach((el) => {
-    el.addEventListener("click", (e) => {
-      if (e.target.matches("input[type=checkbox]")) return;
-      selectRelItem(Number(el.dataset.id), Number(el.dataset.idx));
-    });
-  });
-  body.querySelectorAll("input[data-check-id]").forEach((cb) => {
-    cb.addEventListener("change", () => {
-      const id = Number(cb.dataset.checkId);
-      if (cb.checked) relState.checkedIds.add(id);
-      else relState.checkedIds.delete(id);
-      renderBulkBar();
-    });
-  });
   renderBulkBar();
+}
+
+function relQueueMetaHtml(row) {
+  return `
+    <span class="rel-score-chip">${row.relevance_score ?? "—"}</span>
+    ${relPill(row.is_relevant)}
+    ${row.human_label !== null && row.human_label !== undefined ? relPill(row.human_label) : ""}
+    <span>${escapeHtml(row.source || "")}</span>
+  `;
+}
+
+/** Perbarui satu baris saja.
+ *
+ * Menulis ulang seluruh innerHTML antrean untuk satu perubahan pill akan
+ * mereset scrollTop panel ke atas -- item berikutnya lalu berada di luar
+ * layar, dan itu yang membuat sprint labeling terasa macet. */
+function updateRelQueueRow(id) {
+  const row = relState.rows.find((r) => r.id === id);
+  const meta = document.querySelector(`.rel-queue-item[data-id="${id}"] .rel-queue-item-meta`);
+  if (!row || !meta) return;
+  meta.innerHTML = relQueueMetaHtml(row);
+}
+
+/** Satu listener untuk seluruh antrean, dipasang sekali saat init: baris
+ *  bisa digambar ulang kapan saja tanpa perlu memasang ulang handler. */
+function bindRelQueueEvents() {
+  const body = document.getElementById("relQueueBody");
+  if (!body) return;
+
+  body.addEventListener("click", (e) => {
+    if (e.target.matches("input[type=checkbox]")) return;
+    const el = e.target.closest(".rel-queue-item");
+    if (!el) return;
+    selectRelItem(Number(el.dataset.id), Number(el.dataset.idx));
+  });
+
+  body.addEventListener("change", (e) => {
+    const cb = e.target.closest("input[data-check-id]");
+    if (!cb) return;
+    const id = Number(cb.dataset.checkId);
+    if (cb.checked) relState.checkedIds.add(id);
+    else relState.checkedIds.delete(id);
+    renderBulkBar();
+  });
 }
 
 function relPill(val) {
@@ -244,7 +282,7 @@ async function fetchRelItem(id) {
 }
 
 function prefetchNextItems(fromIdx) {
-  const targets = relState.rows.slice(fromIdx + 1, fromIdx + 3);
+  const targets = relState.rows.slice(fromIdx + 1, fromIdx + 1 + REL_PREFETCH_AHEAD);
   targets.forEach((row) => {
     if (!relState.itemCache.has(row.id)) fetchRelItem(row.id);
   });
@@ -254,8 +292,21 @@ async function selectRelItem(id, idx) {
   relState.selectedId = id;
   relState.selectedIndex = idx;
   document.querySelectorAll(".rel-queue-item").forEach((el) => {
-    el.classList.toggle("selected", Number(el.dataset.id) === id);
+    const isSelected = Number(el.dataset.id) === id;
+    el.classList.toggle("selected", isSelected);
+    // Panel antrean punya scroll sendiri; tanpa ini item berikutnya bisa
+    // terpilih di luar layar dan tampak seolah tidak ada yang terjadi.
+    if (isSelected) el.scrollIntoView({ block: "nearest" });
   });
+
+  // Item yang sudah di-prefetch dirender seketika: placeholder hanya untuk
+  // yang benar-benar harus ditunggu, supaya tidak ada kedipan tiap navigasi.
+  const cached = relState.itemCache.get(id);
+  if (cached) {
+    renderRelDetail(cached);
+    prefetchNextItems(idx);
+    return;
+  }
 
   const detail = document.getElementById("relDetail");
   if (detail) detail.innerHTML = `<div class="rel-detail-empty">Memuat detail...</div>`;
@@ -265,6 +316,7 @@ async function selectRelItem(id, idx) {
     renderRelDetailEmpty("Gagal memuat detail item.");
     return;
   }
+  if (relState.selectedId !== id) return; // keburu pindah item
   renderRelDetail(item);
   prefetchNextItems(idx);
 }
@@ -335,45 +387,80 @@ function bindRelDetailActions() {
 
 // ── Label actions ─────────────────────────────────────────────────────────
 
-async function labelCurrent(isRelevant) {
+function labelCurrent(isRelevant) {
   if (relState.selectedId === null) return;
   const id = relState.selectedId;
+  if (relState.pendingLabels.has(id)) return; // label yang sama masih terbang
   const labelSource = relState.mode === "audit" ? "audit" : "targeted";
   const note = document.getElementById("relNoteInput")?.value || "";
 
-  // Optimistic UI: perbarui pill di list dulu, baru kirim request.
+  // Kursor pindah lebih dulu, request menyusul di latar. Satu label berarti
+  // beberapa round-trip Supabase berurutan di sisi server; menunggunya membuat
+  // sprint labeling keyboard terasa macet padahal hasilnya hampir selalu OK.
   const row = relState.rows.find((r) => r.id === id);
+  const previousLabel = row ? row.human_label : null;
   if (row) row.human_label = isRelevant;
-  renderRelQueue();
+  updateRelQueueRow(id);
+  relState.itemCache.delete(id);
+  advanceToNext();
 
-  try {
-    const res = await fetch(`/api/admin/berita/${id}/human-label`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ is_relevant: isRelevant, label_source: labelSource, note }),
+  relState.pendingLabels.add(id);
+  const request = fetch(`/api/admin/berita/${id}/human-label`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ is_relevant: isRelevant, label_source: labelSource, note }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data.status !== "ok") throw new Error(data.message || "Gagal menyimpan label.");
+      if (relState.mode === "audit") loadAuditBadge();
+      scheduleMetricsRefresh();
+    })
+    .catch((err) => {
+      revertLabel(id, previousLabel);
+      showToast(err.message || "Gagal terhubung ke server.", "error");
+    })
+    .finally(() => {
+      relState.pendingLabels.delete(id);
     });
-    const data = await res.json();
-    if (data.status !== "ok") {
-      showToast(data.message || "Gagal menyimpan label.", "error");
-      if (row) row.human_label = null;
-      renderRelQueue();
-      return;
-    }
-    relState.itemCache.delete(id);
-    if (relState.mode === "audit") loadAuditBadge();
+
+  relLabelRequests.set(id, request);
+  request.finally(() => relLabelRequests.delete(id));
+}
+
+// Request label yang belum mendarat, supaya undo tidak mendahului PATCH-nya.
+const relLabelRequests = new Map();
+
+function revertLabel(id, previousLabel) {
+  const row = relState.rows.find((r) => r.id === id);
+  if (row) row.human_label = previousLabel;
+  updateRelQueueRow(id);
+  relState.itemCache.delete(id);
+  // Kalau item gagal itu kebetulan sedang dibuka lagi, tarik ulang detailnya
+  // supaya panel tidak menampilkan label yang sebenarnya tidak tersimpan.
+  if (relState.selectedId === id) selectRelItem(id, relState.selectedIndex);
+}
+
+/** Metrik disegarkan sekali setelah sprint berhenti, bukan tiap keystroke:
+ *  endpoint metrik memindai seluruh baris berlabel dan ikut menarik hitungan
+ *  antrean "Gagal Diklasifikasi". */
+function scheduleMetricsRefresh() {
+  if (relMetricsTimer) clearTimeout(relMetricsTimer);
+  relMetricsTimer = setTimeout(() => {
+    relMetricsTimer = null;
     loadRelMetrics();
-    advanceToNext();
-  } catch (err) {
-    showToast("Gagal terhubung ke server.", "error");
-    if (row) row.human_label = null;
-    renderRelQueue();
-  }
+  }, REL_METRICS_DEBOUNCE_MS);
 }
 
 async function undoLastLabel() {
   if (relState.undoing) return;
   relState.undoing = true;
   try {
+    // Label terakhir mungkin belum mendarat di server; membatalkannya duluan
+    // akan mengembalikan event yang salah (atau tidak menemukan event sama sekali).
+    if (relLabelRequests.size) {
+      await Promise.allSettled(Array.from(relLabelRequests.values()));
+    }
     const res = await fetch("/api/admin/relevance/undo", { method: "POST" });
     const data = await res.json();
     if (data.status !== "ok") {
@@ -835,9 +922,12 @@ function bindRelKeyboard() {
       e.preventDefault();
       const id = relState.selectedId;
       if (id === null) return;
-      if (relState.checkedIds.has(id)) relState.checkedIds.delete(id);
-      else relState.checkedIds.add(id);
-      renderRelQueue();
+      const checked = !relState.checkedIds.has(id);
+      if (checked) relState.checkedIds.add(id);
+      else relState.checkedIds.delete(id);
+      const box = document.querySelector(`.rel-queue-item[data-id="${id}"] input[data-check-id]`);
+      if (box) box.checked = checked;
+      renderBulkBar();
     } else if (key === "j" || e.key === "ArrowDown") {
       e.preventDefault();
       const next = relState.selectedIndex + 1;
