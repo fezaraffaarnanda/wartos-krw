@@ -53,15 +53,22 @@ class AIChatRepository(BaseRepository):
             return None
 
     def load_chat_history(self, session_id: int, limit: int = 30) -> list[dict[str, Any]]:
+        """N pesan TERBARU, dikembalikan menaik.
+
+        Versi lama memakai `order(asc).limit(n)` sehingga yang terambil justru
+        N pesan tertua -- percakapan panjang kehilangan konteks terbarunya
+        persis pada saat konteks itu paling dibutuhkan.
+        """
         result = (
             self._supabase.table("ai_chat_messages")
             .select("id, role, content, citations_json, created_at")
             .eq("session_id", session_id)
-            .order("created_at", desc=False)
+            .order("created_at", desc=True)
             .limit(limit)
             .execute()
         )
-        return result.data or []
+        rows = result.data or []
+        return list(reversed(rows))
 
     def save_chat_message(
         self,

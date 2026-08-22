@@ -21,6 +21,7 @@ import time
 from openai import OpenAI
 
 from ai.embeddings import semantic_search_multi
+from config.region import FOCUS_AREA_SOURCES
 from clients.llm import build_chat_client
 from services.official_statistics_service import get_official_statistics_ai_context
 
@@ -441,6 +442,10 @@ def prepare_insight_articles(
                 date_to=date_to,
                 top_k=_MAX_ARTICLES_PER_CAT,
                 min_similarity=0.1,
+                # Tabel berita masih memuat baris wilayah lama; insight wilayah
+                # fokus tidak boleh dibangun dari berita daerah lain.
+                sources=list(FOCUS_AREA_SOURCES),
+                exclude_archived=True,
             )
         except Exception as exc:
             print(f"[AI Insights] Semantic search gagal: {exc} -> fallback ke keyword.")
@@ -983,6 +988,8 @@ def generate_insights(
                 date_to         = date_to,
                 top_k           = _MAX_ARTICLES_PER_CAT,
                 min_similarity  = 0.1,
+                sources         = list(FOCUS_AREA_SOURCES),
+                exclude_archived= True,
             )
         except Exception as exc:
             print(f"[AI Insights] Semantic search gagal: {exc} -> fallback ke keyword.")

@@ -3611,6 +3611,19 @@ a:hover {
     text-decoration: none;
 }
 
+/* Sitasi statistik: chip teks, bukan angka superscript. Sumbernya tabel BPS,
+   bukan tautan berita, jadi yang perlu terbaca adalah nama tabel + periodenya. */
+.chat-cite-stat {
+    vertical-align: baseline;
+    margin: 0 2px;
+    padding: 1px 7px;
+    border-radius: 999px;
+    background: var(--accent-bg);
+    color: var(--accent);
+    font-size: 0.72em;
+    white-space: nowrap;
+}
+
 .sr-only {
     position: absolute;
     width: 1px;

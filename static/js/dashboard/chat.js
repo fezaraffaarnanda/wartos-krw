@@ -209,8 +209,18 @@ function _buildCitationMap(citations = []) {
 
 function _renderInlineCitationIcon(citation) {
   const cid = escapeHtml(citation?.cite_id || "S??");
-  const url = escapeHtml(citation?.url || "#");
   const title = escapeHtml(citation?.title || "Sumber berita");
+
+  // Sitasi statistik tidak punya URL berita: yang perlu dilihat pembaca adalah
+  // tabel dan periodenya, supaya angka resmi bisa dibedakan dari angka yang
+  // tidak berasal dari konteks mana pun.
+  if (citation?.type === "statistik") {
+    const period = escapeHtml(citation?.date || "");
+    const label = period ? `BPS · ${title} ${period}` : `BPS · ${title}`;
+    return `<span class="ai-cite chat-inline-cite chat-cite-stat" title="Statistik resmi BPS">${label}</span>`;
+  }
+
+  const url = escapeHtml(citation?.url || "#");
   const num = Number(citation?.num || 0) > 0 ? Number(citation.num) : 1;
   return `<a class="ai-cite chat-inline-cite" href="${url}" target="_blank" rel="noopener noreferrer" title="${title}">${num}<span class="sr-only">${cid}</span></a>`;
 }
@@ -219,7 +229,7 @@ function _renderChatText(text, citations = []) {
   const citationMap = _buildCitationMap(citations);
   const normalized = _normalizeCitationMarkers(text || "", "S");
   let html = _markdownToHtmlSafe(normalized);
-  html = html.replace(/\[(S\d{2})\]/gi, (_, rawId) => {
+  html = html.replace(/\[(S\d{2}|BPS-[A-Z0-9-]+)\]/gi, (_, rawId) => {
     const cid = String(rawId || "").toUpperCase();
     const citation = citationMap[cid];
     if (!citation) return "";

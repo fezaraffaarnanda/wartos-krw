@@ -24,6 +24,27 @@ _CACHE_TTL_SECONDS = 30 * 60
 _PDRB_TOP_LIMIT = 8
 _AI_TOPIC_DEFAULTS = ("pdrb", "kemiskinan", "pengangguran")
 
+# Kata kunci pemicu blok statistik di AI Chat. Dicocokkan per batas kata.
+_PDRB_KEYWORDS = (
+    "pdrb", "adhk", "adhb", "lapangan usaha", "pertumbuhan ekonomi", "sektor",
+    "pengeluaran", "konsumsi rumah tangga", "konsumsi pemerintah", "pmtb",
+    "inventori", "ekspor", "impor", "triwulan", "tw i", "tw ii", "tw iii", "tw iv",
+    "distribusi pdrb", "harga implisit", "deflator", "struktur ekonomi",
+    "investasi", "industri", "perdagangan",
+)
+_KEMISKINAN_KEYWORDS = (
+    "kemiskinan", "miskin", "garis kemiskinan", "bansos", "kesejahteraan",
+    "gini", "daya beli", "ipm",
+)
+_PENGANGGURAN_KEYWORDS = (
+    "pengangguran", "tpt", "tpak", "angkatan kerja", "tenaga kerja", "phk",
+    "lowongan kerja", "upah", "umk", "ketenagakerjaan", "buruh",
+)
+_GENERAL_STATISTICS_KEYWORDS = (
+    "statistik resmi", "data resmi", "bps", "ekonomi karawang", "ekonomi",
+    "inflasi", "ihk", "penduduk",
+)
+
 # `turtahun` pada endpoint list/model/data untuk var PDRB triwulanan.
 _PERIOD_KEY_BY_TURTAHUN_ID = {
     "31": "q1",
@@ -200,6 +221,7 @@ class OfficialStatisticsService:
                     "requested_year": requested_year,
                     "actual_year": year,
                     "topics": topic_blocks,
+                    "topic_citations": self._build_topic_citations(datasets, topic_blocks),
                     "has_data": True,
                 }
 
@@ -207,50 +229,35 @@ class OfficialStatisticsService:
             "requested_year": requested_year,
             "actual_year": None,
             "topics": {topic: "" for topic in topic_set},
+            "topic_citations": {},
             "has_data": False,
         }
+
+    @staticmethod
+    def _mentions(text: str, keywords: tuple[str, ...]) -> bool:
+        """Cocokkan per batas kata, bukan substring.
+
+        Pencocokan substring lama membuat "importir" menyulut topik PDRB lewat
+        "impor", dan "tw i" tersulut oleh potongan kata mana pun.
+        """
+        return any(re.search(rf"\b{re.escape(keyword)}\b", text) for keyword in keywords)
 
     @staticmethod
     def detect_chat_topics(query: str) -> set[str]:
         text = str(query or "").lower()
         topics: set[str] = set()
 
-        if any(
-            keyword in text
-            for keyword in (
-                "pdrb",
-                "adhk",
-                "adhb",
-                "lapangan usaha",
-                "pertumbuhan ekonomi",
-                "sektor",
-                "pengeluaran",
-                "konsumsi rumah tangga",
-                "konsumsi pemerintah",
-                "pmtb",
-                "inventori",
-                "ekspor",
-                "impor",
-                "triwulan",
-                "tw i",
-                "distribusi pdrb",
-                "harga implisit",
-                "deflator",
-                "struktur ekonomi",
-            )
-        ):
+        if OfficialStatisticsService._mentions(text, _PDRB_KEYWORDS):
             topics.add("pdrb")
-
-        if any(keyword in text for keyword in ("kemiskinan", "miskin", "garis kemiskinan", "bansos", "kesejahteraan")):
+        if OfficialStatisticsService._mentions(text, _KEMISKINAN_KEYWORDS):
             topics.add("kemiskinan")
-
-        if any(keyword in text for keyword in ("pengangguran", "tpt", "tpak", "angkatan kerja", "tenaga kerja", "phk", "lowongan kerja")):
+        if OfficialStatisticsService._mentions(text, _PENGANGGURAN_KEYWORDS):
             topics.add("pengangguran")
 
         if topics:
             return topics
 
-        if any(keyword in text for keyword in ("statistik resmi", "data resmi", "bps", "ekonomi karawang")):
+        if OfficialStatisticsService._mentions(text, _GENERAL_STATISTICS_KEYWORDS):
             return set(_AI_TOPIC_DEFAULTS)
 
         return set()
@@ -442,6 +449,50 @@ class OfficialStatisticsService:
             "year_over_year": year_over_year,
             "quarter_over_quarter": quarter_over_quarter,
         }
+
+    def _build_topic_citations(
+        self, datasets: dict[str, Any], topic_blocks: dict[str, str],
+    ) -> dict[str, dict[str, str]]:
+        """Id sitasi per blok statistik, mis. [BPS-TPT-2025].
+
+        Periodenya diambil dari dataset yang benar-benar dipakai -- bukan
+        tahun yang diminta pengguna -- supaya penanda tidak menjanjikan
+        cakupan yang tidak ada isinya.
+        """
+        citations: dict[str, dict[str, str]] = {}
+
+        if topic_blocks.get("pdrb"):
+            lapangan_usaha = datasets.get("pdrb_lapangan_usaha") or {}
+            pengeluaran = datasets.get("pdrb_pengeluaran") or {}
+            dataset = lapangan_usaha if lapangan_usaha.get("available") else pengeluaran
+            period_key = str(dataset.get("default_period_key") or "").upper()
+            year = dataset.get("year") or ""
+            suffix = f"{year}-{period_key}" if period_key and period_key != "ANNUAL" else str(year)
+            citations["pdrb"] = {
+                "cite_id": f"BPS-PDRB-{suffix}",
+                "title": "PDRB Kabupaten Karawang",
+                "period": _PERIOD_LABELS.get(dataset.get("default_period_key") or "", str(year)),
+            }
+
+        if topic_blocks.get("pengangguran"):
+            dataset = datasets.get("tpt_tpak") or {}
+            year = dataset.get("latest_year") or dataset.get("year") or ""
+            citations["pengangguran"] = {
+                "cite_id": f"BPS-TPT-{year}",
+                "title": "TPT & TPAK Kabupaten Karawang",
+                "period": str(year),
+            }
+
+        if topic_blocks.get("kemiskinan"):
+            dataset = datasets.get("kemiskinan") or {}
+            year = dataset.get("latest_year") or dataset.get("year") or ""
+            citations["kemiskinan"] = {
+                "cite_id": f"BPS-KEMISKINAN-{year}",
+                "title": "Kemiskinan Kabupaten Karawang",
+                "period": str(year),
+            }
+
+        return citations
 
     def _build_ai_topic_blocks(
         self,

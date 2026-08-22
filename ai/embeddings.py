@@ -207,6 +207,9 @@ def semantic_search(
     top_k:           int        = 30,
     min_similarity:  float      = 0.1,
     embed_client:    OpenAI | None = None,
+    sources:         list[str] | None = None,
+    only_relevant:   bool       = False,
+    exclude_archived: bool      = False,
 ) -> list[dict]:
     """
     Cari artikel paling relevan secara semantik menggunakan pgvector.
@@ -236,6 +239,15 @@ def semantic_search(
             rpc_params["filter_date_from"] = date_from
         if date_to:
             rpc_params["filter_date_to"] = date_to
+        # Tabel berita menyimpan baris warisan wilayah lama dan baris yang
+        # ditolak gerbang relevansi. Keduanya tidak boleh jadi bahan jawaban
+        # kecuali pemanggil memang memintanya.
+        if sources:
+            rpc_params["filter_sources"] = list(sources)
+        if only_relevant:
+            rpc_params["only_relevant"] = True
+        if exclude_archived:
+            rpc_params["exclude_archived"] = True
 
         result = supabase_client.rpc("match_articles", rpc_params).execute()
         return result.data or []
@@ -252,6 +264,9 @@ def semantic_search_multi(
     date_to:         str | None = None,
     top_k:           int        = 30,
     min_similarity:  float      = 0.1,
+    sources:         list[str] | None = None,
+    only_relevant:   bool       = False,
+    exclude_archived: bool      = False,
 ) -> dict[str, list[dict]]:
     """
     Jalankan semantic search untuk beberapa kategori secara PARALEL.
@@ -275,6 +290,9 @@ def semantic_search_multi(
             top_k           = top_k,
             min_similarity  = min_similarity,
             embed_client    = _client,
+            sources         = sources,
+            only_relevant   = only_relevant,
+            exclude_archived= exclude_archived,
         )
         print(f"[Embedding] -> {len(hits)} artikel relevan untuk '{category}'.")
         return category, hits

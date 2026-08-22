@@ -306,10 +306,9 @@ def api_ai_chat_stream():
         except Exception as exc:
             print(f"[AI Chat] stream error: {exc}")
             err_msg = "Gagal memproses chat AI. Silakan coba beberapa saat lagi."
-            try:
-                _save_chat_message(session_id, "assistant", err_msg, citations=[])
-            except Exception:
-                pass
+            # Sengaja tidak disimpan sebagai pesan asisten: teks error yang
+            # tersimpan akan dikirim balik sebagai riwayat pada giliran
+            # berikutnya, seolah-olah itu jawaban yang pernah diberikan.
             yield _sse_payload({"type": "error", "message": err_msg})
 
     return Response(
